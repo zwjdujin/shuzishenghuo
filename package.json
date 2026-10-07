@@ -1,0 +1,12 @@
+{
+  "name": "shuzishenghuo",
+  "version": "0.0.1",
+  "private": true,
+  "description": "数字生活 - 个人数字工作台（Cloudflare Pages + D1 + R2）",
+  "scripts": {
+    "dev": "wrangler pages dev ./public",
+    "deploy": "wrangler pages deploy ./public",
+    "db:init": "wrangler d1 execute shuzishenghuo --local --file=./schema.sql",
+    "db:seed": "wrangler d1 execute shuzishenghuo --local --file=./seed.sql"
+  }
+}

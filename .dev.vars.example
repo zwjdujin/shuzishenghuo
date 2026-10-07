@@ -1,0 +1,4 @@
+# 复制为 .dev.vars 用于本地开发（不要提交到仓库）
+ADMIN_USER=admin
+ADMIN_PASS=change-me-please
+SESSION_SECRET=change-me-session-secret
