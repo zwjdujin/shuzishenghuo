@@ -8,7 +8,7 @@ export function json(data, status = 200, extra = {}) {
 
 export function parseCookie(header = '') {
   const out = {};
-  header.split(';').forEach((c) => {
+  (header || '').split(';').forEach((c) => {
     const idx = c.indexOf('=');
     if (idx < 0) return;
     const k = c.slice(0, idx).trim();
