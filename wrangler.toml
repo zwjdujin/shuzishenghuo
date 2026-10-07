@@ -6,8 +6,7 @@ pages_build_output_dir = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "shuzishenghuo"
-# 用 `wrangler d1 create shuzishenghuo` 创建后得到的 id 填到这里
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "f22fddc8-5f8f-4498-9dab-539fea617bba"
 
 # ===== R2 存储桶（图片/附件） =====
 [[r2_buckets]]
@@ -15,9 +14,12 @@ binding = "BUCKET"
 bucket_name = "shuzishenghuo"
 
 # ===== 后台变量（管理员的用户名和密码） =====
-# 生产环境建议在 Cloudflare 控制台 “设置 > 环境变量” 里配置，或用 `wrangler secret put`
-# 这里给的是占位默认值，部署前请务必改成你自己的。
-[vars]
-ADMIN_USER = "admin"
-ADMIN_PASS = "change-me-please"
-SESSION_SECRET = "change-me-session-secret"
+# 注意：这里不要写 [vars]！
+# Git 连接部署时 wrangler.toml 的配置会覆盖 Cloudflare 后台设置，
+# 若在这里写死 ADMIN_USER / ADMIN_PASS / SESSION_SECRET，
+# 后台修改的管理员账号密码会在每次推送后被覆盖。
+# 请统一在 Cloudflare 控制台 → 本 Pages 项目 → 设置 → 环境变量 中配置：
+#   ADMIN_USER      管理员用户名
+#   ADMIN_PASS      管理员密码
+#   SESSION_SECRET  会话签名密钥（随机长字符串）
+# 修改变量后重新部署一次即可生效。
