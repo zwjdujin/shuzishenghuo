@@ -1,6 +1,6 @@
 {
   "name": "shuzishenghuo",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "数字生活 - 个人数字工作台（Cloudflare Pages + D1 + R2）",
   "scripts": {
