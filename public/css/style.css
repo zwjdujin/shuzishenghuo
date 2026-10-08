@@ -5,6 +5,9 @@
   --red:#b44d43;--green:#477358;--shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px;--sidebar:248px
 }
 *{box-sizing:border-box}
+/* 关键：保证 hidden 属性始终生效（否则 .login-overlay{display:grid} 等作者样式会盖掉默认的 [hidden]{display:none}，
+   导致 JS 里 loginOverlay.hidden=true 失败、登录后遮罩不消失——这正是“点了登录还在登录页”的根因） */
+[hidden]{display:none!important}
 html{background:var(--paper);scroll-behavior:smooth}
 body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
 .svg-sprite{position:absolute;width:0;height:0;overflow:hidden}

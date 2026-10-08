@@ -8,3 +8,5 @@
 - **数据表**：app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts。建表见 `schema.sql`，示例见 `seed.sql`。
 - **本地验证**：可用 Node + mock D1 跑 `functions/api/*` 处理器（`signToken` 必须把 JSON 字符串先 `TextEncoder().encode` 再 base64url，否则 payload 为空）。
 - **部署**：Cloudflare 控制台建 D1/R2→绑定 DB/BUCKET→环境变量；或 `wrangler pages deploy ./public`。仓库 `zwjdujin/shuzishenghuo`。
+- **PWA 缓存坑（重要）**：`public/js/sw.js` 必须静态资源走「网络优先」、且每次部署改 `CACHE` 名（现 `shuzishenghuo-v3`）。否则旧缓存会一直提供旧资源，导致“代码更新了但浏览器不生效”。用户侧遇“改了没生效”先让其硬刷新/清站点数据/Ctrl+Shift+R 两次。
+- **CSS hidden 覆盖坑（重要）**：若元素用作者样式设了 `display`（如 `.login-overlay{display:grid}`），会盖掉浏览器默认的 `[hidden]{display:none}`，使 JS 里 `el.hidden=true` 失效。统一在样式表顶部加 `[hidden]{display:none!important}` 兜底。曾导致“登录成功后遮罩不消失、页面变两页高”。
