@@ -1,5 +1,19 @@
-// 数字生活 · 前端逻辑 v0.0.5
-const VERSION = '0.0.5';
+// 数字生活 · 前端逻辑 v0.0.6
+const VERSION = '0.0.6';
+
+// 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
+function fatal(msg) {
+  let b = document.getElementById('fatalBanner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'fatalBanner';
+    b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:#b00020;color:#fff;font:13px/1.5 -apple-system,system-ui,sans-serif;padding:10px 14px;white-space:pre-wrap;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+    (document.body || document.documentElement).appendChild(b);
+  }
+  b.textContent = '⚠ 页面出错：' + msg;
+}
+window.addEventListener('error', (e) => fatal(e.message + (e.filename ? ` @ ${e.filename}:${e.lineno}` : '')));
+window.addEventListener('unhandledrejection', (e) => fatal('Promise: ' + (e.reason && e.reason.message ? e.reason.message : e.reason)));
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
