@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.0.4
-const VERSION = '0.0.4';
+// 数字生活 · 前端逻辑 v0.0.5
+const VERSION = '0.0.5';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -82,6 +82,8 @@ $('#logoutBtn').addEventListener('click', async () => {
 // ===== 启动：检查登录状态 =====
 async function boot() {
   $('#versionText').textContent = 'v' + VERSION;
+  const lv = $('#loginVersion');
+  if (lv) lv.textContent = '当前版本：v' + VERSION;
   try {
     const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
     if (res.ok) {
