@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.0.1
-const VERSION = '0.0.1';
+// 数字生活 · 前端逻辑 v0.0.4
+const VERSION = '0.0.4';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -29,29 +29,46 @@ function showLogin() {
   $('#loginOverlay').hidden = false;
   $('#loginError').hidden = true;
 }
+function showLoginError(msg) {
+  const err = $('#loginError');
+  err.textContent = msg;
+  err.hidden = false;
+}
+// 登录：直接用 fetch，不要把 401 交给 api() 包装函数（否则会被静默吞掉、毫无提示）
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const btn = e.target.querySelector('button');
+  const user = String(fd.get('user') || '').trim();
+  const pass = String(fd.get('pass') || '');
+  if (!user || !pass) { showLoginError('请输入用户名和密码'); return; }
   btn.disabled = true;
+  showLoginError('');
   try {
-    const res = await api('/api/auth/login', {
+    const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: fd.get('user'), pass: fd.get('pass') }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ user, pass }),
     });
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const err = $('#loginError');
-      err.textContent = data.error || '登录失败，请重试';
-      err.hidden = false;
-    } else {
-      $('#loginOverlay').hidden = true;
-      $('#appShell').hidden = false;
-      await loadHome();
+      showLoginError(data.error || ('登录失败（HTTP ' + res.status + '）'));
+      return;
     }
-  } catch {
-    /* 401 已处理 */
+    // 登录成功：进入主界面
+    $('#loginOverlay').hidden = true;
+    $('#appShell').hidden = false;
+    try {
+      await loadHome();
+    } catch (err) {
+      showLoginError('已登录，但加载首页失败：' + (err && err.message ? err.message : err));
+      $('#loginOverlay').hidden = false;
+      $('#appShell').hidden = true;
+    }
+  } catch (err) {
+    showLoginError('网络错误，无法连接服务器：' + (err && err.message ? err.message : err));
   } finally {
     btn.disabled = false;
   }
