@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.0.7
-const VERSION = '0.0.7';
+// 数字生活 · 前端逻辑 v0.1.1
+const VERSION = '0.1.1';
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -217,7 +217,8 @@ function renderPendingHabits(list) {
   list.forEach((h) => {
     const el = document.createElement('div');
     el.className = 'habit-pill';
-    el.innerHTML = `<svg><use href="#i-${h.icon || 'sprout'}"/></svg><b></b><small>待打卡</small>`;
+    const cat = h.category ? `<small>${h.category}</small>` : '<small>待打卡</small>';
+    el.innerHTML = `<svg><use href="#i-${h.icon || 'sprout'}"/></svg><b></b>${cat}`;
     el.querySelector('b').textContent = h.name;
     box.appendChild(el);
   });
@@ -254,12 +255,231 @@ function switchView(name) {
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
   $$('.mobile-nav button').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
   $('#viewTitle').textContent = target.dataset.title || '数字生活';
+  if (name === 'growth') renderGrowth();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
   const navEl = e.target.closest('[data-nav]');
   if (navEl) {
     switchView(navEl.dataset.nav);
+  }
+});
+
+// ===== 成长打卡 =====
+const CAT_COLOR = { plum:'#4d3045', terra:'#b65f42', sage:'#627a67', sand:'#a57c45', clay:'#8f4f3b' };
+const catColor = (c) => CAT_COLOR[c] || '#746d63';
+const catTint = (c) => catColor(c) + '1f'; // 半透明底色
+
+async function renderGrowth() {
+  try {
+    const [hRes, hmRes] = await Promise.all([
+      api('/api/habits'),
+      api('/api/habits/heatmap?days=120'),
+    ]);
+    const habits = (await hRes.json()).habits || [];
+    const heat = await hmRes.json();
+    renderCheckin(habits);
+    renderHabitGrid(habits);
+    renderHeatmap(heat);
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+    $('#growthToday').innerHTML = '<div class="empty-hint">加载失败：' + (err && err.message ? err.message : err) + '</div>';
+  }
+}
+
+function checkinCard(h) {
+  const el = document.createElement('div');
+  el.className = 'checkin-card';
+  const cat = `<span class="cat-tag" style="background:${catTint(h.color)};color:${catColor(h.color)}">${h.category}</span>`;
+  const sub = h.type === 'sleep'
+    ? `目标 ${h.bed_time || '--:--'} 前睡 / ${h.rise_time || '--:--'} 前起`
+    : '每天一次打卡';
+  let actions = '';
+  if (h.type === 'sleep') {
+    actions = `
+      <button class="chk-btn ${h.today.done_bed ? 'on' : ''}" data-id="${h.id}" data-field="bed">早睡</button>
+      <button class="chk-btn ${h.today.done_rise ? 'on' : ''}" data-id="${h.id}" data-field="rise">早起</button>`;
+  } else {
+    actions = `<button class="chk-btn" data-id="${h.id}" data-field="done">完成打卡</button>`;
+  }
+  el.innerHTML = `
+    <div class="ci-main">
+      <span class="ci-icon" style="background:${catTint(h.color)};color:${catColor(h.color)}"><svg><use href="#i-${h.icon}"/></svg></span>
+      <div class="ci-text"><b></b><small>${cat} ${sub}</small></div>
+    </div>
+    <div class="ci-actions">${actions}</div>`;
+  el.querySelector('b').textContent = h.name;
+  el.querySelectorAll('.chk-btn').forEach((b) =>
+    b.addEventListener('click', () => checkHabit(Number(b.dataset.id), b.dataset.field))
+  );
+  return el;
+}
+
+function renderCheckin(habits) {
+  const box = $('#growthToday');
+  box.innerHTML = '';
+  const pending = habits.filter((h) => !h.today.todayDone);
+  $('#growthTodayCount').textContent = pending.length ? `共 ${pending.length} 项` : '';
+  if (!pending.length) {
+    box.innerHTML = '<div class="empty-hint">今天的习惯都完成啦，继续保持 🎉</div>';
+    return;
+  }
+  pending.forEach((h) => box.appendChild(checkinCard(h)));
+}
+
+async function checkHabit(id, field) {
+  try {
+    const res = await api(`/api/habits/${id}/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field }),
+    });
+    if (res.ok) {
+      toast('已记录 ✓');
+      await renderGrowth();
+    }
+  } catch { /* 401 已处理 */ }
+}
+
+function renderHabitGrid(habits) {
+  const box = $('#growthAll');
+  box.innerHTML = '';
+  if (!habits.length) {
+    box.innerHTML = '<div class="empty-hint">还没有习惯，点右上角「新增习惯」开始吧。</div>';
+    return;
+  }
+  habits.forEach((h) => {
+    const el = document.createElement('div');
+    el.className = 'habit-card';
+    const prog = h.type === 'sleep'
+      ? `今日 ${h.today.completed}/${h.today.needed}`
+      : (h.today.todayDone ? '今日已完成' : '今日待打卡');
+    el.innerHTML = `
+      <div class="hc-top">
+        <span class="ci-icon" style="background:${catTint(h.color)};color:${catColor(h.color)}"><svg><use href="#i-${h.icon}"/></svg></span>
+        <div class="hc-meta"><b></b><small>${h.category}</small></div>
+        <button class="icon-btn del" data-id="${h.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="hc-prog">${prog}</div>`;
+    el.querySelector('b').textContent = h.name;
+    el.querySelector('.del').addEventListener('click', () => deleteHabit(h.id, h.name));
+    box.appendChild(el);
+  });
+}
+
+async function deleteHabit(id, name) {
+  if (!confirm(`确定删除习惯「${name}」？其打卡记录也会一并清除。`)) return;
+  try {
+    const res = await api(`/api/habits/${id}`, { method: 'DELETE' });
+    if (res.ok) { toast('已删除'); await renderGrowth(); }
+  } catch { /* 401 已处理 */ }
+}
+
+function renderHeatmap(heat) {
+  const box = $('#growthHeatmap');
+  box.innerHTML = '';
+  const days = heat.days || [];
+  const cats = heat.categories || [];
+  if (!cats.length) {
+    box.innerHTML = '<div class="empty-hint">暂无打卡数据，先去打几次卡吧。</div>';
+    return;
+  }
+  // 表头：月份刻度（粗略，每 ~30 天一个标记）
+  const wrap = document.createElement('div');
+  wrap.className = 'heatmap-scroll';
+  cats.forEach((c) => {
+    const row = document.createElement('div');
+    row.className = 'heatmap-row';
+    const label = document.createElement('div');
+    label.className = 'hm-label';
+    label.textContent = c.name;
+    label.style.color = catColor(c.color);
+    const cells = document.createElement('div');
+    cells.className = 'hm-cells';
+    c.values.forEach((v) => {
+      const cell = document.createElement('span');
+      cell.className = 'hm-cell';
+      if (v <= 0) {
+        cell.style.background = '#ece5db';
+      } else {
+        const op = v >= 1 ? 1 : v >= 0.5 ? 0.62 : 0.3;
+        cell.style.background = catColor(c.color);
+        cell.style.opacity = op;
+      }
+      cell.title = `${c.name}：${Math.round(v * 100)}%`;
+      cells.appendChild(cell);
+    });
+    row.appendChild(label);
+    row.appendChild(cells);
+    wrap.appendChild(row);
+  });
+  box.appendChild(wrap);
+  const tip = document.createElement('p');
+  tip.className = 'hm-tip';
+  tip.textContent = `最近 ${days.length} 天 · 颜色越深代表当日完成度越高`;
+  box.appendChild(tip);
+}
+
+// ===== 新增习惯弹窗 =====
+function openHabitModal() {
+  $('#habitForm').reset();
+  $('#customCatField').hidden = true;
+  $('#sleepField').hidden = true;
+  $('#habitFormError').hidden = true;
+  $('#habitModal').hidden = false;
+}
+function closeHabitModal() { $('#habitModal').hidden = true; }
+function showHabitFormError(msg) { const el = $('#habitFormError'); el.textContent = msg; el.hidden = false; }
+
+$('#addHabitBtn').addEventListener('click', openHabitModal);
+$('#habitModalClose').addEventListener('click', closeHabitModal);
+$('#habitModal').addEventListener('click', (e) => { if (e.target === $('#habitModal')) closeHabitModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHabitModal(); });
+
+$('#habitForm').querySelector('[name=category]').addEventListener('change', (e) => {
+  const v = e.target.value;
+  $('#customCatField').hidden = v !== '__custom__';
+  $('#sleepField').hidden = v !== '早睡早起';
+});
+
+$('#habitForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const catSel = fd.get('category');
+  let category, type = 'normal', bed_time = null, rise_time = null;
+  if (catSel === '__custom__') {
+    category = String(fd.get('customCategory') || '').trim() || '自定义';
+  } else {
+    category = catSel;
+    if (catSel === '早睡早起') { type = 'sleep'; bed_time = fd.get('bed_time'); rise_time = fd.get('rise_time'); }
+  }
+  const payload = {
+    name: String(fd.get('name') || '').trim(),
+    icon: fd.get('icon') || 'sprout',
+    color: fd.get('color') || 'sage',
+    category, type, bed_time, rise_time,
+  };
+  if (!payload.name) { showHabitFormError('请填写习惯名称'); return; }
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true;
+  try {
+    const res = await api('/api/habits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      closeHabitModal();
+      toast('已新增习惯');
+      await renderGrowth();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      showHabitFormError(d.error || '创建失败');
+    }
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) showHabitFormError('网络错误：' + (err && err.message ? err.message : err));
+  } finally {
+    btn.disabled = false;
   }
 });
 

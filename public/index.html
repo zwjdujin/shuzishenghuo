@@ -30,6 +30,7 @@
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 19H6a2 2 0 0 0-2 2"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14a8 8 0 1 1-9-10 7 7 0 0 0 9 10Z"/></symbol>
     <symbol id="i-fire" viewBox="0 0 24 24"><path d="M12 22c4 0 7-3 7-7 0-3-2-6-5-9 0 3-2 4-3 5 0-3-1-6-3-9 0 5-3 7-3 12 0 5 3 8 7 8z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   </svg>
 
   <!-- 登录遮罩 -->
@@ -152,8 +153,28 @@
         </div>
       </section>
 
-      <!-- 以下模块为 v0.0.1 预留的菜单入口，页面留白，后续迭代逐个补齐 -->
-      <section class="view" id="view-growth" data-title="成长打卡"><div class="coming-soon"><svg><use href="#i-sprout"/></svg><h2>成长打卡</h2><p>习惯养成与连续打卡模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
+      <!-- 成长打卡（v0.1.1 补齐） -->
+      <section class="view" id="view-growth" data-title="成长打卡">
+        <div class="growth-head">
+          <div><p class="eyebrow">成长打卡</p><h2>日拱一卒，功不唐捐</h2></div>
+          <button class="btn primary" id="addHabitBtn" type="button"><svg><use href="#i-plus"/></svg>新增习惯</button>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">今日待完成</p><h2>把这几项打个卡</h2></div><span class="muted" id="growthTodayCount"></span></div>
+          <div id="growthToday" class="checkin-stack"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">我的习惯</p><h2>全部习惯与分类</h2></div></div>
+          <div id="growthAll" class="habit-grid"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">连续打卡热力图</p><h2>各分类坚持情况</h2></div></div>
+          <div id="growthHeatmap" class="heatmap-wrap"></div>
+        </article>
+      </section>
       <section class="view" id="view-todos" data-title="待办提醒"><div class="coming-soon"><svg><use href="#i-bell"/></svg><h2>待办提醒</h2><p>提醒事项与智能清单模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
       <section class="view" id="view-ledger" data-title="我的账本"><div class="coming-soon"><svg><use href="#i-wallet"/></svg><h2>我的账本</h2><p>收支记录与消费结构模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
       <section class="view" id="view-medicine" data-title="家庭药箱"><div class="coming-soon"><svg><use href="#i-pill"/></svg><h2>家庭药箱</h2><p>药品库存与有效期提醒模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
@@ -169,6 +190,61 @@
     <button data-nav="ledger"><svg><use href="#i-wallet"/></svg><span>账本</span></button>
     <button data-nav="relations"><svg><use href="#i-people"/></svg><span>人际</span></button>
   </nav>
+
+  <!-- 新增习惯弹窗 -->
+  <div class="modal-overlay" id="habitModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>新增习惯</h3>
+        <button class="icon-btn" id="habitModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <form id="habitForm">
+        <label class="field"><span>习惯名称</span><input name="name" maxlength="20" placeholder="例如：背单词 / 晨跑" required></label>
+        <label class="field"><span>分类</span>
+          <select name="category">
+            <option value="学习">学习</option>
+            <option value="锻炼">锻炼</option>
+            <option value="早睡早起">早睡早起</option>
+            <option value="__custom__">＋ 自定义分类…</option>
+          </select>
+        </label>
+        <label class="field" id="customCatField" hidden><span>自定义分类名称</span><input name="customCategory" maxlength="12" placeholder="输入分类名，如：理财"></label>
+        <label class="field" id="sleepField" hidden>
+          <span>早睡 / 早起 目标时间</span>
+          <div class="time-row">
+            <span><input name="bed_time" type="time" value="23:00"> <em>前记为「早睡」</em></span>
+            <span><input name="rise_time" type="time" value="07:00"> <em>前记为「早起」</em></span>
+          </div>
+        </label>
+        <div class="field-row">
+          <label class="field"><span>图标</span>
+            <select name="icon">
+              <option value="book">书 · 学习</option>
+              <option value="fire">火 · 锻炼</option>
+              <option value="moon">月 · 睡眠</option>
+              <option value="sprout">苗 · 成长</option>
+              <option value="drop">滴 · 水滴</option>
+              <option value="chart">图 · 图表</option>
+              <option value="bell">铃 · 提醒</option>
+              <option value="people">人 · 人际</option>
+            </select>
+          </label>
+          <label class="field"><span>颜色</span>
+            <select name="color">
+              <option value="plum">紫</option>
+              <option value="terra">赤陶</option>
+              <option value="sage">绿</option>
+              <option value="sand">沙</option>
+              <option value="clay">陶土</option>
+            </select>
+          </label>
+        </div>
+        <p class="form-hint">选「早睡早起」会自动按睡眠类型处理：分「早睡 / 早起」两项打卡，时间由你设定。其他分类为一次性打卡，支持自定义分类。</p>
+        <button class="btn primary full" type="submit">创建习惯</button>
+        <p class="login-error" id="habitFormError" hidden></p>
+      </form>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="./js/app.js"></script>

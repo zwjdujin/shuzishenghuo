@@ -9,18 +9,19 @@ INSERT OR IGNORE INTO app_settings(key, value) VALUES
   ('brand_tagline','把日子过成自己喜欢的样子'),
   ('theme',        'plum');
 
--- 成长打卡：习惯
-INSERT INTO habits(name, icon, color, target, unit) VALUES
-  ('喝水', 'drop',   'sage',  8,   '杯'),
-  ('阅读', 'book',   'plum',  1,   '章'),
-  ('运动', 'fire',   'terra', 30,  '分钟'),
-  ('早睡', 'moon',   'sand',  1,   '次');
+-- 成长打卡：默认三大分类（看书→学习，运动→锻炼，睡觉→早睡早起；已删除喝水/冥想）
+-- 用户可在此基础上自行新增自定义分类
+INSERT INTO habits(name, icon, color, target, unit, category, type, bed_time, rise_time) VALUES
+  ('学习',   'book', 'plum',  1,  '次', '学习',     'normal', NULL,     NULL),
+  ('锻炼',   'fire', 'terra', 1,  '次', '锻炼',     'normal', NULL,     NULL),
+  ('早睡早起', 'moon', 'sand', 1,  '次', '早睡早起', 'sleep', '23:00', '07:00');
 
 -- 今日已打卡（让首页「今日完成」有数据）
 INSERT INTO habit_logs(habit_id, log_date, done) VALUES
-  (1, date('now'), 1),
-  (2, date('now'), 1),
-  (3, date('now'), 1);
+  ((SELECT id FROM habits WHERE name='学习'), date('now'), 1),
+  ((SELECT id FROM habits WHERE name='锻炼'), date('now'), 1);
+INSERT INTO habit_logs(habit_id, log_date, done, done_bed, done_rise) VALUES
+  ((SELECT id FROM habits WHERE name='早睡早起'), date('now'), 1, 1, 0);
 
 -- 待办提醒（注意第 1 条是逾期项）
 INSERT INTO todos(title, todo_date, todo_time, list, priority, note, remind, done) VALUES

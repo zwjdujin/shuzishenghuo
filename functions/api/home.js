@@ -53,7 +53,7 @@ export async function onRequestGet(context) {
       ),
     },
     habits: {
-      done: await cnt("SELECT COUNT(*) c FROM habit_logs WHERE log_date = ?", today),
+      done: await cnt('SELECT COUNT(DISTINCT habit_id) c FROM habit_logs WHERE log_date = ?', today),
       total: await cnt('SELECT COUNT(*) c FROM habits'),
     },
     ledger: {},
@@ -98,7 +98,7 @@ export async function onRequestGet(context) {
     .all();
   const habitRows = await db
     .prepare(
-      'SELECT h.id, h.name, h.icon, h.color FROM habits h WHERE NOT EXISTS (SELECT 1 FROM habit_logs l WHERE l.habit_id=h.id AND l.log_date=?)'
+      'SELECT h.id, h.name, h.icon, h.color, h.category FROM habits h WHERE NOT EXISTS (SELECT 1 FROM habit_logs l WHERE l.habit_id=h.id AND l.log_date=?)'
     )
     .bind(today)
     .all();
@@ -132,11 +132,12 @@ export async function onRequestGet(context) {
     name: h.name,
     icon: h.icon,
     color: h.color,
+    category: h.category,
   }));
 
   const now = new Date();
   return json({
-    version: '0.0.7',
+    version: '0.1.1',
     brand,
     today,
     todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN(now)}`,
