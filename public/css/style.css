@@ -138,16 +138,21 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .coming-soon p{max-width:42ch;font-size:14px;line-height:1.6}
 
 /* ===== 成长打卡 ===== */
-/* 模块之间留出明显间距 */
-#view-growth.active{display:flex;flex-direction:column;gap:22px}
-#view-growth .growth-head{margin-bottom:0}
-.growth-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+/* 模块间距由下方「视图通用间距」统一控制 */
+#view-growth.active{display:block}
+#view-growth .growth-head{margin-bottom:22px}
+.growth-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:0}
 .growth-head .eyebrow{color:#a59c90}
 .growth-head h2{margin:4px 0 0;font:700 26px/1.2 "Songti SC",serif}
 .muted{color:var(--muted);font-size:13px}
 
+/* ===== 视图通用间距（所有页面统一，新增页面自动生效） ===== */
+.view.active>*{margin-bottom:22px}
+.view.active>*:last-child{margin-bottom:0}
 /* 个人中心：入口为子菜单，页面直接显示子页内容 */
 #view-settings.active{display:block}
+#view-settings.active>.profile-page{margin-bottom:22px}
+#view-settings.active>.profile-page:last-child{margin-bottom:0}
 #view-settings .profile-page.active{display:block;animation:fade .3s ease}
 
 .checkin-stack{display:flex;flex-direction:column;gap:10px}
@@ -215,6 +220,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .cal-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cal-actions .seg-item{padding:6px 14px}
 .cal-nav{display:flex;align-items:center;gap:4px}
+.cal-picker{display:flex;align-items:center;gap:4px;margin:0 2px}
+.cal-year{width:74px;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:14px;font-weight:600;text-align:center}
+.cal-sep{font-size:13px;color:var(--muted);margin-right:2px}
+.cal-month-sel{height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:14px;font-weight:600}
+.cal-year:focus,.cal-month-sel:focus{outline:2px solid var(--plum-soft);border-color:var(--plum)}
 .cal-panel{padding:18px}
 .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .cal-legend .lg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}

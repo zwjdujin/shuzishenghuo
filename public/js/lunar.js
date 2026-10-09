@@ -106,7 +106,7 @@ function termOf(date) {
 }
 
 // 供日历格子显示：返回该日的农历短文本与节气
-export function lunarLabel(date) {
+function lunarLabel(date) {
   const t = termOf(date);
   const l = toLunar(date);
   if (!l) return { text: '', term: t, isFestival: false };
@@ -117,8 +117,12 @@ export function lunarLabel(date) {
 }
 
 // 完整农历信息（详情用）
-export function lunarFull(date) {
+function lunarFull(date) {
   const l = toLunar(date);
   if (!l) return null;
   return { ...l, term: termOf(date), text: lunarLabel(date).text };
 }
+
+// 以 <script src> 加载（非 ES module），故显式挂到 window 供 app.js 使用
+window.lunarLabel = lunarLabel;
+window.lunarFull = lunarFull;

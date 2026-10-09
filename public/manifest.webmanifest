@@ -2,17 +2,32 @@
   "name": "数字生活",
   "short_name": "数字生活",
   "description": "个人数字工作台：成长打卡、待办提醒、账本、药箱、日历与人际关系。",
-  "start_url": "./index.html",
-  "scope": "./",
+  "id": "/",
+  "start_url": "https://shuzishenghuo.example.com/index.html",
+  "scope": "https://shuzishenghuo.example.com/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f5f0e8",
   "theme_color": "#4d3045",
+  "categories": ["productivity", "lifestyle"],
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E",
-      "sizes": "64x64",
-      "type": "image/svg+xml",
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

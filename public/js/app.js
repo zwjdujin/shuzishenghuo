@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.8
-const VERSION = '0.2.8';
+// 数字生活 · 前端逻辑 v0.2.9
+const VERSION = '0.2.9';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = 'f90112a2 · 提交 19e2cd3';
 const __BUILD_TIME__ = '2026-10-09 12:36';
@@ -330,8 +330,37 @@ function todayStrLocal() { return ymd(new Date()); }
 
 let calState = { view: 'week', anchor: new Date(), events: [] };
 
+// 年月选择器：年份可手输/步进，月份下拉
+function initCalPicker() {
+  const ms = $('#calMonth');
+  if (ms && !ms.dataset.filled) {
+    ms.innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i}">${i + 1}月</option>`).join('');
+    ms.dataset.filled = '1';
+  }
+  syncCalPicker();
+}
+function syncCalPicker() {
+  const y = $('#calYear');
+  const ms = $('#calMonth');
+  if (!y || !ms) return;
+  const a = calState.anchor;
+  y.value = a.getFullYear();
+  ms.value = String(a.getMonth());
+}
+function applyCalPicker() {
+  const y = $('#calYear');
+  const ms = $('#calMonth');
+  if (!y || !ms) return;
+  const year = Math.min(2100, Math.max(1900, Number(y.value) || 2000));
+  const month = Number(ms.value) || 0;
+  calState.anchor = new Date(year, month, 1);
+  syncCalPicker();
+  loadCalEvents();
+}
+
 // 加载当前视图范围的事件
 async function loadCalEvents() {
+  initCalPicker();
   const a = calState.anchor;
   let from, to;
   if (calState.view === 'week') {
@@ -557,6 +586,7 @@ function calShift(dir) {
   const a = calState.anchor;
   if (calState.view === 'week') calState.anchor = addDays(a, dir * 7);
   else calState.anchor = new Date(a.getFullYear(), a.getMonth() + dir, 1);
+  syncCalPicker();
   loadCalEvents();
 }
 
@@ -1513,7 +1543,10 @@ document.addEventListener('click', (e) => {
 $$('.cal-view').forEach((b) => b.addEventListener('click', () => switchCalView(b.dataset.calview)));
 $('#calPrev').addEventListener('click', () => calShift(-1));
 $('#calNext').addEventListener('click', () => calShift(1));
-$('#calToday').addEventListener('click', () => { calState.anchor = new Date(); loadCalEvents(); });
+$('#calToday').addEventListener('click', () => { calState.anchor = new Date(); initCalPicker(); loadCalEvents(); });
+$('#calMonth').addEventListener('change', applyCalPicker);
+$('#calYear').addEventListener('change', applyCalPicker);
+$('#calYear').addEventListener('blur', applyCalPicker);
 $('#addEventBtn').addEventListener('click', () => openEventModal(null));
 $('#eventModalClose').addEventListener('click', closeEventModal);
 $('#eventModal').addEventListener('click', (e) => { if (e.target === $('#eventModal')) closeEventModal(); });

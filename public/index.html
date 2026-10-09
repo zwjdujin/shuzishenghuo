@@ -239,9 +239,14 @@
             </div>
             <div class="cal-nav">
               <button class="icon-btn" id="calPrev" title="上一页" aria-label="上一页"><svg><use href="#i-left"/></svg></button>
-              <button class="btn ghost" id="calToday" type="button">今天</button>
+              <div class="cal-picker">
+                <input type="number" id="calYear" class="cal-year" min="1900" max="2100" step="1" aria-label="年份">
+                <span class="cal-sep">年</span>
+                <select id="calMonth" class="cal-month-sel" aria-label="月份"></select>
+              </div>
               <button class="icon-btn" id="calNext" title="下一页" aria-label="下一页"><svg><use href="#i-right"/></svg></button>
             </div>
+            <button class="btn ghost" id="calToday" type="button">今天</button>
             <button class="btn primary" id="addEventBtn" type="button"><svg><use href="#i-plus"/></svg>新增日程</button>
           </div>
         </div>
