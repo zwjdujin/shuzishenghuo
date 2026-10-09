@@ -36,7 +36,13 @@ for (const c of CN_COLORS) {
     ['白字/夜主色', ratio('#ffffff', n.main)],
     ['夜主色/夜卡面', ratio(n.main, n.card)],
     ['夜文字/夜卡面', ratio(n.ink, n.card)],
+    ['夜文字/夜容器面', ratio(n.ink, n.surface)],
   ];
+  // 夜容器面（--surface）必须：① 合法 hex ② 比卡片亮（有层次）③ 仍然足够暗（不刺眼）
+  if (!isHex(n.surface)) { console.error('夜容器面非法色值', c.key, n.surface); bad++; }
+  const surfLum = lum(n.surface), cardLum = lum(n.card);
+  if (!(surfLum > cardLum)) { console.error(`✗ ${c.label} 夜容器面不比卡片亮（surface ${n.surface} / card ${n.card}）`); bad++; }
+  if (surfLum > 0.06) { console.error(`✗ ${c.label} 夜容器面过亮（${n.surface}，相对亮度 ${surfLum.toFixed(3)}）`); bad++; }
   const allVals = [...Object.values(d), ...Object.values(n)];
   const invalid = allVals.filter((v) => !isHex(v));
   if (invalid.length) { console.error('非法色值', c.key, invalid); bad++; }

@@ -1,5 +1,5 @@
 // 数字生活 · 前端逻辑 v0.3.7
-const VERSION = '0.3.8';
+const VERSION = '0.3.9';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = '家庭药箱 v0.3.7 · 已部署';
 const __BUILD_TIME__ = '2026-10-09 20:30';
@@ -157,6 +157,8 @@ function nightPalette(base) {
     accent: hslToHex(h, ns, Math.min(pl + 8, 78)),
     soft:   hslToHex(h, Math.min(Math.round(s * .55), 34), 15),
     card:   hslToHex(h, Math.min(Math.round(s * .40), 22), 10),
+    /* 次级容器面（列表行 / 输入框 / 次级按钮）：比卡片亮一档，夜间不残留亮白 */
+    surface:hslToHex(h, Math.min(Math.round(s * .46), 24), 14.5),
     paper:  hslToHex(h, Math.min(Math.round(s * .48), 26), 6.5),
     side:   hslToHex(h, Math.min(Math.round(s * .48), 26), 4.4),
     ink:    hslToHex(h, Math.min(Math.round(s * .20), 20), 93),
@@ -186,6 +188,7 @@ function applyTheme(name) {
   put('--t-day-line', d.line);     put('--t-day-deep', d.accent);
   put('--t-night-plum', n.main);   put('--t-night-accent', n.accent);
   put('--t-night-soft', n.soft);   put('--t-night-card', n.card);
+  put('--t-night-surface', n.surface);
   put('--t-night-paper', n.paper); put('--t-night-side', n.side);
   put('--t-night-ink', n.ink);     put('--t-night-muted', n.muted);
   put('--t-night-line', n.line);   put('--t-night-deep', n.accent);

@@ -13,9 +13,14 @@
   --muted:var(--t-day-muted);--line:var(--t-day-line);--side:var(--t-day-side);
   --plum:var(--t-day-plum);--plum-soft:var(--t-day-soft);--plum-deep:var(--t-day-deep);
   --accent:var(--t-day-accent);--tint:var(--t-day-soft);--on-accent:#fff;
+  /* 次级容器面（列表行 / 输入框 / 次级按钮）：日间固定近白，夜间取自主题夜间令牌，
+     避免任何元素在夜间残留亮白底。新增此类容器一律用 var(--surface)。 */
+  --surface:#fffdfa;--t-night-surface-fallback:#2e1c1e;
   /* 固定语义色（习惯分类 / 账本收支 / 状态提示，不随主题变化） */
   --terra:#b65f42;--terra-soft:#f3dfd6;--sage:#627a67;--sage-soft:#dfe8df;
-  --sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;--red:#b44d43;--green:#477358;
+  --sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;--clay-soft:#ecd9d0;--red:#b44d43;--green:#477358;
+  /* 语义底色（逾期 / 危险 / 提醒），夜间有对应暗色，勿再写死浅粉 */
+  --danger-soft:#fdf3f1;--danger-line:#ecc9c4;--danger-tint:#fbe3e0;--warn-soft:#fff4e0;--warn-ink:#735730;
   --shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px;--sidebar:248px;
   --font-ui:-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;
   --font-serif:"Songti SC",serif
@@ -26,33 +31,24 @@ html[data-mode="night"]{
   --muted:var(--t-night-muted);--line:var(--t-night-line);--side:var(--t-night-side);
   --plum:var(--t-night-plum);--plum-soft:var(--t-night-soft);--plum-deep:var(--t-night-deep);
   --accent:var(--t-night-accent);--tint:var(--t-night-soft);
-  --terra-soft:#332822;--sage-soft:#242e28;--sand-soft:#332c1d;
+  /* 次级容器面：跟随主题夜间色（由 applyTheme 写入 --t-night-surface），比卡片亮一档 */
+  --surface:var(--t-night-surface,var(--t-night-surface-fallback));
+  /* 六色图标底统一压到与卡片同档的暗色，只靠色相区分，夜间不再各自发亮 */
+  --terra-soft:#241d1a;--sage-soft:#1c231f;--sand-soft:#231f16;--clay-soft:#241b18;
   --clay:#d07a5f;--red:#e88a7c;--green:#8cbb9b;
+  --danger-soft:#2c1618;--danger-line:#5a2f31;--danger-tint:#3a1c1f;--warn-soft:#2e2416;--warn-ink:#e8d8ab;
   --shadow:0 16px 40px rgba(0,0,0,.5)
 }
 html[data-mode="night"] body{background:var(--paper);color:var(--ink)}
-/* 所有面板类元素统一暗色 */
+/* 一级面板统一暗色。
+   注意：列表行 / 输入框 / 次级按钮 / 分段按钮 / 标签 等「次级容器」都走 var(--surface)，
+   不在这里重复覆盖——否则夜间会被 !important 抢成 --card，与日间层次不一致（这正是
+   「今天要处理 / 今日待办 / 打卡按钮 / 日历与人际关系顶部按钮」夜间发亮的根因）。 */
 html[data-mode="night"] .sidebar,html[data-mode="night"] .side,
 html[data-mode="night"] .panel,html[data-mode="night"] .hero-card,
 html[data-mode="night"] .pf-hero,html[data-mode="night"] .modal-card,
-html[data-mode="night"] .bday-card,html[data-mode="night"] .contact-row,
-html[data-mode="night"] .mcell,html[data-mode="night"] .rel-simple-item,
-html[data-mode="night"] .tf-chip:not(.on),html[data-mode="night"] .chip,
-html[data-mode="night"] .inp,html[data-mode="night"] textarea.inp,
-html[data-mode="night"] select.inp,html[data-mode="night"] .vc,
-html[data-mode="night"] .local-card,
-html[data-mode="night"] .handle-opt,html[data-mode="night"] .more-btn,
-html[data-mode="night"] .rep-box,html[data-mode="night"] .tl-row,html[data-mode="night"] .tl-b,
-html[data-mode="night"] .file-box,html[data-mode="night"] .drop,
-html[data-mode="night"] .node,html[data-mode="night"] .money,
-html[data-mode="night"] .money-bar .money,html[data-mode="night"] .ledger-stats .ls,
-html[data-mode="night"] .lrow,html[data-mode="night"] .card,
-html[data-mode="night"] .contact-card,html[data-mode="night"] .habit-card,
-html[data-mode="night"] .stat-card,html[data-mode="night"] .quick-action,
-html[data-mode="night"] .glance-item,html[data-mode="night"] .txn-row,
-html[data-mode="night"] .pitem,html[data-mode="night"] .rep,html[data-mode="night"] .pf-card,
-html[data-mode="night"] .seg,html[data-mode="night"] .prio-item,
-html[data-mode="night"] .info-row{background:var(--card)!important;border-color:var(--line)!important;color:var(--ink)!important}
+html[data-mode="night"] .local-card,html[data-mode="night"] .habit-card,
+html[data-mode="night"] .stat-card{background:var(--card)!important;border-color:var(--line)!important;color:var(--ink)!important}
 html[data-mode="night"] .sidebar,html[data-mode="night"] .side{
   background:var(--side)!important;border-right-color:var(--line)!important
 }
@@ -62,6 +58,8 @@ html[data-mode="night"] .cat-tag,html[data-mode="night"] .contact-badge,
 html[data-mode="night"] .prio-pill{color:#fff!important}
 html[data-mode="night"] .vocab{background:#302819!important;border-color:#584a2e!important}
 html[data-mode="night"] .vc{color:#e6d5a8!important;border-color:#584a2e!important}
+html[data-mode="night"] .vocab-l{color:#e8d8ab!important}
+html[data-mode="night"] .tf-chip.deprecated{background:#4a4342!important;color:var(--muted)!important}
 html[data-mode="night"] .pf-ring svg circle:first-child{stroke:#38312b}
 html[data-mode="night"] .modal-card{background:var(--card);color:var(--ink)}
 html[data-mode="night"] .login-overlay{background:rgba(16,13,11,.97);color:var(--ink)}
@@ -131,7 +129,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .top-actions{display:flex;align-items:center;gap:10px}
 .save-state{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
 .save-state span{width:8px;height:8px;border-radius:50%;background:var(--green)}
-.btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 16px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;color:var(--ink);font-weight:600;transition:.2s}
+.btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-weight:600;transition:.2s}
 .btn:hover{box-shadow:var(--shadow)}
 .btn.primary{background:var(--plum);border-color:var(--plum);color:#fff}
 .btn.ghost{background:transparent}
@@ -180,15 +178,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .stat-icon.sage{background:var(--sage-soft);color:var(--sage)}
 .stat-icon.sand{background:var(--sand-soft);color:var(--sand)}
 .stat-icon.terra{background:var(--terra-soft);color:var(--terra)}
-.stat-icon.clay{background:#ecd9d0;color:var(--clay)}
+.stat-icon.clay{background:var(--clay-soft);color:var(--clay)}
 .stat-card span{font-size:12px;color:var(--muted)}
 .stat-card strong{display:block;margin-top:2px;font:700 22px/1.1 var(--font-serif)}
 .stat-card small{display:block;margin-top:3px;font-size:11px;color:#a59c90}
 
 /* 今天要处理 */
 .clean-list{display:flex;flex-direction:column;gap:8px}
-.todo-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa}
-.todo-row.overdue{border-color:#ecc9c4;background:#fdf3f1}
+.todo-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.todo-row.overdue{border-color:var(--danger-line);background:var(--danger-soft)}
 .todo-row .dot{width:9px;height:9px;border-radius:50%;background:var(--sage);flex:0 0 auto}
 .todo-row.overdue .dot{background:var(--red)}
 .todo-row .main{flex:1;min-width:0}
@@ -196,7 +194,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .todo-row .main small{font-size:12px;color:var(--muted)}
 .todo-row.overdue .main b{color:var(--red)}
 .todo-row .when{font-size:12px;color:var(--muted);white-space:nowrap}
-.done-btn{width:38px;height:38px;flex:0 0 auto;border:1px solid var(--line);border-radius:11px;background:#fffdfa;color:var(--sage);display:grid;place-items:center}
+.done-btn{width:38px;height:38px;flex:0 0 auto;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--sage);display:grid;place-items:center}
 .done-btn:hover{background:var(--sage-soft)}
 .empty-hint{padding:18px;text-align:center;color:var(--muted);font-size:13px}
 
@@ -216,7 +214,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .glance-item small{font-size:11px;color:var(--muted)}
 
 /* 轻提醒 */
-.insight-card{background:linear-gradient(135deg,#fffdfa,#f3ecf1);border-style:dashed}
+.insight-card{background:linear-gradient(135deg,var(--surface),var(--plum-soft));border-style:dashed}
 .insight-card blockquote{margin:6px 0 10px;font:500 15px/1.5 var(--font-serif);color:var(--plum)}
 .insight-card span{font-size:11px;color:#a59c90}
 
@@ -261,9 +259,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 /* 右侧操作区固定为「手机端一行」的宽度，各类打卡控件（睡眠三件/按次/按时长）宽度一致 */
 .ci-actions{display:flex;gap:8px;flex:0 0 auto;width:210px;max-width:210px}
 .ci-actions>*{width:100%}
-.chk-btn{height:38px;padding:0 16px;border:1px solid var(--line);border-radius:11px;background:#fffdfa;color:var(--ink);font-weight:600;font-size:13px;transition:.2s;white-space:nowrap}
+.chk-btn{height:38px;padding:0 16px;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--ink);font-weight:600;font-size:13px;transition:.2s;white-space:nowrap}
 .chk-btn:hover{box-shadow:var(--shadow)}
 .chk-btn.on{background:var(--sage);border-color:var(--sage);color:#fff}
+
+/* 首页「今日打卡」面板在三列栅格里只有 1 列宽（约 340px），
+   210px 固定操作区会把标题挤成竖排。窄栏内改为上下堆叠（与手机端一致）。 */
+.habit-panel .checkin-card{flex-direction:column;align-items:stretch;gap:12px}
+.habit-panel .ci-actions,.habit-panel .ci-actions.tri{width:100%;max-width:100%}
 
 .habit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .habit-card{padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
@@ -274,8 +277,8 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .hc-prog{margin-top:10px;font-size:12px;color:var(--muted)}
 .icon-btn{width:32px;height:32px;flex:0 0 auto;border:0;border-radius:9px;background:transparent;color:var(--muted);display:grid;place-items:center}
 .icon-btn:hover{background:rgba(0,0,0,.05);color:var(--ink)}
-.icon-btn.del:hover{background:#fbe9e6;color:var(--red)}
-.icon-btn.alarm:hover{background:#fff4e0;color:#b65f42}
+.icon-btn.del:hover{background:var(--danger-soft);color:var(--red)}
+.icon-btn.alarm:hover{background:var(--warn-soft);color:#b65f42}
 .icon-btn svg{width:18px;height:18px}
 
 /* 热力图 */
@@ -284,7 +287,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .hm-label{font-size:12px;font-weight:600;text-align:left;line-height:1}
 /* 网页端：60 天一行（60 列）；格子自适应铺满 */
 .hm-cells{display:grid;grid-template-columns:repeat(60,1fr);gap:2px}
-.hm-cell{aspect-ratio:1;border-radius:2px;background:#ece5db;min-width:0}
+.hm-cell{aspect-ratio:1;border-radius:2px;background:var(--line);min-width:0}
 .hm-tip{margin:12px 0 0;font-size:11px;color:var(--muted)}
 
 /* 侧栏底部「个人中心」 */
@@ -307,7 +310,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 
 /* 系统信息：键值信息网格 */
 .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:6px}
-.info-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;min-width:0}
+.info-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);min-width:0}
 .info-k{font-size:12px;color:var(--muted);font-weight:600;flex:0 0 auto}
 .info-v{font-size:13px;font-weight:600;text-align:right;word-break:break-all;min-width:0}
 
@@ -316,9 +319,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .cal-actions .seg-item{padding:6px 14px}
 .cal-nav{display:flex;align-items:center;gap:4px}
 .cal-picker{display:flex;align-items:center;gap:4px;margin:0 2px}
-.cal-year{width:74px;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:14px;font-weight:600;text-align:center}
+.cal-year{width:74px;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:14px;font-weight:600;text-align:center}
 .cal-sep{font-size:13px;color:var(--muted);margin-right:2px}
-.cal-month-sel{height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:14px;font-weight:600}
+.cal-month-sel{height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:14px;font-weight:600}
 .cal-year:focus,.cal-month-sel:focus{outline:2px solid var(--plum-soft);border-color:var(--plum)}
 .cal-panel{padding:14px}
 .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px}
@@ -330,7 +333,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .cal-month-head span{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:2px 0}
 .cal-month-head span.we{color:var(--terra)}
 .cal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.mcell{min-height:52px;padding:4px 5px;border:1px solid var(--line);border-radius:9px;background:#fffdfa;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.mcell{min-height:52px;padding:4px 5px;border:1px solid var(--line);border-radius:9px;background:var(--surface);display:flex;flex-direction:column;gap:2px;overflow:hidden}
 .mcell.out{background:#f7f3ec;opacity:.6}
 .mcell.today{border-color:var(--plum);box-shadow:0 0 0 2px var(--plum-soft)}
 .mcell-top{display:flex;align-items:baseline;justify-content:space-between;gap:3px}
@@ -373,7 +376,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .donut-legend .dl .vl{font-weight:700}
 .donut-legend .dl .pc{color:var(--muted);font-size:11px;min-width:42px;text-align:right}
 .txn-stack{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}
-.txn-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa}
+.txn-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .txn-amt{margin-left:auto;font-weight:700;white-space:nowrap}
 .txn-amt.exp{color:var(--red)}
 .txn-amt.inc{color:var(--green)}
@@ -393,10 +396,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .med-filter-panel{padding:16px 20px}
 /* 通用输入框：项目里 .inp 被多处复用（药箱搜索、词库添加等），
    原先只有 .rel-search .inp 有完整样式，这里补一条通用规则避免出现「裸输入框」 */
-.inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:13.5px;color:var(--ink);outline:none;min-width:0}
+.inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13.5px;color:var(--ink);outline:none;min-width:0}
 .inp:focus{border-color:var(--plum)}
 .med-stack{display:flex;flex-direction:column;gap:10px}
-.med-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:#fffdfa;transition:.18s;position:relative}
+.med-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:var(--surface);transition:.18s;position:relative}
 .med-row:hover{border-color:var(--plum);box-shadow:0 6px 16px rgba(63,48,36,.07)}
 .med-row .mr-main{min-width:0}
 .med-row .mr-name{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -413,7 +416,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .med-row.state-none{border-left:3px solid var(--line)}
 
 .med-tag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--plum-soft);color:var(--plum);white-space:nowrap}
-.med-tag.gray{background:#efe9e0;color:#746d63}
+.med-tag.gray{background:var(--line);color:var(--muted)}
 .med-tag.rx{background:var(--terra-soft);color:var(--terra)}
 .med-tag.low{background:var(--sand-soft);color:var(--sand)}
 .med-tag.who{background:var(--sage-soft);color:var(--sage)}
@@ -425,7 +428,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .med-exp.expired b{color:var(--red)}
 .med-exp.safe b{color:var(--green)}
 
-.med-bar{width:100%;height:5px;border-radius:999px;background:#efe9e0;overflow:hidden;margin-top:6px}
+.med-bar{width:100%;height:5px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:6px}
 .med-bar i{display:block;height:100%;border-radius:999px;background:var(--green)}
 .med-bar i.soon{background:var(--sand)}
 .med-bar i.expired{background:var(--red)}
@@ -433,12 +436,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 
 .med-badge{display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;background:var(--plum-soft);color:var(--plum);white-space:nowrap}
 .med-badge.soon{background:var(--sand-soft);color:var(--sand)}
-.med-badge.expired{background:#f5dedb;color:var(--red)}
+.med-badge.expired{background:var(--danger-tint);color:var(--red)}
 .med-alert-panel.soon{border-left:3px solid var(--sand)}
 .med-alert-panel.expired{border-left:3px solid var(--red)}
 .med-tip-line{margin:-6px 0 14px;font-size:12.5px;color:var(--muted);line-height:1.6}
 
-.med-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:26px 16px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center;background:#fffdfa}
+.med-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:26px 16px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center;background:var(--surface)}
 .med-empty svg{width:30px;height:30px;opacity:.55}
 .med-empty b{font-size:14px;color:var(--ink)}
 .med-empty small{font-size:12px}
@@ -454,14 +457,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .med-cat-item .med-bar i.bad{background:var(--red)}
 
 .med-loc-list{display:flex;flex-direction:column;gap:8px}
-.med-loc-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa}
+.med-loc-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .med-loc-item svg{width:17px;height:17px;color:var(--plum);flex:0 0 auto}
 .med-loc-item .nm{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .med-loc-item .vl{font-weight:700;font:700 15px/1 var(--font-serif)}
 .med-loc-item .warn{font-size:11px;color:var(--sand);font-weight:700}
 
 .med-checklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
-.med-check{padding:14px 15px;border:1px solid var(--line);border-radius:14px;background:#fffdfa;display:flex;flex-direction:column;gap:6px}
+.med-check{padding:14px 15px;border:1px solid var(--line);border-radius:14px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
 .med-check .mc-h{display:flex;align-items:center;gap:7px}
 .med-check .mc-h svg{width:17px;height:17px;color:var(--plum);flex:0 0 auto}
 .med-check .mc-h b{font-size:13.5px}
@@ -469,7 +472,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .med-check .mc-done{font-size:11px;font-weight:700;color:var(--green)}
 
 .med-modal-card{width:min(520px,100%)}
-.med-note{margin:10px 0 0;padding:11px 13px;border-radius:12px;background:var(--sand-soft);color:#735730;font-size:12px;line-height:1.6}
+.med-note{margin:10px 0 0;padding:11px 13px;border-radius:12px;background:var(--sand-soft);color:var(--warn-ink);font-size:12px;line-height:1.6}
 
 /* ===== 家庭药箱 · 夜间模式 ===== */
 html[data-mode="night"] .med-stats .ms,
@@ -506,7 +509,7 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .tf-row+.tf-row{margin-top:10px}
 .tf-label{flex:0 0 auto;font-size:12px;color:var(--muted);font-weight:600;padding-top:6px}
 .tf-chips{display:flex;gap:7px;flex-wrap:wrap}
-.tf-chip{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:#fffdfa;color:var(--muted);font-size:12px;font-weight:600;transition:.15s}
+.tf-chip{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:12px;font-weight:600;transition:.15s}
 .tf-chip:hover{background:var(--plum-soft)}
 .tf-chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
 .tf-chip .n{opacity:.7;margin-left:3px}
@@ -516,13 +519,13 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 
 /* 优先级选择器（P0-P3） */
 .prio-picker{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.prio-item{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;cursor:pointer;transition:.15s}
+.prio-item{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;transition:.15s}
 .prio-item:hover{border-color:var(--plum)}
 .prio-item input{position:absolute;opacity:0;pointer-events:none}
 .prio-item b{font-size:14px;font-weight:700;color:var(--ink)}
 .prio-item small{font-size:11px;color:var(--muted)}
 .prio-item:has(input:checked){border-color:var(--plum);background:var(--plum-soft);box-shadow:0 0 0 2px var(--plum-soft)}
-.prio-item[data-p="P0"]:has(input:checked){border-color:var(--red);background:#fbe3e0;box-shadow:0 0 0 2px #fbe3e0}
+.prio-item[data-p="P0"]:has(input:checked){border-color:var(--red);background:var(--danger-tint);box-shadow:0 0 0 2px var(--danger-tint)}
 .prio-item[data-p="P1"]:has(input:checked){border-color:var(--terra);background:var(--terra-soft);box-shadow:0 0 0 2px var(--terra-soft)}
 .prio-item[data-p="P2"]:has(input:checked){border-color:var(--sand);background:var(--sand-soft);box-shadow:0 0 0 2px var(--sand-soft)}
 .prio-pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;white-space:nowrap}
@@ -531,33 +534,33 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .prio-pill.P2{background:var(--sand)}
 .prio-pill.P3{background:#a59c90}
 .todo-stack{display:flex;flex-direction:column;gap:9px}
-.todo-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa}
-.todo-row.overdue{border-color:#ecc9c4;background:#fdf3f1}
+.todo-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.todo-row.overdue{border-color:var(--danger-line);background:var(--danger-soft)}
 .todo-row.done{opacity:.55}
-.todo-check{width:34px;height:34px;flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:#fffdfa;color:var(--sage);display:grid;place-items:center}
+.todo-check{width:34px;height:34px;flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--sage);display:grid;place-items:center}
 .todo-check:hover{background:var(--sage-soft)}
 .todo-main{flex:1;min-width:0}
 .todo-main b{display:block;font-size:14px;font-weight:600}
 .todo-meta{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .todo-pill{padding:1px 7px;border-radius:999px;background:var(--plum-soft);color:var(--plum);font-weight:600}
-.todo-pill.high{background:#fbe3e0;color:var(--red)}
+.todo-pill.high{background:var(--danger-tint);color:var(--red)}
 .todo-time{font-size:12px;color:var(--muted);white-space:nowrap}
 .check-line{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:13px;color:var(--muted);cursor:pointer}
 .check-line input{width:16px;height:16px;accent-color:var(--plum)}
 
 /* ===== 人际关系（v0.3.0） ===== */
 .bday-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
-.bday-card{padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#fffdfa;display:flex;flex-direction:column;gap:5px}
+.bday-card{padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);display:flex;flex-direction:column;gap:5px}
 .bday-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .bday-name{font-size:14px;font-weight:700}
 .bday-days{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--plum-soft);color:var(--plum);white-space:nowrap}
-.bday-days.soon{background:#fbe3e0;color:var(--red)}
+.bday-days.soon{background:var(--danger-tint);color:var(--red)}
 .bday-card .bd{font-size:12px;color:var(--muted)}
 .bday-card .bd b{color:var(--terra);font-size:13px}
 .bday-card.in-cal{border-left:3px solid var(--terra)}
 
 .contact-stack{display:flex;flex-direction:column;gap:9px}
-.contact-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa;cursor:pointer}
+.contact-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer}
 .contact-row:hover{box-shadow:var(--shadow)}
 .contact-avatar{width:40px;height:40px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff}
 .contact-main{flex:1;min-width:0}
@@ -575,7 +578,7 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 #relProfileView .rel-two>.panel{margin-bottom:0}
 .rel-search{display:flex;gap:9px;margin-bottom:12px}
 /* 搜索框：与其他输入框统一风格（--line 描边、圆角、聚焦高亮） */
-.rel-search .inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;font-size:13.5px;color:var(--ink);flex:1;min-width:0}
+.rel-search .inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13.5px;color:var(--ink);flex:1;min-width:0}
 .rel-search .inp::placeholder{color:#a9a196}
 .rel-search .inp:focus{outline:none;border-color:var(--plum);box-shadow:0 0 0 3px var(--plum-soft)}
 .rel-search .btn{flex:0 0 auto}
@@ -590,13 +593,13 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 
 /* 精简模式：一行多个的网格 */
 .contact-stack.rel-simple{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.rel-simple-item{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#fffdfa;text-align:left;min-width:0;transition:.15s}
+.rel-simple-item{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:var(--surface);text-align:left;min-width:0;transition:.15s}
 .rel-simple-item:hover{border-color:var(--plum);box-shadow:var(--shadow)}
 .rsi-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 serif;color:#fff;flex:0 0 auto}
 .rsi-info{min-width:0;flex:1}
 .rsi-info b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rsi-info small{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rel-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:14px;background:#fffdfa;border:1px solid var(--line);border-radius:13px;margin-bottom:12px}
+.rel-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:13px;margin-bottom:12px}
 .filter-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
 .filter-chips:empty{display:none}
 .tf-chip.deprecated{background:#b9b0a4;text-decoration:line-through}
@@ -634,11 +637,11 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .field-divider b{font-size:13px;white-space:nowrap}
 .field-divider span{font-size:11px;color:var(--muted)}
 .form-actions{display:flex;gap:10px;margin-top:18px}
-.more-btn{display:flex;align-items:center;gap:7px;width:100%;padding:11px;border-radius:12px;background:#fffdfa;border:1px dashed var(--line);color:var(--muted);font-size:12.5px;font-weight:700;margin-top:14px}
+.more-btn{display:flex;align-items:center;gap:7px;width:100%;padding:11px;border-radius:12px;background:var(--surface);border:1px dashed var(--line);color:var(--muted);font-size:12.5px;font-weight:700;margin-top:14px}
 .more-btn:hover{border-color:var(--plum);color:var(--plum)}
 .more-btn svg{transition:.2s}
 .more-btn.open svg{transform:rotate(180deg)}
-.rep-box{border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:13px;background:#fffdfa}
+.rep-box{border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:13px;background:var(--surface)}
 .rep-h{display:flex;align-items:center;gap:9px;margin-bottom:12px}
 .rep-h b{font-size:13px;flex:1}
 
@@ -647,7 +650,7 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .pf-vocab-l{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:7px}
 .vocab{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:9px 11px;background:var(--sand-soft);border-radius:11px;border:1px dashed #d8c49a;margin-top:9px}
 .vocab-l{font-size:10.5px;color:#8a6d33;font-weight:700;flex:0 0 auto}
-.vc{font-size:11.5px;padding:3px 11px;border-radius:999px;background:#fffdfa;color:#6b5326;font-weight:600;border:1px solid #ddd0b4}
+.vc{font-size:11.5px;padding:3px 11px;border-radius:999px;background:var(--surface);color:#6b5326;font-weight:600;border:1px solid #ddd0b4}
 .vc:hover{background:var(--sand);color:#fff;border-color:var(--sand)}
 .tf-chip .x{color:rgba(255,255,255,.72);font-size:14px;line-height:1;padding:0 0 0 5px}
 .tf-chip .x:hover{color:#fff}
@@ -664,22 +667,22 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 
 /* 互动记录 */
 .tl-box{display:flex;flex-direction:column;gap:11px}
-.tl-row{border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:#fffdfa}
+.tl-row{border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:var(--surface)}
 .tl-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .tl-h b{font-size:13.5px}
 .tl-h span{font-size:11px;color:var(--muted)}
 .tl-m{font-size:11px;color:var(--muted);margin-top:4px}
-.tl-s{font-size:12.5px;margin-top:7px;color:#4a443c}
+.tl-s{font-size:12.5px;margin-top:7px;color:var(--ink)}
 
 /* 人情余额条 */
 .money-bar{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;margin-bottom:12px}
-.money-bar .money{padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:#fffdfa}
+.money-bar .money{padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}
 .money-bar span{font-size:11px;color:var(--muted);display:block}
 .money-bar b{font:700 20px/1.2 inherit;display:block;margin-top:4px}
 
 /* 附件 */
 .file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:11px;margin-bottom:13px}
-.file-box{position:relative;border:1px dashed var(--line);border-radius:13px;padding:14px;text-align:center;color:var(--muted);background:#fffdfa;cursor:pointer}
+.file-box{position:relative;border:1px dashed var(--line);border-radius:13px;padding:14px;text-align:center;color:var(--muted);background:var(--surface);cursor:pointer}
 .file-box:hover{border-color:var(--plum);color:var(--plum)}
 .file-box svg{width:25px;height:25px;margin:0 auto;display:block}
 .file-box b{display:block;font-size:12px;color:var(--ink);margin-top:6px;word-break:break-all}
@@ -688,15 +691,15 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .file-box .icon-btn{position:absolute;top:6px;right:6px;width:24px;height:24px}
 .drop{border:2px dashed var(--line);border-radius:14px;padding:26px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
 .drop:hover{border-color:var(--plum);color:var(--plum)}
-.r2-path{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);background:#f5f1e9;padding:2px 7px;border-radius:6px;word-break:break-all}
+.r2-path{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);background:var(--plum-soft);padding:2px 7px;border-radius:6px;word-break:break-all}
 
 /* 三选项处理 */
 .handle-opts{display:flex;flex-direction:column;gap:9px}
-.handle-opt{display:flex;flex-direction:column;gap:3px;width:100%;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;text-align:left}
+.handle-opt{display:flex;flex-direction:column;gap:3px;width:100%;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:var(--surface);text-align:left}
 .handle-opt:hover{border-color:var(--plum);background:var(--plum-soft)}
 .handle-opt b{font-size:13.5px}
 .handle-opt small{font-size:11.5px;color:var(--muted);line-height:1.5}
-.handle-opt.cancel:hover{background:#f5f1e9}
+.handle-opt.cancel:hover{background:var(--plum-soft)}
 
 /* ===== 主题风格页（v0.3.8 全新设计：外观模式 + 国色主题 + 界面字体） ===== */
 .ts-badge{flex:0 0 auto;padding:4px 11px;border-radius:999px;background:var(--plum-soft);color:var(--plum);font-size:11.5px;font-weight:700}
@@ -762,7 +765,7 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 
 /* 设备列表 */
 .device-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
-.device-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa}
+.device-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
 .device-item.current{border-color:var(--sage);background:var(--sage-soft)}
 .dev-icon{width:40px;height:40px;flex:0 0 auto;border-radius:12px;background:var(--plum-soft);color:var(--plum);display:grid;place-items:center}
 .dev-icon svg{width:20px;height:20px}
@@ -771,12 +774,16 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .dev-main small{display:block;font-size:12px;color:var(--muted)}
 .dev-main em{display:block;font-size:11px;color:#a59c90;font-style:normal;margin-top:2px}
 .dev-current-tag{font-size:11px;font-weight:600;color:var(--sage);white-space:nowrap}
-.danger-chip{color:var(--red);border-color:#ecc9c4}
-.danger-chip:hover{background:#fbe9e6;color:var(--red)}
+.danger-chip{color:var(--red);border-color:var(--danger-line)}
+.danger-chip:hover{background:var(--danger-soft);color:var(--red)}
 
 /* 新增/编辑习惯弹窗内的分段与提示 */
 .seg{display:flex;gap:8px;flex-wrap:wrap}
-.seg-item{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line);border-radius:11px;background:#fffdfa;font-size:14px;cursor:pointer}
+.seg-item{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line);border-radius:11px;background:var(--surface);font-size:14px;cursor:pointer}
+/* 选中态：日历的周/月历、人际关系的详细/精简。原先缺这条，
+   夜间仅靠 color:#fff 覆盖成「白字白底」而不可见。 */
+.seg-item.active{background:var(--plum);border-color:var(--plum);color:#fff}
+.seg-item.active:hover{border-color:var(--plum)}
 .seg-item input{accent-color:var(--plum)}
 .field-hint{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
 
@@ -796,10 +803,10 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .dur-progress span{position:relative;display:block;line-height:22px;text-align:center;font-size:12px;font-weight:600;color:var(--ink)}
 .dur-quick{display:flex;gap:6px}
 .dur-quick .chip{flex:1 1 0;min-width:0;padding:0 4px}
-.chip{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fffdfa;color:var(--muted);font-size:12px;font-weight:600}
+.chip{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--muted);font-size:12px;font-weight:600}
 .chip:hover{background:var(--plum-soft);color:var(--plum)}
 .dur-input{display:flex;align-items:center;gap:8px;width:100%}
-.dur-input input{flex:1 1 0;min-width:0;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:15px;text-align:center}
+.dur-input input{flex:1 1 0;min-width:0;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:15px;text-align:center}
 .dur-input span{font-size:13px;color:var(--muted);flex:0 0 auto}
 .dur-input .chk-btn{flex:0 0 auto;padding:0 12px}
 
@@ -812,7 +819,7 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .field-row .field{flex:1;min-width:0;margin-bottom:14px}
 .time-row{display:flex;flex-direction:column;gap:8px}
 .time-row span{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
-.time-row input[type=time]{height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:15px}
+.time-row input[type=time]{height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:15px}
 .form-hint{margin:6px 0 16px;font-size:12px;color:var(--muted);line-height:1.5}
 
 /* 视图切换 */
@@ -834,11 +841,15 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 /* 表单 */
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .field span{font-size:12px;color:var(--muted);font-weight:600}
-.field input,.field select{width:100%;max-width:100%;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;font-size:16px;outline:none}
-.field input:focus{border-color:var(--plum)}
+.field input,.field select{width:100%;max-width:100%;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:16px;outline:none}
+/* 多行文本域：之前没有样式，夜间会露出浏览器默认白底 */
+.field textarea{width:100%;max-width:100%;min-height:86px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:15px;line-height:1.5;outline:none;resize:vertical}
+.field input:focus,.field textarea:focus{border-color:var(--plum)}
 
 /* toast */
-.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);z-index:120;background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.3s}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);z-index:120;background:var(--ink);color:var(--paper);padding:11px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.3s}
+/* 夜间不能沿用「深底浅字」的翻转配色——夜间 --ink 本身就是浅色，会变成一块刺眼白药丸 */
+html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* 手机底部导航 */
