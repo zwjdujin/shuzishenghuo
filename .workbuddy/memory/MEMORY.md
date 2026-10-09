@@ -3,14 +3,16 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.2。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.3。
 - **模块状态**：个人首页已成型；**成长打卡已补齐**；**个人中心(v0.2.2) 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
 - **数据表**：app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts, sessions。建表见 `schema.sql`，示例见 `seed.sql`。
 - **成长打卡（v0.2.1）数据结构**：
   - `habits`：`category`(分类名) / `type`('normal'|'sleep') / `method`('count'按次|'duration'按时长，仅 normal) / `target`&`unit`(目标值+单位) / `bed_time`&`rise_time`&`nap_time`(仅 sleep；nap_time 为「12:30-14:00」格式午睡区间)。
   - `habit_logs`：`done`(normal 存累计值，count=次数/duration=分钟；sleep 存完成项数) / `done_bed` / `done_rise` / `done_nap`(各 0/1)；每日每习惯 UNIQUE(habit_id, log_date)。
   - 默认分类=学习/锻炼/睡眠（睡眠=早睡+早起+午睡三件套，各算 1 项，凑满 3 项 todayDone）；支持自定义分类（任意 category 名）。
-  - 后端：`GET/POST /api/habits`、`PUT /api/habits/[id]`(编辑)、`POST /api/habits/[id]/check`(body {field:'done'|'bed'|'rise'|'nap', value})、`DELETE /api/habits/[id]`、`GET /api/habits/heatmap?days=30`。
+  - 后端：`GET/POST /api/habits`、`PUT /api/habits/[id]`(编辑)、`POST /api/habits/[id]/check`(body {field:'done'|'bed'|'rise'|'nap', value})、`DELETE /api/habits/[id]`、`GET /api/habits/heatmap?days=60`。
+  - **单位（v0.2.3）**：habits.unit 存「次/秒/分钟/小时」。前端 `#unitSelect` 为 select，按 method 动态填充（`fillUnitOptions`/`syncMethodUI`）；按时间打卡的快捷按钮与输入框单位标签必须跟随 unit（`UNIT_STEPS={秒:[10,20,30],分钟:[15,30,60],小时:[1,2,3]}`），不可硬编码。
+  - **CSS 溢出坑**：flex 容器内 input/select 需 `width:100%;max-width:100%` + 父级 `min-width:0`，否则输入框会撑破弹窗边框。
   - 共享帮助函数放 `functions/api/_helpers.js`（progressOf、parseHabitBody），供 habits.js 与 [id].js 复用。
   - **PWA/Pages Functions 打包坑（重要）**：下划线前缀文件放错目录会导致 esbuild 报 `Could not resolve`。`_helpers.js` 必须在 `functions/api/_helpers.js`（与 `habits.js` 同级），`habits.js` 用 `./_helpers.js`、`habits/[id].js` 用 `../_helpers.js`；不能放在 `habits/` 子目录里。
 - **个人中心（v0.2.1）**：侧栏底部 `.side-bottom` 的「个人中心」入口（`data-nav="settings"`）；页内可改 站点名/头像字/副标题/主题配色(plum/terra/sage/sand/clay)，`GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)。主题切换在 app.js 的 `applyTheme(name)`，直接改 `:root` 的 `--plum`/`--plum-soft` CSS 变量。退出登录按钮 `#logoutBtn2` 移到个人中心页（原 topbar `#logoutBtn` 已删）。

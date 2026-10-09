@@ -186,8 +186,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .hm-tip{margin:12px 0 0;font-size:11px;color:var(--muted)}
 
 /* 侧栏底部「个人中心」 */
-.side-bottom-wrap{position:relative;margin-top:14px}
-.side-bottom{margin-top:0;border-top:1px solid rgba(104,87,68,.12);padding-top:14px;color:#5e574e}
+.side-bottom-wrap{position:relative;margin-top:14px;padding-top:14px;border-top:1px solid rgba(104,87,68,.12)}
+/* 用 box-sizing 保持 44px 高度不因 border/padding 被撑变，文字才能真正垂直居中 */
+.side-bottom{margin-top:0;border-top:0;padding-top:0;color:#5e574e;display:flex;align-items:center;justify-content:flex-start;gap:12px;height:44px;padding:0 13px;box-sizing:border-box}
 .side-bottom:hover{background:rgba(255,255,255,.48);color:var(--ink)}
 
 /* 个人中心弹子菜单 */

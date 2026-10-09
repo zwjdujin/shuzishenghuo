@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.3
-const VERSION = '0.2.3';
+// 数字生活 · 前端逻辑 v0.2.4
+const VERSION = '0.2.4';
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -587,6 +587,7 @@ async function editHabit(id) {
   const isSleep = h.type === 'sleep' || h.category === '睡眠';
   $('#sleepField').hidden = !isSleep;
   $('#methodField').hidden = isSleep;
+  const method = isSleep ? 'count' : (h.method === 'duration' ? 'duration' : 'count');
   if (isSleep) {
     f.querySelector('[name=bed_time]').value = h.bed_time || '23:00';
     f.querySelector('[name=rise_time]').value = h.rise_time || '07:00';
@@ -594,10 +595,8 @@ async function editHabit(id) {
     f.querySelector('[name=nap_start]').value = nt[0] || '12:30';
     f.querySelector('[name=nap_end]').value = nt[1] || '14:00';
   } else {
-    const method = h.method === 'duration' ? 'duration' : 'count';
     f.querySelector(`[name=method][value="${method}"]`).checked = true;
     f.querySelector('[name=target]').value = h.target || 1;
-    fillUnitOptions(method, h.unit);
   }
   f.querySelector('[name=icon]').value = h.icon || 'sprout';
   f.querySelector('[name=color]').value = h.color || 'sage';
