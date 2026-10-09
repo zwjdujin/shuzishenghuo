@@ -1,12 +1,17 @@
 // 人际关系页 / 编辑档案页 手机端排版体检页
 // 复用真实 index.html 骨架 + style.css + profile.js，喂样例数据后渲染，
-// 用于 Edge --headless=old --dump-dom 取计算样式 / 截图。
-// hash: #list | #edit-base | #edit-rel | #edit-work
+// 用于 playwright / Edge --headless=old 取计算样式 / 截图。
+// hash: #list | #edit-base | #edit-rel | #edit-work | #edit-pref ...
+// ⚠️ 输出到仓库根 _preview/（**不能**放 public/）——wrangler pages deploy ./public 会把
+//    public 下所有文件原样上传，放进去就等于把验证页发布到线上。
 import fs from 'fs';
 import path from 'path';
 
 const root = process.cwd();
 let html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
+
+// 资源路径改为相对 _preview/ 目录
+html = html.replace('href="./css/style.css"', 'href="../public/css/style.css"');
 
 // 去掉真实脚本（避免登录/后端请求）
 html = html.replace(/\s*<script src="\.\/js\/[^"]+"><\/script>/g, '');
@@ -82,7 +87,7 @@ window.$ = function(s){ return document.querySelector(s); };
 window.$$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
 window.money = function(n){ n=Number(n)||0; return '\\u00a5'+n.toLocaleString('zh-CN'); };
 </script>
-<script src="./js/profile.js"></script>
+<script src="../public/js/profile.js"></script>
 <script>
 (async function(){
  try{
@@ -168,5 +173,6 @@ window.money = function(n){ n=Number(n)||0; return '\\u00a5'+n.toLocaleString('z
 `;
 
 html = html.replace('</body>', () => inject + '</body>');
-fs.writeFileSync(path.join(root, 'public/_relpreview.html'), html);
-console.log('written public/_relpreview.html');
+fs.mkdirSync(path.join(root, '_preview'), { recursive: true });
+fs.writeFileSync(path.join(root, '_preview/relpreview.html'), html);
+console.log('written _preview/relpreview.html');

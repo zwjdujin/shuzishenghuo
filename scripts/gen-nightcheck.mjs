@@ -1,9 +1,14 @@
 // 生成夜间模式核查页：复用真实 index.html 结构 + style.css，禁掉脚本，注入样例数据与探测脚本
+// ⚠️ 输出到仓库根 _preview/（**不能**放 public/）——wrangler pages deploy ./public 会原样
+//    上传 public 下所有文件，放进去就等于把验证页发布到线上（v0.3.11 踩过）。
 import fs from 'fs';
 import path from 'path';
 
 const root = process.cwd();
 let html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
+
+// 资源路径改为相对 _preview/ 目录
+html = html.replace('href="./css/style.css"', 'href="../public/css/style.css"');
 
 // 1. 移除真实脚本（无后端会报错，影响判定）
 html = html.replace(/\s*<script src="\.\/js\/[^"]+"><\/script>/g, '');
@@ -226,5 +231,6 @@ const inject = `
 
 // 注意：用函数形式替换，否则 inject 里的 $ 会被当成替换模式（$$ -> $、$& -> 匹配串）
 html = html.replace('</body>', () => inject + '</body>');
-fs.writeFileSync(path.join(root, 'public/_nightcheck.html'), html);
-console.log('written public/_nightcheck.html');
+fs.mkdirSync(path.join(root, '_preview'), { recursive: true });
+fs.writeFileSync(path.join(root, '_preview/nightcheck.html'), html);
+console.log('written _preview/nightcheck.html');

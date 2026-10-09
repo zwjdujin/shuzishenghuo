@@ -44,11 +44,17 @@
 
 ## 验证脚本（优先复用）
 - `scripts/test-theme.mjs`：抽 app.js 真实色板跑对比度自检，18 色 + 夜间容器面断言。
-- `scripts/gen-nightcheck.mjs`：**离线核查页**。复用真实 `index.html`（去 script）+ `style.css`，注入样例数据与探测脚本，输出逐元素计算样式/WCAG 对比度 + Hero 背景 + **移动端菜单几何** + 自动巡检「夜间仍亮底」元素（相对亮度 ≥0.28 报异常）。hash：`#<light|night>-view-<view>[-ptab-<子页>][-modal-clear]`。用法：本地静态服务 → Edge `--headless=old --dump-dom`。
+- `scripts/gen-nightcheck.mjs`：**夜间亮底核查页**。复用真实 `index.html`（去 script）+ `style.css`，注入样例数据与探测脚本，输出逐元素计算样式/WCAG 对比度 + Hero 背景 + 移动端菜单几何 + 自动巡检「夜间仍亮底」元素（相对亮度 ≥0.28 报异常）。hash：`#<light|night>-view-<view>[-ptab-<子页>][-modal-clear]`。
+- `scripts/gen-relpreview.mjs` + `scripts/shot-el.mjs` / `shot-scroll.mjs`：**移动端排版体检**。复用真实 index.html/style.css/**profile.js**，stub `api()` 喂样例数据（`/api/profile/list`、`/api/vocab`，`pfLoadOptions()` 必须 await，否则 `PF.vocab.edu` 未定义 → `pfModEdu()` 抛错、面板空白）。hash：`#list | #edit-<base|rel|edu|work|family|pref|trait|dates|files>`。
+  - 截图走 **playwright-core**（`~/.workbuddy/binaries/node/workspace/node_modules`；ESM 必须 `file:///` 绝对路径 import，`NODE_PATH` 对 ESM 无效）。`W=390` 真机视口、`NIGHT=1` 切夜间、`TAG=` 命名、`SEL=` 元素截图。
+  - ⚠️ **Edge `--headless=old` 的 `--window-size` 有 ~500px 最小宽度**（390 实测 innerWidth=492）→ 窄屏必须用 playwright viewport。
+  - ⚠️ **`elementHandle.screenshot()` 截长元素会被 `position:fixed` 底栏拼接错位**（看着像内容重叠）→ 用逐屏滚动截图判断，别据此下结论。
+- 两个生成页都输出到**仓库根 `_preview/`**（不是 `public/`），资源改为 `../public/...`。用法：`cd 仓库根 && python -m http.server 8899` → `http://localhost:8899/_preview/xxx.html`。
 - `scripts/test-medicines.mjs`(20 项) / `scripts/test-data-api.mjs`(27 项)：mock D1 跑后端断言。
-- `public/_*.html` 已 gitignore（本地验证页不可部署）。
+- `_preview/`、`_probe/`、`demo/_*.png` 已 gitignore。
 
 ## Cloudflare Pages 坑
+- ⚠️ **`wrangler pages deploy ./public` 会把 `public/` 下所有文件原样上传，`.gitignore` 完全无关** → 本地验证页/临时页**绝不能放 `public/`**（v0.3.11 发现 `public/_relpreview.html` 真被发布到 `/_relpreview`）。统一放仓库根 `_preview/`。
 - **文件/目录同名冲突 → error 1101**（`profile.js` 与 `profile/` 不能并存，已用 `profile/detail.js` + `/api/profile/detail?id=`）。
 - **下划线 helper 放错目录 → esbuild `Could not resolve`**：共享 helper 必须在与调用方同级目录（如 `functions/api/_helpers.js`）。
 - **删除路由**：`onRequestDelete` + `[id].js` 拿不到 `context.params.id` → **必须导出 `onRequest()` 并用 `url.pathname.match(/\/events\/(\d+)/)` 解析**。

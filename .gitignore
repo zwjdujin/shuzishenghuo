@@ -7,7 +7,8 @@ _shot_*.png
 _inj.js
 # 本地验证用临时预览页（scripts/gen-nightcheck.mjs 生成），不可部署
 public/_*.html
-# 本地排版体检的临时产物
+# 本地排版体检的临时产物（**必须**放在 public/ 之外，否则会被一起部署上线）
+_preview/
 _probe/
 demo/_*.png
 node_modules/

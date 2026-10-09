@@ -5,7 +5,7 @@ import path from 'path';
 
 const root = process.cwd();
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-const BASE = 'http://localhost:8899/_relpreview.html';
+const BASE = 'http://localhost:8899/_preview/relpreview.html';
 
 const WIDTH = Number(process.env.W || 390);
 const TAG = process.env.TAG || 'mobile';
