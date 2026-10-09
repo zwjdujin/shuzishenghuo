@@ -86,12 +86,17 @@ CREATE TABLE IF NOT EXISTS medicines (
 );
 
 -- 日历中心：事件
+-- calendar：所属日历（工作/生活/家庭/健康），用于颜色区分
+-- color：自定义颜色（可选，优先取 calendar 对应色）
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   title      TEXT NOT NULL,
   start      TEXT NOT NULL,
   end        TEXT,
   all_day    INTEGER DEFAULT 0,
+  calendar   TEXT DEFAULT '生活',
+  color      TEXT,
+  location   TEXT,
   note       TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

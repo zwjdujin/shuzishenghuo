@@ -33,6 +33,8 @@
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
   </svg>
 
   <!-- 登录遮罩 -->
@@ -178,10 +180,67 @@
           <div id="growthHeatmap" class="heatmap-wrap"></div>
         </article>
       </section>
-      <section class="view" id="view-todos" data-title="待办提醒"><div class="coming-soon"><svg><use href="#i-bell"/></svg><h2>待办提醒</h2><p>提醒事项与智能清单模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
-      <section class="view" id="view-ledger" data-title="我的账本"><div class="coming-soon"><svg><use href="#i-wallet"/></svg><h2>我的账本</h2><p>收支记录与消费结构模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
+      <!-- 待办提醒（v0.2.7 今日待办） -->
+      <section class="view" id="view-todos" data-title="待办提醒">
+        <div class="growth-head">
+          <div><p class="eyebrow">待办提醒</p><h2>今天要做的事</h2></div>
+          <button class="btn primary" id="addTodoBtn" type="button"><svg><use href="#i-plus"/></svg>新增待办</button>
+        </div>
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">今日待办</p><h2>专注完成今天的安排</h2></div><span class="muted" id="todoCount"></span></div>
+          <div id="todoList" class="todo-stack"></div>
+        </article>
+      </section>
+
+      <!-- 我的账本（v0.2.7 记账理财） -->
+      <section class="view" id="view-ledger" data-title="我的账本">
+        <div class="growth-head">
+          <div><p class="eyebrow">我的账本</p><h2>收支与结余</h2></div>
+          <div class="cal-actions">
+            <div class="cal-nav">
+              <button class="icon-btn" id="ledPrev" title="上月" aria-label="上月"><svg><use href="#i-left"/></svg></button>
+              <span class="led-month" id="ledMonth"></span>
+              <button class="icon-btn" id="ledNext" title="下月" aria-label="下月"><svg><use href="#i-right"/></svg></button>
+            </div>
+            <button class="btn primary" id="addTxnBtn" type="button"><svg><use href="#i-plus"/></svg>记一笔</button>
+          </div>
+        </div>
+        <div class="ledger-stats" id="ledgerStats"></div>
+        <div class="ledger-grid">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">支出构成</p><h2>分类占比</h2></div></div>
+            <div id="ledgerChart" class="donut-wrap"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">明细</p><h2>本月流水</h2></div></div>
+            <div id="ledgerList" class="txn-stack"></div>
+          </article>
+        </div>
+      </section>
       <section class="view" id="view-medicine" data-title="家庭药箱"><div class="coming-soon"><svg><use href="#i-pill"/></svg><h2>家庭药箱</h2><p>药品库存与有效期提醒模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
-      <section class="view" id="view-calendar" data-title="日历中心"><div class="coming-soon"><svg><use href="#i-calendar"/></svg><h2>日历中心</h2><p>日程事件与月历模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
+      <!-- 日历中心（v0.2.7 周历 + 月历 + 农历） -->
+      <section class="view" id="view-calendar" data-title="日历中心">
+        <div class="growth-head">
+          <div><p class="eyebrow">日历中心</p><h2 id="calTitle">日历</h2></div>
+          <div class="cal-actions">
+            <div class="seg">
+              <button class="seg-item cal-view active" data-calview="week" type="button"><span>周历</span></button>
+              <button class="seg-item cal-view" data-calview="month" type="button"><span>月历</span></button>
+            </div>
+            <div class="cal-nav">
+              <button class="icon-btn" id="calPrev" title="上一页" aria-label="上一页"><svg><use href="#i-left"/></svg></button>
+              <button class="btn ghost" id="calToday" type="button">今天</button>
+              <button class="icon-btn" id="calNext" title="下一页" aria-label="下一页"><svg><use href="#i-right"/></svg></button>
+            </div>
+            <button class="btn primary" id="addEventBtn" type="button"><svg><use href="#i-plus"/></svg>新增日程</button>
+          </div>
+        </div>
+
+        <article class="panel cal-panel">
+          <div class="cal-legend" id="calLegend"></div>
+          <div id="calViewBox"></div>
+        </article>
+      </section>
       <section class="view" id="view-relations" data-title="人际关系"><div class="coming-soon"><svg><use href="#i-people"/></svg><h2>人际关系</h2><p>联系人、生日与纪念日模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
 
       <!-- 个人中心（v0.2.5：子菜单为唯一入口，无顶部标题与页签） -->
@@ -331,6 +390,84 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- 新增/编辑日程弹窗 -->
+  <div class="modal-overlay" id="eventModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="eventModalTitle">新增日程</h3>
+        <button class="icon-btn" id="eventModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <form id="eventForm">
+        <label class="field"><span>日程标题</span><input name="title" maxlength="30" placeholder="例如：部门周会" required></label>
+        <div class="field-row">
+          <label class="field"><span>开始</span><input name="start" type="datetime-local" required></label>
+          <label class="field"><span>结束</span><input name="end" type="datetime-local"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>所属日历</span><select name="calendar" id="eventCalendarSel"></select></label>
+          <label class="field"><span>地点</span><input name="location" maxlength="20" placeholder="选填"></label>
+        </div>
+        <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
+        <label class="check-line"><input type="checkbox" name="allDay"><span>全天日程</span></label>
+        <div class="settings-actions" style="gap:10px">
+          <button class="btn ghost danger" id="eventDeleteBtn" type="button" hidden>删除</button>
+          <button class="btn primary" type="submit" style="flex:0 0 auto">保存日程</button>
+        </div>
+        <p class="login-error" id="eventFormError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 新增待办弹窗 -->
+  <div class="modal-overlay" id="todoModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>新增待办</h3>
+        <button class="icon-btn" id="todoModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <form id="todoForm">
+        <label class="field"><span>待办内容</span><input name="title" maxlength="30" placeholder="例如：预约牙科检查" required></label>
+        <div class="field-row">
+          <label class="field"><span>日期</span><input name="date" type="date"></label>
+          <label class="field"><span>时间</span><input name="time" type="time"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>清单</span><select name="list" id="todoListSel"></select></label>
+          <label class="field"><span>优先级</span><select name="priority"><option value="normal">普通</option><option value="high">高优先</option></select></label>
+        </div>
+        <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
+        <button class="btn primary full" type="submit">添加待办</button>
+        <p class="login-error" id="todoFormError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 记一笔弹窗 -->
+  <div class="modal-overlay" id="txnModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>记一笔</h3>
+        <button class="icon-btn" id="txnModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <form id="txnForm">
+        <div class="seg" style="margin-bottom:14px">
+          <label class="seg-item"><input type="radio" name="flow" value="expense" checked><span>支出</span></label>
+          <label class="seg-item"><input type="radio" name="flow" value="income"><span>收入</span></label>
+        </div>
+        <label class="field"><span>金额</span><input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></label>
+        <div class="field-row">
+          <label class="field"><span>分类</span><select name="category" id="txnCatSel"></select></label>
+          <label class="field"><span>日期</span><input name="date" type="date"></label>
+        </div>
+        <label class="field"><span>备注</span><input name="note" maxlength="30" placeholder="选填，例如：午饭"></label>
+        <button class="btn primary full" type="submit">保存</button>
+        <p class="login-error" id="txnFormError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="./js/lunar.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>

@@ -211,6 +211,84 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .info-k{font-size:12px;color:var(--muted);font-weight:600;flex:0 0 auto}
 .info-v{font-size:13px;font-weight:600;text-align:right;word-break:break-all;min-width:0}
 
+/* ===== 日历中心 / 账本 / 待办（v0.2.7） ===== */
+.cal-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cal-actions .seg-item{padding:6px 14px}
+.cal-nav{display:flex;align-items:center;gap:4px}
+.cal-panel{padding:18px}
+.cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.cal-legend .lg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.cal-legend .dot{width:10px;height:10px;border-radius:3px}
+
+/* 月历 */
+.cal-month-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px}
+.cal-month-head span{text-align:center;font-size:12px;font-weight:700;color:var(--muted);padding:4px 0}
+.cal-month-head span.we{color:var(--terra)}
+.cal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.mcell{min-height:96px;padding:6px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.mcell.out{background:#f7f3ec;opacity:.6}
+.mcell.today{border-color:var(--plum);box-shadow:0 0 0 2px var(--plum-soft)}
+.mcell-top{display:flex;align-items:baseline;justify-content:space-between;gap:4px}
+.mcell-day{font-size:14px;font-weight:700;line-height:1}
+.mcell-lunar{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcell-lunar.fest{color:var(--terra);font-weight:600}
+.mcell-evs{display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.mev{font-size:10px;line-height:1.5;padding:1px 5px;border-radius:5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mev-more{font-size:10px;color:var(--muted);padding-left:3px}
+
+/* 周历 */
+.cal-week-head{display:grid;grid-template-columns:44px repeat(7,1fr);gap:6px;margin-bottom:8px}
+.cal-week-head .wh{padding:6px 4px;border-radius:10px;background:var(--sage-soft);text-align:center}
+.cal-week-head .wh b{display:block;font-size:13px}
+.cal-week-head .wh small{display:block;font-size:10px;color:var(--muted);margin-top:1px}
+.cal-week-head .wh.today{background:var(--plum)}
+.cal-week-head .wh.today b,.cal-week-head .wh.today small{color:#fff}
+.cal-week-grid{display:grid;grid-template-columns:44px repeat(7,1fr);gap:6px;position:relative}
+.cal-hour-spacer{height:46px}
+.cal-col{display:flex;flex-direction:column;gap:4px}
+.cal-hour{display:grid;grid-template-columns:44px repeat(7,1fr);gap:6px;align-items:start}
+.cal-hour .hh{font-size:10px;color:var(--muted);text-align:right;padding-top:2px;height:46px}
+.cal-cell{min-height:46px;border-top:1px dashed var(--line);cursor:pointer;transition:.15s}
+.cal-cell:hover{background:var(--plum-soft)}
+.wev{font-size:10px;line-height:1.35;padding:2px 5px;border-radius:6px;color:#fff;margin:1px 2px;overflow:hidden;cursor:pointer;white-space:nowrap;text-overflow:ellipsis}
+.cal-col-title{font-size:10px;color:var(--muted);text-align:center;padding-bottom:2px}
+
+/* 账本 */
+.led-month{font-weight:700;font-size:14px;min-width:84px;text-align:center}
+.ledger-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+.ledger-stats .ls{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.ledger-stats .ls span{display:block;font-size:12px;color:var(--muted)}
+.ledger-stats .ls strong{display:block;margin-top:6px;font:700 24px/1.1 "Songti SC",serif}
+.ledger-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:22px}
+.donut-wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
+.donut-legend{display:flex;flex-direction:column;gap:6px;width:100%}
+.donut-legend .dl{display:flex;align-items:center;gap:8px;font-size:12px}
+.donut-legend .dl .dot{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.donut-legend .dl .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.donut-legend .dl .vl{font-weight:700}
+.donut-legend .dl .pc{color:var(--muted);font-size:11px;min-width:42px;text-align:right}
+.txn-stack{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}
+.txn-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa}
+.txn-amt{margin-left:auto;font-weight:700;white-space:nowrap}
+.txn-amt.exp{color:var(--red)}
+.txn-amt.inc{color:var(--green)}
+
+/* 待办 */
+.todo-stack{display:flex;flex-direction:column;gap:9px}
+.todo-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa}
+.todo-row.overdue{border-color:#ecc9c4;background:#fdf3f1}
+.todo-row.done{opacity:.55}
+.todo-check{width:34px;height:34px;flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:#fffdfa;color:var(--sage);display:grid;place-items:center}
+.todo-check:hover{background:var(--sage-soft)}
+.todo-main{flex:1;min-width:0}
+.todo-main b{display:block;font-size:14px;font-weight:600}
+.todo-meta{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.todo-pill{padding:1px 7px;border-radius:999px;background:var(--plum-soft);color:var(--plum);font-weight:600}
+.todo-pill.high{background:#fbe3e0;color:var(--red)}
+.todo-time{font-size:12px;color:var(--muted);white-space:nowrap}
+.check-line{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:13px;color:var(--muted);cursor:pointer}
+.check-line input{width:16px;height:16px;accent-color:var(--plum)}
+
 /* 个人中心子页（入口为侧栏/移动端子菜单，无顶部页签） */
 .profile-page{display:none}
 .profile-page.active{display:block;animation:fade .3s ease}
@@ -331,6 +409,17 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
   /* 打卡卡片手机端：名称一行 + 操作一行，两行显示完一个目标 */
   .checkin-card{flex-direction:column;align-items:stretch;gap:10px}
   .checkin-card .ci-actions,.checkin-card .ci-actions.tri{width:100%;max-width:100%}
+  /* 日历/账本/待办手机端 */
+  .cal-actions{width:100%}
+  .growth-head{gap:12px}
+  .mcell{min-height:64px;padding:4px}
+  .mcell-lunar{display:none}
+  .cal-week-grid,.cal-week-head{grid-template-columns:34px repeat(7,1fr);gap:3px}
+  .cal-hour .hh,.cal-hour-spacer{font-size:9px}
+  .cal-hour .hh,.cal-cell{height:40px;min-height:40px}
+  .ledger-stats{grid-template-columns:1fr;gap:10px;margin-bottom:16px}
+  .ledger-grid{grid-template-columns:1fr;gap:16px}
+  .mev,.wev{font-size:9px}
   .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid rgba(85,69,55,.14);border-radius:20px;background:rgba(255,252,247,.94);box-shadow:0 14px 35px rgba(53,41,31,.16);backdrop-filter:blur(14px)}
   .mobile-nav>button{min-width:0;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
   .mobile-nav>button svg{width:21px;height:21px}

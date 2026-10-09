@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.6
-const VERSION = '0.2.6';
+// 数字生活 · 前端逻辑 v0.2.7
+const VERSION = '0.2.7';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = 'f90112a2 · 提交 19e2cd3';
 const __BUILD_TIME__ = '2026-10-09 12:36';
@@ -317,6 +317,453 @@ function renderGlance(d) {
   });
 }
 
+// ===== 日历中心（周历 / 月历 / 农历） =====
+const CAL_COLOR = { 工作: '#4d3045', 生活: '#627a67', 家庭: '#a57c45', 健康: '#b65f42' };
+const calColorOf = (c) => CAL_COLOR[c] || '#746d63';
+const WK = ['日', '一', '二', '三', '四', '五', '六'];
+
+function ymd(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function todayStrLocal() { return ymd(new Date()); }
+
+let calState = { view: 'week', anchor: new Date(), events: [] };
+
+// 加载当前视图范围的事件
+async function loadCalEvents() {
+  const a = calState.anchor;
+  let from, to;
+  if (calState.view === 'week') {
+    const s = startOfWeek(a);
+    from = ymd(s);
+    to = ymd(addDays(s, 6));
+  } else {
+    const s = new Date(a.getFullYear(), a.getMonth(), 1);
+    const e = new Date(a.getFullYear(), a.getMonth() + 1, 0);
+    from = ymd(s);
+    to = ymd(e);
+  }
+  try {
+    const res = await api(`/api/events?from=${from}&to=${to}`);
+    const data = await res.json();
+    calState.events = data.events || [];
+    fillCalendarSel('#eventCalendarSel', data.calendars || Object.keys(CAL_COLOR));
+    renderCalLegend(data.calendars || Object.keys(CAL_COLOR));
+    renderCalView();
+    markSynced();
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) {
+      $('#calViewBox').innerHTML = '<div class="empty-hint">加载日程失败</div>';
+    }
+  }
+}
+
+function fillCalendarSel(sel, list) {
+  const el = $(sel);
+  if (!el || el.dataset.filled === list.join(',')) return;
+  el.innerHTML = list.map((c) => `<option value="${c}">${c}</option>`).join('');
+  el.dataset.filled = list.join(',');
+}
+
+function renderCalLegend(list) {
+  const box = $('#calLegend');
+  if (!box) return;
+  box.innerHTML = list
+    .map((c) => `<span class="lg"><i class="dot" style="background:${calColorOf(c)}"></i>${c}</span>`)
+    .join('');
+}
+
+function startOfWeek(d) {
+  const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  s.setDate(s.getDate() - s.getDay());
+  return s;
+}
+function addDays(d, n) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function renderCalView() {
+  const box = $('#calViewBox');
+  const title = $('#calTitle');
+  if (!box) return;
+  if (calState.view === 'week') {
+    const s = startOfWeek(calState.anchor);
+    const e = addDays(s, 6);
+    title.textContent = `${s.getMonth() + 1}月${s.getDate()}日 - ${e.getMonth() + 1}月${e.getDate()}日 · 第${s.getFullYear()}年`;
+    box.innerHTML = '';
+    box.appendChild(buildWeekView(s));
+  } else {
+    const a = calState.anchor;
+    title.textContent = `${a.getFullYear()}年${a.getMonth() + 1}月`;
+    box.innerHTML = '';
+    box.appendChild(buildMonthView(a));
+  }
+}
+
+// 月历：整月 7 列网格，每格带农历与事件
+function buildMonthView(anchor) {
+  const wrap = document.createElement('div');
+  const y = anchor.getFullYear();
+  const m = anchor.getMonth();
+  const first = new Date(y, m, 1);
+  const startPad = first.getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  const today = todayStrLocal();
+
+  const head = document.createElement('div');
+  head.className = 'cal-month-head';
+  WK.forEach((w, i) => {
+    const s = document.createElement('span');
+    s.textContent = w;
+    if (i === 0 || i === 6) s.className = 'we';
+    head.appendChild(s);
+  });
+  wrap.appendChild(head);
+
+  const grid = document.createElement('div');
+  grid.className = 'cal-month-grid';
+
+  // 前置补白（上月）
+  for (let i = startPad - 1; i >= 0; i--) {
+    grid.appendChild(makeCell(new Date(y, m - 1, prevDays - i), true, today));
+  }
+  // 本月
+  for (let d = 1; d <= daysInMonth; d++) {
+    grid.appendChild(makeCell(new Date(y, m, d), false, today));
+  }
+  // 后置补白（补满整行）
+  const rest = (7 - (grid.children.length % 7)) % 7;
+  for (let d = 1; d <= rest; d++) {
+    grid.appendChild(makeCell(new Date(y, m + 1, d), true, today));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function makeCell(date, out, today) {
+  const cell = document.createElement('div');
+  cell.className = 'mcell' + (out ? ' out' : '') + (ymd(date) === today ? ' today' : '');
+  const lun = lunarLabel(date);
+  const evs = eventsOn(ymd(date));
+
+  const top = document.createElement('div');
+  top.className = 'mcell-top';
+  top.innerHTML = `<span class="mcell-day">${date.getDate()}</span><span class="mcell-lunar${lun.isFestival ? ' fest' : ''}"></span>`;
+  top.querySelector('.mcell-lunar').textContent = lun.text;
+  cell.appendChild(top);
+
+  const box = document.createElement('div');
+  box.className = 'mcell-evs';
+  evs.slice(0, 3).forEach((ev) => {
+    const b = document.createElement('div');
+    b.className = 'mev';
+    b.dataset.evid = ev.id;
+    b.style.background = ev.color || calColorOf(ev.calendar);
+    b.textContent = (ev.allDay ? '' : ev.start.slice(11, 16) + ' ') + ev.title;
+    b.title = ev.title;
+    b.addEventListener('click', (e) => { e.stopPropagation(); openEventModal(ev); });
+    box.appendChild(b);
+  });
+  if (evs.length > 3) {
+    const more = document.createElement('div');
+    more.className = 'mev-more';
+    more.textContent = `+${evs.length - 3} 更多`;
+    box.appendChild(more);
+  }
+  cell.appendChild(box);
+  cell.addEventListener('click', () => openEventModal(null, ymd(date)));
+  return cell;
+}
+
+function eventsOn(dateStr) {
+  return calState.events.filter((ev) => ymd(new Date(ev.start.replace(' ', 'T'))) === dateStr);
+}
+
+// 周历：7 天 × 时间轴（8:00-22:00）
+function buildWeekView(start) {
+  const wrap = document.createElement('div');
+  const today = todayStrLocal();
+  const H0 = 8;
+  const H1 = 22;
+
+  const head = document.createElement('div');
+  head.className = 'cal-week-head';
+  head.appendChild(document.createElement('div'));
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    const lun = lunarLabel(d);
+    const h = document.createElement('div');
+    h.className = 'wh' + (ymd(d) === today ? ' today' : '');
+    h.innerHTML = `<b>周${WK[d.getDay()]}</b><small></small>`;
+    h.querySelector('small').textContent = `${d.getMonth() + 1}/${d.getDate()} ${lun.text}`;
+    h.addEventListener('click', () => openEventModal(null, ymd(d)));
+    head.appendChild(h);
+  }
+  wrap.appendChild(head);
+
+  const grid = document.createElement('div');
+  grid.className = 'cal-week-grid';
+
+  for (let hh = H0; hh <= H1; hh++) {
+    const row = document.createElement('div');
+    row.className = 'cal-hour';
+    const lab = document.createElement('div');
+    lab.className = 'hh';
+    lab.textContent = String(hh).padStart(2, '0') + ':00';
+    row.appendChild(lab);
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(start, i);
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      // 该小时内的事件
+      evsInHour(d, hh).forEach((ev) => {
+        const b = document.createElement('div');
+        b.className = 'wev';
+        b.dataset.evid = ev.id;
+        b.style.background = ev.color || calColorOf(ev.calendar);
+        b.textContent = ev.title;
+        b.title = `${ev.title}${ev.location ? ' @ ' + ev.location : ''}`;
+        b.addEventListener('click', (e) => { e.stopPropagation(); openEventModal(ev); });
+        cell.appendChild(b);
+      });
+      cell.addEventListener('click', () => openEventModal(null, ymd(d), hh));
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function evsInHour(date, hour) {
+  const ds = ymd(date);
+  return calState.events.filter((ev) => {
+    if (ev.allDay) return false;
+    const dt = new Date(ev.start.replace(' ', 'T'));
+    return ymd(dt) === ds && dt.getHours() === hour;
+  });
+}
+
+async function switchCalView(v) {
+  calState.view = v;
+  $$('.cal-view').forEach((b) => b.classList.toggle('active', b.dataset.calview === v));
+  await loadCalEvents();
+}
+function calShift(dir) {
+  const a = calState.anchor;
+  if (calState.view === 'week') calState.anchor = addDays(a, dir * 7);
+  else calState.anchor = new Date(a.getFullYear(), a.getMonth() + dir, 1);
+  loadCalEvents();
+}
+
+// ===== 日程弹窗 =====
+let editingEventId = null;
+function openEventModal(ev, presetDate, presetHour) {
+  editingEventId = ev ? ev.id : null;
+  const f = $('#eventForm');
+  f.reset();
+  $('#eventModalTitle').textContent = ev ? '编辑日程' : '新增日程';
+  $('#eventFormError').hidden = true;
+  $('#eventDeleteBtn').hidden = !ev;
+
+  if (ev) {
+    f.title.value = ev.title;
+    f.start.value = (ev.start || '').replace(' ', 'T').slice(0, 16);
+    f.end.value = (ev.end || '').replace(' ', 'T').slice(0, 16);
+    f.calendar.value = ev.calendar || '生活';
+    f.location.value = ev.location || '';
+    f.note.value = ev.note || '';
+    f.allDay.checked = !!ev.allDay;
+  } else {
+    const d = presetDate ? new Date(presetDate + 'T00:00:00') : new Date();
+    const h = presetHour === undefined ? new Date().getHours() + 1 : presetHour;
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.min(Math.max(h, 0), 23), 0, 0);
+    f.start.value = toLocalInput(start);
+    f.end.value = toLocalInput(new Date(start.getTime() + 3600000));
+    f.calendar.value = '生活';
+  }
+  $('#eventModal').hidden = false;
+}
+function toLocalInput(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function closeEventModal() { $('#eventModal').hidden = true; }
+
+// ===== 待办提醒（今日） =====
+let todoLists = ['生活'];
+async function renderTodos() {
+  const box = $('#todoList');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  try {
+    const res = await api('/api/todos?scope=today');
+    const data = await res.json();
+    todoLists = data.lists || todoLists;
+    fillCalendarSel('#todoListSel', todoLists);
+    const list = data.todos || [];
+    $('#todoCount').textContent = list.length ? `共 ${list.length} 项` : '';
+    box.innerHTML = '';
+    if (!list.length) {
+      box.innerHTML = '<div class="empty-hint">今天没有待办，轻松一天 ☕</div>';
+      return;
+    }
+    list.forEach((t) => {
+      const row = document.createElement('div');
+      row.className = 'todo-row' + (t.overdue ? ' overdue' : '');
+      row.innerHTML = `
+        <button class="todo-check" title="标记完成"><svg><use href="#i-check"/></svg></button>
+        <div class="todo-main"><b></b><div class="todo-meta"></div></div>
+        <button class="icon-btn del" title="删除"><svg><use href="#i-x"/></svg></button>`;
+      row.querySelector('b').textContent = t.title;
+      const meta = row.querySelector('.todo-meta');
+      meta.innerHTML =
+        `<span class="todo-pill${t.priority === 'high' ? ' high' : ''}">${t.list}</span>` +
+        (t.priority === 'high' ? '<span class="todo-pill high">高优先</span>' : '') +
+        (t.overdue ? `<span class="todo-pill high">逾期 ${t.date}</span>` : '') +
+        (t.note ? `<span>${t.note}</span>` : '');
+      if (t.time) {
+        const tm = document.createElement('span');
+        tm.className = 'todo-time';
+        tm.textContent = t.time;
+        row.querySelector('.todo-main').appendChild(tm);
+      }
+      row.querySelector('.todo-check').addEventListener('click', () => finishTodo(t.id));
+      row.querySelector('.del').addEventListener('click', () => removeTodo(t.id, t.title));
+      box.appendChild(row);
+    });
+    markSynced();
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载待办失败</div>';
+  }
+}
+
+async function finishTodo(id) {
+  try {
+    const res = await api(`/api/todos/${id}/done`, { method: 'POST' });
+    if (res.ok) { toast('已完成，干得漂亮'); markSynced(); await renderTodos(); }
+  } catch { /* 401 已处理 */ }
+}
+async function removeTodo(id, title) {
+  if (!confirm(`确定删除待办「${title}」？`)) return;
+  try {
+    const res = await api(`/api/todos/${id}/delete`, { method: 'DELETE' });
+    if (res.ok) { toast('已删除'); markSynced(); await renderTodos(); }
+  } catch { /* 401 已处理 */ }
+}
+
+// ===== 我的账本 =====
+let ledgerState = { month: todayStrLocal().slice(0, 7) };
+const DONUT_COLORS = ['#4d3045', '#b65f42', '#627a67', '#a57c45', '#8f4f3b', '#7a6a8f', '#4a7a8c', '#8a7a4a'];
+
+async function renderLedger() {
+  const box = $('#ledgerStats');
+  if (!box) return;
+  $('#ledMonth').textContent = ledgerState.month.replace('-', '年') + '月';
+  try {
+    const res = await api(`/api/transactions?month=${ledgerState.month}`);
+    const data = await res.json();
+    renderLedgerStats(data.summary || {});
+    renderDonut(data.catStats || []);
+    renderTxnList(data.list || []);
+    // 分类下拉按收入/支出切换
+    $('#txnCatSel') && fillTxnCats(data.categories || {});
+    markSynced();
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载账本失败</div>';
+  }
+}
+
+function renderLedgerStats(s) {
+  const box = $('#ledgerStats');
+  box.innerHTML = `
+    <div class="ls"><span>本月收入</span><strong style="color:var(--green)">${money(s.income)}</strong></div>
+    <div class="ls"><span>本月支出</span><strong style="color:var(--red)">${money(s.expense)}</strong></div>
+    <div class="ls"><span>本月结余</span><strong>${money(s.balance)}</strong></div>`;
+}
+
+// 内联 SVG 甜甜圈图（无外部库）
+function renderDonut(cats) {
+  const box = $('#ledgerChart');
+  box.innerHTML = '';
+  if (!cats.length) {
+    box.innerHTML = '<div class="empty-hint">本月还没有支出记录</div>';
+    return;
+  }
+  const total = cats.reduce((s, c) => s + c.value, 0) || 1;
+  const R = 60;
+  const CX = 80;
+  const CY = 80;
+  const CIRC = 2 * Math.PI * R;
+  let offset = 0;
+  let paths = '';
+  let legend = '<div class="donut-legend">';
+  cats.forEach((c, i) => {
+    const frac = c.value / total;
+    const color = DONUT_COLORS[i % DONUT_COLORS.length];
+    const dash = frac * CIRC;
+    paths += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${color}" stroke-width="22"
+      stroke-dasharray="${dash} ${CIRC - dash}" stroke-dashoffset="${-offset}"
+      transform="rotate(-90 ${CX} ${CY})"/>`;
+    offset += dash;
+    legend += `<div class="dl"><i class="dot" style="background:${color}"></i><span class="nm">${c.name}</span>
+      <span class="vl">${money(c.value)}</span><span class="pc">${Math.round(frac * 100)}%</span></div>`;
+  });
+  legend += '</div>';
+  box.innerHTML =
+    `<svg viewBox="0 0 160 160" width="160" height="160" style="max-width:100%">
+      ${paths}
+      <text x="${CX}" y="${CY - 2}" text-anchor="middle" font-size="11" fill="#746d63">本月支出</text>
+      <text x="${CX}" y="${CY + 16}" text-anchor="middle" font-size="15" font-weight="700" fill="#29251f">${money(total)}</text>
+    </svg>` + legend;
+}
+
+function renderTxnList(list) {
+  const box = $('#ledgerList');
+  box.innerHTML = '';
+  if (!list.length) {
+    box.innerHTML = '<div class="empty-hint">本月还没有流水</div>';
+    return;
+  }
+  list.forEach((t) => {
+    const row = document.createElement('div');
+    row.className = 'txn-row';
+    const isExp = t.flow === 'expense';
+    row.innerHTML = `
+      <span class="cat-tag" style="background:${catTint(t.category === '餐饮' ? 'terra' : 'plum')};color:${catColor(t.category === '餐饮' ? 'terra' : 'plum')}">${t.category}</span>
+      <div class="todo-main"><b style="font-size:13px">${t.note || t.category}</b><div class="todo-meta"><span>${t.date}</span></div></div>
+      <span class="txn-amt ${isExp ? 'exp' : 'inc'}">${isExp ? '-' : '+'}${money(t.amount)}</span>
+      <button class="icon-btn del" title="删除"><svg><use href="#i-x"/></svg></button>`;
+    row.querySelector('.del').addEventListener('click', () => removeTxn(t.id));
+    box.appendChild(row);
+  });
+}
+
+async function removeTxn(id) {
+  if (!confirm('确定删除这笔记录？')) return;
+  try {
+    const res = await api(`/api/transactions?id=${id}`, { method: 'DELETE' });
+    if (res.ok) { toast('已删除'); markSynced(); await renderLedger(); }
+  } catch { /* 401 已处理 */ }
+}
+
+let txnCats = { expense: ['其他'], income: ['其他'] };
+function fillTxnCats(cats) {
+  txnCats = cats;
+  syncTxnCats();
+}
+function syncTxnCats() {
+  const sel = $('#txnCatSel');
+  if (!sel) return;
+  const flow = ($('#txnForm') && $('#txnForm').flow.value) || 'expense';
+  const list = (txnCats && txnCats[flow]) || ['其他'];
+  sel.innerHTML = list.map((c) => `<option value="${c}">${c}</option>`).join('');
+}
+
 // ===== 导航切换 =====
 // keepTab：从子菜单进入个人中心时，保留已选中的子页，不强制回到默认页
 function switchView(name, opts = {}) {
@@ -333,6 +780,9 @@ function switchView(name, opts = {}) {
     renderSettings();
     switchProfileTab(opts.keepTab ? currentProfileTab : 'site');
   }
+  if (name === 'calendar') loadCalEvents();
+  if (name === 'todos') renderTodos();
+  if (name === 'ledger') renderLedger();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
@@ -1015,6 +1465,137 @@ document.addEventListener('click', (e) => {
     e.target.closest(pop) || e.target.closest(btn)
   );
   if (!inMenu) closeAllProfilePopovers();
+});
+
+// ===== 日历中心交互 =====
+$$('.cal-view').forEach((b) => b.addEventListener('click', () => switchCalView(b.dataset.calview)));
+$('#calPrev').addEventListener('click', () => calShift(-1));
+$('#calNext').addEventListener('click', () => calShift(1));
+$('#calToday').addEventListener('click', () => { calState.anchor = new Date(); loadCalEvents(); });
+$('#addEventBtn').addEventListener('click', () => openEventModal(null));
+$('#eventModalClose').addEventListener('click', closeEventModal);
+$('#eventModal').addEventListener('click', (e) => { if (e.target === $('#eventModal')) closeEventModal(); });
+$('#eventForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const title = String(fd.get('title') || '').trim();
+  if (!title) { const el = $('#eventFormError'); el.textContent = '请填写标题'; el.hidden = false; return; }
+  const payload = {
+    title,
+    start: String(fd.get('start') || '').replace('T', ' '),
+    end: String(fd.get('end') || '').replace('T', ' '),
+    calendar: fd.get('calendar'),
+    location: fd.get('location'),
+    note: fd.get('note'),
+    allDay: e.target.allDay.checked,
+  };
+  if (!payload.start) { const el = $('#eventFormError'); el.textContent = '请选择开始时间'; el.hidden = false; return; }
+  try {
+    const url = editingEventId ? `/api/events?id=${editingEventId}` : '/api/events';
+    const method = editingEventId ? 'PUT' : 'POST';
+    const res = await api(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingEventId ? { ...payload, id: editingEventId } : payload),
+    });
+    if (res.ok) {
+      closeEventModal();
+      toast(editingEventId ? '已更新日程' : '已新增日程');
+      markSynced();
+      await loadCalEvents();
+    }
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) {
+      const el = $('#eventFormError'); el.textContent = '保存失败'; el.hidden = false;
+    }
+  }
+});
+// 删除事件
+$('#eventDeleteBtn').addEventListener('click', async () => {
+  if (!editingEventId) return;
+  if (!confirm('确定删除该日程？')) return;
+  const res = await api(`/api/events?id=${editingEventId}`, { method: 'DELETE' }).catch(() => null);
+  if (res && res.ok) { closeEventModal(); toast('已删除'); markSynced(); loadCalEvents(); }
+});
+// 双击事件块也能删除
+document.addEventListener('dblclick', (e) => {
+  const ev = e.target.closest('[data-evid]');
+  if (!ev) return;
+  const id = Number(ev.dataset.evid);
+  if (!confirm('确定删除该日程？')) return;
+  api(`/api/events?id=${id}`, { method: 'DELETE' }).then((r) => {
+    if (r.ok) { toast('已删除'); markSynced(); loadCalEvents(); }
+  }).catch(() => {});
+});
+
+// ===== 待办交互 =====
+$('#addTodoBtn').addEventListener('click', () => {
+  const f = $('#todoForm');
+  f.reset();
+  f.date.value = todayStrLocal();
+  $('#todoFormError').hidden = true;
+  $('#todoModal').hidden = false;
+});
+$('#todoModalClose').addEventListener('click', () => { $('#todoModal').hidden = true; });
+$('#todoModal').addEventListener('click', (e) => { if (e.target === $('#todoModal')) $('#todoModal').hidden = true; });
+$('#todoForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const title = String(fd.get('title') || '').trim();
+  if (!title) { const el = $('#todoFormError'); el.textContent = '请填写内容'; el.hidden = false; return; }
+  try {
+    const res = await api('/api/todos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title, date: fd.get('date'), time: fd.get('time'),
+        list: fd.get('list'), priority: fd.get('priority'), note: fd.get('note'),
+      }),
+    });
+    if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); await renderTodos(); }
+  } catch { /* 401 已处理 */ }
+});
+
+// ===== 账本交互 =====
+$('#ledPrev').addEventListener('click', () => {
+  const [y, m] = ledgerState.month.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  ledgerState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderLedger();
+});
+$('#ledNext').addEventListener('click', () => {
+  const [y, m] = ledgerState.month.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  ledgerState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderLedger();
+});
+$('#addTxnBtn').addEventListener('click', () => {
+  const f = $('#txnForm');
+  f.reset();
+  f.date.value = todayStrLocal();
+  $('#txnFormError').hidden = true;
+  syncTxnCats();
+  $('#txnModal').hidden = false;
+});
+$('#txnModalClose').addEventListener('click', () => { $('#txnModal').hidden = true; });
+$('#txnModal').addEventListener('click', (e) => { if (e.target === $('#txnModal')) $('#txnModal').hidden = true; });
+$$('#txnForm [name=flow]').forEach((r) => r.addEventListener('change', syncTxnCats));
+$('#txnForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const amount = Number(fd.get('amount'));
+  if (!Number.isFinite(amount) || amount <= 0) { const el = $('#txnFormError'); el.textContent = '请填写有效金额'; el.hidden = false; return; }
+  try {
+    const res = await api('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow: fd.get('flow'), amount, category: fd.get('category'),
+        date: fd.get('date'), note: fd.get('note'),
+      }),
+    });
+    if (res.ok) { $('#txnModal').hidden = true; toast('已记账'); markSynced(); await renderLedger(); }
+  } catch { /* 401 已处理 */ }
 });
 
 // ===== PWA =====
