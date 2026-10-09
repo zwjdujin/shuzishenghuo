@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.3.1
-const VERSION = '0.3.1';
+// 数字生活 · 前端逻辑 v0.3.2
+const VERSION = '0.3.2';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = '待更新 · 提交 71a49ac';
 const __BUILD_TIME__ = '2026-10-09 14:15';

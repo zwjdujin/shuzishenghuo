@@ -351,7 +351,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .contact-badge.cal{background:var(--terra-soft);color:var(--terra)}
 .contact-phone{font-size:12px;color:var(--muted);white-space:nowrap}
 
-/* ===== 人物档案（v0.3.1） ===== */
+/* ===== 人际关系（v0.3.1） ===== */
+/* 列表视图与档案视图内部模块间距统一（面板之间固定 22px） */
+#relListView>*,#relProfileView>*{margin-bottom:22px}
+#relListView>*:last-child,#relProfileView>*:last-child{margin-bottom:0}
+#relProfileView .rel-two{margin-bottom:22px}
+#relProfileView .rel-two>.panel{margin-bottom:0}
 .rel-search{display:flex;gap:9px;margin-bottom:12px}
 .rel-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:14px;background:#fffdfa;border:1px solid var(--line);border-radius:13px;margin-bottom:12px}
 .filter-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}

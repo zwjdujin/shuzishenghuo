@@ -180,7 +180,7 @@ export async function onRequestGet(context) {
 
   const now = new Date();
   return json({
-    version: '0.3.1',
+    version: '0.3.2',
     brand,
     today,
     todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN(now)}`,

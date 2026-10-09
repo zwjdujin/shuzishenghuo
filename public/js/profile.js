@@ -341,7 +341,7 @@ function pfRenderNodes() {
   const stale = pfDaysSince(d.dates && d.dates.stale);
   const nodes = [];
   if (nb) {
-    nodes.push({ s: '距离生日', v: nb.days === 0 ? '就是今天' : nb.days + ' 天', e: `${nb.date} · 明年 ${nb.age} 岁`, hot: nb.days <= 30 });
+    nodes.push({ s: '距离生日', v: nb.days === 0 ? '就是今天' : nb.days + ' 天', e: `${nb.full} · 明年 ${nb.age} 岁`, hot: nb.days <= 30 });
     if (b.showLunar && b.lunar) nodes.push({ s: '农历生日', v: b.lunar.short, e: `属${b.lunar.animal} · 每年农历同一天` });
   } else {
     nodes.push({ s: '距离生日', v: '未填写', e: '可在基础身份中补充' });
@@ -462,6 +462,8 @@ function pfBindEvents() {
   // 档案视图
   const bk = pfEl('pfBack'); if (bk) bk.addEventListener('click', pfBackToList);
   const eb = pfEl('pfEditBtn'); if (eb) eb.addEventListener('click', () => pfPickMod('base'));
+  const del = pfEl('pfDelete');
+  if (del) del.addEventListener('click', pfAskDelPerson);
   const ar = pfEl('pfAddRel'); if (ar) ar.addEventListener('click', () => pfOpenRelModal(null));
   const ap = pfEl('pfAddPromise'); if (ap) ap.addEventListener('click', pfOpenPromiseModal);
   const am = pfEl('pfAddMoney'); if (am) am.addEventListener('click', pfOpenMoneyModal);
@@ -609,6 +611,40 @@ async function pfDoDelRel(id, act) {
 }
 function pfCloseHandle() { pfEl('handleModal').hidden = true; }
 
+// 删除联系人（三选项确认）
+function pfAskDelPerson() {
+  if (!PF.data) return;
+  const b = PF.data.base;
+  const n = PF.data;
+  pfEl('handleTitle').textContent = '删除联系人';
+  pfEl('handleBody').innerHTML = `
+    <div class="note info" style="margin-bottom:14px">
+      <b>${pfEsc(b.name)}</b>${b.alias ? '（' + pfEsc(b.alias) + '）' : ''}<br>
+      <span style="font-size:11.5px">
+        档案 ${n.edus.length} 段教育 · ${n.interacts.length} 条互动 · ${n.promises.length} 条承诺 ·
+        ${n.money.length} 笔人情 · ${n.relatives.length} 位关联 · ${n.files.length} 个附件
+      </span>
+    </div>
+    <div class="handle-opts">
+      <button class="handle-opt" onclick="pfDoDelPerson()"><b>确认删除该联系人</b>
+        <small>将同时清除其全部档案数据、关联记录、承诺生成的待办与人情账目、R2 附件，且不可恢复</small></button>
+      <button class="handle-opt cancel" onclick="pfCloseHandle()"><b>放弃操作</b>
+        <small>不做任何修改，关闭当前弹窗</small></button>
+    </div>`;
+  pfEl('handleModal').hidden = false;
+}
+async function pfDoDelPerson() {
+  if (!PF.pid) return;
+  const res = await api(`/api/profile/delete?id=${PF.pid}`, { method: 'DELETE' });
+  pfCloseHandle();
+  if (res.ok) {
+    toast(`已删除「${res.name}」及关联数据`);
+    await pfBackToList();
+  } else {
+    toast('删除失败，请重试');
+  }
+}
+
 async function pfDonePromise(id) {
   await api('/api/profile/promises', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -641,6 +677,8 @@ window.pfEditRel = pfEditRel;
 window.pfAskDelRel = pfAskDelRel;
 window.pfDoDelRel = pfDoDelRel;
 window.pfCloseHandle = pfCloseHandle;
+window.pfAskDelPerson = pfAskDelPerson;
+window.pfDoDelPerson = pfDoDelPerson;
 window.pfDonePromise = pfDonePromise;
 window.pfDelMoney = pfDelMoney;
 window.pfDelInteract = pfDelInteract;
