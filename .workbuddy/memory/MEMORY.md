@@ -8,7 +8,7 @@
   - 仓库级 `core.sshCommand` 已配，**必须保留**：`ssh -F "<abs>/.ssh-keys/ssh_config" -i "<abs>/.ssh-keys/id_ed25519" -o IdentitiesOnly=yes -o UserKnownHostsFile="<abs>/.ssh-keys/known_hosts" -o GlobalKnownHostsFile=NUL`
   - **`~/.ssh/` 是受保护路径**，「始终允许」无效。SSH 所有文件放项目内 `.ssh-keys/`（已 gitignore）。
   - 新机器需把 `.ssh-keys/id_ed25519.pub` 加到 GitHub，并 `ssh-keyscan github.com > .ssh-keys/known_hosts`。
-- **PWA 缓存**：`public/js/sw.js` 静态资源走「网络优先」，**每次部署改 `CACHE` 名**（现 `shuzishenghuo-v4`）。否则旧缓存导致"改了没生效"。
+- **PWA 缓存**：`public/js/sw.js` 静态资源走「网络优先」，**每次部署改 `CACHE` 名**（现 `shuzishenghuo-v21`）。否则旧缓存导致"改了没生效"。
 
 ## 前端约定
 - 风格：暖色纸感背景、左侧 `.sidebar` 导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
@@ -38,14 +38,19 @@
 ### 🔴 改字段名必须全局搜索
 v0.3.2 修了档案页 `nb.date`→`nb.full`，v0.3.3 发现列表页仍写 `b.date`，同一问题二次出现。**任何字段重命名必须 grep 全部引用处一并改**。
 
-### 外观设置
-- `THEMES` 共 **23 种**（18 中国传统色 + 5 经典），格式 **`{base 突显色, soft 底色, ink 字体色, label}`**，**无 group 分组**。soft = base 向白混合 87%；ink = base 加深 30%。数据源 https://api.dujin.org/colors/cn-colors/ 。**改配色必须保留原 5 种经典**，否则老用户 localStorage 主题失效。
-- `applyTheme()` 写 `--plum`/`--plum-soft`/`--accent`/`--tint`/`--on-accent`/`--plum-deep`。
-- **字体切换必须用 `!important` 覆盖层**：项目大量 `font:xxx serif` **简写**，裸 `serif` 不跟随变量且 `font:` 简写会重置 font-family 切断继承链。故 `--f-ui`/`--f-serif` + 全局 `font-family:...!important`（正文组 + 标题组两条）。`applyFont()` 同时写两组；预览卡 `.fo-name` 需内联 `!important`。
-- **夜间模式**：大量元素硬编码 `background:#fffdfa`（不跟随变量），**新增样式时必须同时补** `html[data-mode="night"] .xxx{background:var(--card)!important;color:var(--ink)!important}`，否则深底浅字/亮色残留。
-- `sunTimes(lat,date)` 日出日落估算（赤纬+时角简化算法）+ `uiMode`(light/night/auto)，auto 每分钟检查。夜间通过 `html[data-mode="night"]` 覆写变量 + 硬编码 background 元素。
-- `FONTS` 三项：default / lxgwwk(霞鹜文楷, Google Fonts) / lhls(临海隶书, 回退)。
-- 持久化 localStorage：`pf_theme` / `pf_font` / `pf_mode`，启动时 `restoreAppearance()` 恢复。
+### 外观设置（v0.3.8 起为全新架构，勿再参考旧 23 色方案）
+- **页面**：个人中心子页「**主题风格**」（`PROFILE_TITLES.style`，旧名「风格字体」已废弃），`#page-style`，由侧栏/移动端子菜单进入。
+- `CN_COLORS` 共 **18 种中国传统色**，**只存 `{key,label,base}` 一个色值**；`THEMES` 由 `dayPalette(base)` / `nightPalette(base)` **运行时派生**日/夜两套完整色板（每套 10 个色值）。数据源 https://api.dujin.org/colors/cn-colors/。
+- **派生算法**（`hexToHsl`/`hslToHex`/`relLum`/`lumToLightness`）：**必须用 WCAG 相对亮度而不是 HSL 明度约束对比度**——黄色 L=56% 仍然极亮，卡 L 无效。
+  - 日间主色 `main = min(原明度, 达到 relLum .145 的明度)`：浅色自动压深、深色保留原色。
+  - 夜间主色 `main = 达到 relLum .20 的明度`：**中等亮度**，既保证 `background:var(--plum)+#fff` 可读（≥4:1），又让 `color:var(--plum)` 在深底上可见。全 18 色实测最低对比 4.05:1。
+- **CSS 令牌**：`:root` 声明 `--t-day-*`（plum/accent/soft/card/paper/side/ink/muted/line/deep）与 `--t-night-*`，由 `applyTheme()` 写 inline；再在 `:root` 与 `html[data-mode="night"]` 分别映射到 `--paper/--card/--ink/--muted/--line/--side/--plum/--plum-soft/--plum-deep/--accent/--tint`。**切明暗无需重选主题**。
+- **新增样式一律用主题变量**，不要写死 `#fffdfa`/`#ede6dc`；`.sidebar`/`.local-card`/`.mobile-nav`/`.pp-item`/`.btn.danger` 已改为变量。
+- **字体**：`FONTS` 只剩 **default / lxgwwk(霞鹜文楷, Google Fonts)** 两项（`lhls` 临海隶书已删）。字体卡预览字样（`.tf-spec`）**必须 `el.style.setProperty('font-family', stack, 'important')`**，否则被全站 `span{font-family:var(--f-ui)!important}` 压掉。`applyFont()` 写 `--f-ui/--f-serif/--font-ui/--font-serif`。
+- **主题页类名**：`.ts-seg/.ts-seg-item`(外观模式)、`.ts-preview/.tsp`(日夜对照预览)、`.ts-grid/.tc/.tc-swatch/.tc-ck/.tc-duo`(18 色卡)、`.ts-fonts/.tf/.tf-spec/.tf-meta/.tf-check`(字体卡)。旧 `.mode-opt/.font-opt/.thm/.theme-grid` **已全部删除**。
+- **别再让 `renderSettings()` 覆盖主题**：服务端 `app_settings.theme` 只作首次兜底（`renderHome` 里 `!hasLocalTheme()` 才用），本机 localStorage 为准。
+- `sunTimes(lat,date)` 日出日落估算（赤纬+时角简化算法）+ `uiMode`(light/night/auto)，auto 每分钟检查；`applyUIMode()` 变化时同步 `syncThemeColor()`（改 `<meta name="theme-color">`）与 `#modeNow` 徽标。
+- 持久化 localStorage：`pf_theme` / `pf_font` / `pf_mode`，启动时 `restoreAppearance()` 恢复（旧主题 key 不在 `THEMES` 会自动回落到 `DEFAULT_THEME`）。
 
 ## Cloudflare Pages 特有的坑
 - **文件/目录同名冲突 → error code 1101**：`functions/api/profile.js` 与 `functions/api/profile/` 不能并存，已改为 `profile/detail.js`，前端调 `/api/profile/detail?id=`。
@@ -81,7 +86,7 @@ v0.3.2 修了档案页 `nb.date`→`nb.full`，v0.3.3 发现列表页仍写 `b.d
   - 侧栏 `#profileBtn`（`.local-card` 下方）→ 向上弹 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security/sysinfo）。移动端 `.mnav-profile > #profileBtnMobile`（文案「我的」）→ `#profilePopoverMobile`。
   - `PROFILE_MENUS` 数组 + `closeAllProfilePopovers()` 管理；点击走 `openProfileTab(name)`。
   - **坑**：`switchView('settings')` 内不可无条件 `switchProfileTab('site')`（会重置带参进入的子页）。用 `currentProfileTab` 记忆 + `switchView(name,{keepTab:true})`。导航委托里 `navEl.id !== 'profileBtnMobile'` 排除移动端「我的」。
-  - `#view-settings` 子页容器 `.profile-page`(id=page-site/style/security/sysinfo)。
+  - `#view-settings` 子页容器 `.profile-page`(id=page-site/style/security/sysinfo)；`style` 子页自 v0.3.8 起是「主题风格」页（详见「外观设置」）。
   - 站点信息页 `GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)。
   - 账户安全页 `renderSessions()` + `DELETE /api/sessions/[sid]`；退出 `#logoutBtn2`。
   - 系统信息页 `renderSysInfo()`：后端 `GET /api/sysinfo`(instance+health+D1 探测耗时；`request.cf.colo`) + 客户端 `collectClientInfo()`；同步 `markSynced()`。
@@ -104,4 +109,4 @@ v0.3.2 修了档案页 `nb.date`→`nb.full`，v0.3.3 发现列表页仍写 `b.d
 ## 其他备忘
 - **邮件通知（已放弃，勿重复尝试）**：Cloudflare Pages Functions 无 TCP 能力，SMTP 无法直连。唯一可行路径是 HTTP 邮件 API（Resend / SendGrid / Cloudflare Email binding），用 `fetch()` 调用。用户 v0.2.8 已确认暂不做。
 - **模块状态**：个人首页、成长打卡、个人中心、日历中心、待办提醒、我的账本、人际关系、**家庭药箱(v0.3.7)** 均已补齐，**已无留白页**。
-- **PWA 缓存名实际已到 v20**（历史记录里写的 v4/v19 已过时，以 `public/js/sw.js` 里 `const CACHE =` 为准）。
+- **PWA 缓存名实际已到 v21**（历史记录里写的 v4/v19/v20 已过时，以 `public/js/sw.js` 里 `const CACHE =` 为准）。
