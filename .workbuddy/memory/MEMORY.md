@@ -3,7 +3,14 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.4（全部页面已补齐，无留白页）。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.5（全部页面已补齐，无留白页）。
+- **前端 JS 验证方法（必做，`node --check` 不够）**：
+  1. `node --check` 只查语法，**查不出运行时未定义引用**（如 `FONTS is not defined` 能通过语法检查却使页面全崩）。
+  2. 改完 JS 必须 grep 关键常量（THEMES/FONTS/currentFont/currentTheme/uiMode/lastAppliedMode）确认定义还在。
+  3. **Edit 的 old_string 必须足够唯一**（带上下文行）——曾因 `function buildFontOpts() {` 不唯一而连带删掉上方的 const FONTS 定义。
+  4. 线上验证用 Edge headless（无需装 playwright）：
+     `"/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new --disable-gpu --virtual-time-budget=9000 --dump-dom <url>`
+     然后 grep `Uncaught|fatal` 数量、`data-mode` 属性、关键节点是否存在。
 - **外观设置（v0.3.4）**：
   - `THEMES` 现有 **18 种中国传统色 + 5 种经典**，格式 `{base,soft,label,group}`，group 用于分块（红/紫/绿/黄/蓝/经典）。数据源 https://api.dujin.org/colors/cn-colors/ 。改配色时**保留原 5 种经典**，否则老用户 localStorage 主题失效。
   - `sunTimes(lat,date)` 日出日落估算（赤纬+时角简化算法），配合 `uiMode`(light/night/auto)，auto 每分钟检查。夜间模式通过 `html[data-mode="night"]` 覆写 CSS 变量+ 硬编码 background 元素。

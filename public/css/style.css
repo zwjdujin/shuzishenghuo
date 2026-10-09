@@ -8,34 +8,68 @@
 }
 /* ===== 夜间模式（可按日出日落自动切换） ===== */
 html[data-mode="night"]{
-  --paper:#1a1714;--card:#241f1b;--ink:#ece5dc;--muted:#a09689;--line:#3a322b;
-  --plum-soft:#33292f;--terra-soft:#3a2c25;--sage-soft:#28322c;--sand-soft:#39321f;--clay:#c9705a;
-  --red:#e07a6e;--green:#7faf8f;--shadow:0 16px 40px rgba(0,0,0,.34)
+  --paper:#14110f;--card:#201c19;--ink:#f0e9e0;--muted:#b0a496;--line:#38312b;
+  --plum-soft:#2e252c;--terra-soft:#332822;--sage-soft:#242e28;--sand-soft:#332c1d;
+  --clay:#d07a5f;--red:#e88a7c;--green:#8cbb9b;
+  --shadow:0 16px 40px rgba(0,0,0,.5)
 }
-html[data-mode="night"] .sidebar,html[data-mode="night"] .side{
-  background:#211c18!important;border-right-color:rgba(255,255,255,.08)!important
-}
-html[data-mode="night"] .mcell.out,html[data-mode="night"] .tf-chip,
+html[data-mode="night"] body{background:var(--paper);color:var(--ink)}
+/* 所有面板类元素统一暗色 */
+html[data-mode="night"] .sidebar,html[data-mode="night"] .side,
+html[data-mode="night"] .panel,html[data-mode="night"] .hero-card,
+html[data-mode="night"] .pf-hero,html[data-mode="night"] .modal-card,
+html[data-mode="night"] .bday-card,html[data-mode="night"] .contact-row,
+html[data-mode="night"] .mcell,html[data-mode="night"] .rel-simple-item,
+html[data-mode="night"] .tf-chip:not(.on),html[data-mode="night"] .chip,
 html[data-mode="night"] .inp,html[data-mode="night"] textarea.inp,
-html[data-mode="night"] select.inp,
-html[data-mode="night"] .contact-row,html[data-mode="night"] .contact-stack .contact-row,
-html[data-mode="night"] .pitem,html[data-mode="night"] .btn.line,
-html[data-mode="night"] .icon-btn,html[data-mode="night"] .chip,
-html[data-mode="night"] .tl-row,html[data-mode="night"] .tl-b,
+html[data-mode="night"] select.inp,html[data-mode="night"] .vc,
+html[data-mode="night"] .mode-opt,html[data-mode="night"] .font-opt,
+html[data-mode="night"] .handle-opt,html[data-mode="night"] .more-btn,
+html[data-mode="night"] .rep-box,html[data-mode="night"] .tl-row,html[data-mode="night"] .tl-b,
 html[data-mode="night"] .file-box,html[data-mode="night"] .drop,
-html[data-mode="night"] .bday-card,html[data-mode="night"] .node,
-html[data-mode="night"] .rel-simple-item,html[data-mode="night"] .pcard,
-html[data-mode="night"] .rel-filters,html[data-mode="night"] .more-btn,
-html[data-mode="night"] .handle-opt,html[data-mode="night"] .pf-hero{
-  background:var(--card)!important;border-color:var(--line)!important
+html[data-mode="night"] .node,html[data-mode="night"] .money,
+html[data-mode="night"] .money-bar .money,html[data-mode="night"] .ledger-stats .ls,
+html[data-mode="night"] .lrow,html[data-mode="night"] .card,
+html[data-mode="night"] .contact-card,html[data-mode="night"] .habit-card,
+html[data-mode="night"] .stat-card,html[data-mode="night"] .quick-action,
+html[data-mode="night"] .glance-item,html[data-mode="night"] .txn-row,
+html[data-mode="night"] .pitem,html[data-mode="night"] .rep,html[data-mode="night"] .pf-card,
+html[data-mode="night"] .seg,html[data-mode="night"] .prio-item,
+html[data-mode="night"] .info-row,html[data-mode="night"] .theme-swatch{
+  background:var(--card)!important;
+  border-color:var(--line)!important;
+  color:var(--ink)!important
 }
-html[data-mode="night"] .mcell.out{opacity:.5}
-html[data-mode="night"] .vocab{background:#332c1e;border-color:#5a4c30}
-html[data-mode="night"] .pf-ring svg circle:first-child{stroke:#3a322b}
-html[data-mode="night"] .modal-card{background:var(--card)}
-html[data-mode="night"] .login-overlay{background:rgba(20,17,14,.94)}
-html[data-mode="night"] .note.info{background:var(--sage-soft);color:#cfe0d0}
-html[data-mode="night"] .note.p{background:var(--sand-soft);color:#e6d5a8}
+/* 主题色卡内的三色条与色名保持原色（内联background 需胜过上面的 !important） */
+html[data-mode="night"] .ts-strip i,
+html[data-mode="night"] .theme-swatch .ts-name{filter:none}
+html[data-mode="night"] .sidebar,html[data-mode="night"] .side{
+  background:#1b1714!important;border-right-color:rgba(255,255,255,.07)!important
+}
+html[data-mode="night"] .mcell.out{background:#191512!important;opacity:.65}
+html[data-mode="night"] .tf-chip.on{color:#fff!important}
+html[data-mode="night"] .cat-tag,html[data-mode="night"] .contact-badge,
+html[data-mode="night"] .prio-pill{color:#fff!important}
+html[data-mode="night"] .vocab{background:#302819!important;border-color:#584a2e!important}
+html[data-mode="night"] .vc{color:#e6d5a8!important;border-color:#584a2e!important}
+html[data-mode="night"] .pf-ring svg circle:first-child{stroke:#38312b}
+html[data-mode="night"] .modal-card{background:var(--card);color:var(--ink)}
+html[data-mode="night"] .login-overlay{background:rgba(16,13,11,.97);color:var(--ink)}
+html[data-mode="night"] .login-card{background:var(--card);color:var(--ink)}
+html[data-mode="night"] .note.info{background:#242e28!important;color:#cfe0d0!important}
+html[data-mode="night"] .note.p{background:#332c1d!important;color:#e8d8ab!important}
+html[data-mode="night"] .note.pp{background:#2e252c!important;color:#e0cfe0!important}
+html[data-mode="night"] .mode-opt:has(input:checked),
+html[data-mode="night"] .font-opt.on{background:var(--plum-soft)!important;border-color:var(--plum)!important}
+html[data-mode="night"] .empty-hint,html[data-mode="night"] .empty{background:var(--card)!important;border-color:var(--line)!important;color:var(--muted)!important}
+html[data-mode="night"] .muted,html[data-mode="night"] small{color:var(--muted)}
+html[data-mode="night"] .btn.line,html[data-mode="night"] .btn.ghost{color:var(--ink)!important}
+html[data-mode="night"] .icon-btn{color:var(--muted)!important}
+html[data-mode="night"] .icon-btn:hover{color:var(--ink)!important}
+html[data-mode="night"] .seg-item{color:var(--muted)!important}
+html[data-mode="night"] .seg-item.active{color:#fff!important}
+html[data-mode="night"] .pf-item,html[data-mode="night"] .pp-item{color:#d8cfc4!important}
+html[data-mode="night"] .pp-item:hover{background:var(--plum-soft);color:#fff!important}
 *{box-sizing:border-box}
 /* 关键：保证 hidden 属性始终生效（否则 .login-overlay{display:grid} 等作者样式会盖掉默认的 [hidden]{display:none}，
    导致 JS 里 loginOverlay.hidden=true 失败、登录后遮罩不消失——这正是“点了登录还在登录页”的根因） */
@@ -45,6 +79,21 @@ body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.55 var(--font
 .svg-sprite{position:absolute;width:0;height:0;overflow:hidden}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
+/* ===== 字体切换生效保障（v0.3.6） =====
+   :root 上用 --f-ui / --f-serif；applyFont() 改写它们。
+   用 !important 压过各处 `font:` 简写中的裸 serif 关键字与系统默认。 */
+html{font-family:var(--f-ui,var(--font-ui))!important}
+body,button,input,select,textarea,label,span,div,p,b,strong,small,h1,h2,h3,h4,li,td,th{
+  font-family:var(--f-ui,var(--font-ui))!important
+}
+/* 标题/衬线元素跟随 --f-serif */
+h1,h2,h3,h4,.growth-head h2,.panel-head h2,.modal-head b,.modal-head h3,
+.pf-hero h2,.money-bar b,.ledger-stats .ls strong,.hero h2,.brand strong,.brand-mark,
+.stat-value,.brand h2,.local-card h2,.cal-title{
+  font-family:var(--f-serif,var(--font-serif))!important
+}
+/* 等宽/图标类排除 */
+.r2-path,.seg-item,.chip,code,pre{font-family:ui-monospace,Menlo,Consolas,monospace!important}
 svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 /* ===== 布局 ===== */
@@ -183,9 +232,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .view.active>*:last-child{margin-bottom:0}
 /* 个人中心：入口为子菜单，页面直接显示子页内容 */
 #view-settings.active{display:block}
+/* 个人中心：子页之间 + 子页内panel 之间的间距（统一 22px） */
 #view-settings.active>.profile-page{margin-bottom:22px}
 #view-settings.active>.profile-page:last-child{margin-bottom:0}
 #view-settings .profile-page.active{display:block;animation:fade .3s ease}
+#view-settings .profile-page>*{margin-bottom:22px}
+#view-settings .profile-page>*:last-child{margin-bottom:0}
+#view-settings .profile-page .panel{margin-bottom:22px}
+#view-settings .profile-page .panel:last-child{margin-bottom:0}
 
 .checkin-stack{display:flex;flex-direction:column;gap:10px}
 .checkin-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
@@ -530,14 +584,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .fo-name{font-size:19px;font-weight:600;line-height:1.3}
 .fo-note{font-size:11px;color:var(--muted)}
 
-.theme-grid{display:flex;flex-direction:column;gap:14px}
-.theme-group{margin-top:4px}
-.tg-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em}
-.theme-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:9px;margin-top:8px}
-.theme-swatch{position:relative;height:52px;border:0;border-radius:12px;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;transition:.18s;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.theme-swatch:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,0,0,.16)}
-.theme-swatch span{font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.4)}
-.theme-swatch i{position:absolute;top:6px;right:6px;width:12px;height:12px;border-radius:4px;border:1px solid rgba(0,0,0,.12)}
+.theme-grid{display:block}
+.theme-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.theme-swatch{border:1px solid var(--line);border-radius:13px;overflow:hidden;display:flex;flex-direction:column;padding:0;background:var(--card);transition:.18s}
+.theme-swatch:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,0,0,.14)}
+/* 三色条：底色 / 突显色 / 字体色 */
+.ts-strip{display:flex;height:26px}
+.ts-strip i{flex:1}
+.ts-soft{border-radius:0}
+.ts-name{display:block;padding:6px 4px;font-size:11.5px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .theme-swatch.active{box-shadow:0 0 0 3px var(--plum-soft),0 0 0 4px var(--plum)}
 
 /* 个人中心子页（入口为侧栏/移动端子菜单，无顶部页签） */

@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.3.5
-const VERSION = '0.3.5';
+// 数字生活 · 前端逻辑 v0.3.6
+const VERSION = '0.3.6';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = '待更新 · 提交 71a49ac';
 const __BUILD_TIME__ = '2026-10-09 14:15';
@@ -55,49 +55,41 @@ async function api(path, opts = {}) {
 // ===== 主题配色 =====
 // 18 种中国传统色（主色 + 浅色背景），数据源 https://api.dujin.org/colors/cn-colors/
 const THEMES = {
-  // 原有配色（保留以兼容历史设置）
-  plum:  { base: '#4d3045', soft: '#e8dfe5', label: '绛紫',   group: '经典' },
-  terra: { base: '#b65f42', soft: '#f3dfd6', label: '赤陶',   group: '经典' },
-  sage:  { base: '#627a67', soft: '#dfe8df', label: '青绿',   group: '经典' },
-  sand:  { base: '#a57c45', soft: '#eee2ce', label: '砂金',   group: '经典' },
-  clay:  { base: '#8f4f3b', soft: '#ecd9d0', label: '陶土',   group: '经典' },
-
-  // 中国传统色 · 红
-  yanzhi:{ base: '#952E3A', soft: '#F0E0E2', label: '胭脂',   group: '红' },
-  qdhl:  { base: '#B80233', soft: '#F7DDE2', label: '牡丹红', group: '红' },
-  yxht:  { base: '#952E3A', soft: '#F0E0E2', label: '殷红',   group: '红' },
-
-  // 中国传统色 · 紫
-  zll:   { base: '#732E7E', soft: '#EEE0F0', label: '紫罗蓝', group: '紫' },
-  ldzi:  { base: '#423171', soft: '#E1DFEC', label: '龙胆紫', group: '紫' },
-  qnz:   { base: '#A22076', soft: '#F3DEEC', label: '牵牛紫', group: '紫' },
-  xz:    { base: '#79485A', soft: '#F0E2E7', label: '雪紫',   group: '紫' },
-
-  // 中国传统色 · 绿
-  cng:   { base: '#4E5F45', soft: '#E3EAE1', label: '苍绿',   group: '绿' },
-  ywl:   { base: '#006E5F', soft: '#DCEEEA', label: '翠绿',   group: '绿' },
-  yxls:  { base: '#4F7E57', soft: '#E1EBE3', label: '琉璃绿', group: '绿' },
-  dll:   { base: '#3F5B50', soft: '#DFE7E4', label: '墨绿',   group: '绿' },
-
-  // 中国传统色 · 黄
-  myh:   { base: '#C77A3A', soft: '#F5E6D2', label: '金黄',   group: '黄' },
-  jsh:   { base: '#E1A14D', soft: '#FAEDD8', label: '虾黄',   group: '黄' },
-  th:    { base: '#CE9335', soft: '#F7E9CF', label: '土黄',   group: '黄' },
-
-  // 中国传统色 · 蓝
-  ll:    { base: '#1A638A', soft: '#DFEAF1', label: '琉璃蓝', group: '蓝' },
-  szsbl: { base: '#507883', soft: '#E0EAED', label: '玉石蓝', group: '蓝' },
-  zy:    { base: '#6493AF', soft: '#E4EDF3', label: '钴蓝',   group: '蓝' },
-  qnh:   { base: '#168570', soft: '#DEEDE8', label: '孔雀绿', group: '蓝' },
+  plum:    { base:'#4d3045', soft:'#4F3247', ink:'#362230', label:'绛紫' },
+  terra:   { base:'#b65f42', soft:'#B76044', ink:'#7F422E', label:'赤陶' },
+  sage:    { base:'#627a67', soft:'#637B68', ink:'#455548', label:'青绿' },
+  sand:    { base:'#a57c45', soft:'#A67D47', ink:'#735730', label:'砂金' },
+  clay:    { base:'#8f4f3b', soft:'#90513D', ink:'#643729', label:'陶土' },
+  yanzhi:  { base:'#952E3A', soft:'#96303C', ink:'#682029', label:'胭脂' },
+  qdhl:    { base:'#B80233', soft:'#B90435', ink:'#810124', label:'牡丹红' },
+  yxht:    { base:'#C43739', soft:'#C5393B', ink:'#892628', label:'殷红' },
+  zll:     { base:'#732E7E', soft:'#74307F', ink:'#502058', label:'紫罗蓝' },
+  ldzi:    { base:'#423171', soft:'#443372', ink:'#2E224F', label:'龙胆紫' },
+  qnz:     { base:'#A22076', soft:'#A32277', ink:'#711653', label:'牵牛紫' },
+  xz:      { base:'#79485A', soft:'#7A4A5B', ink:'#55323F', label:'雪紫' },
+  cng:     { base:'#4E5F45', soft:'#506047', ink:'#374230', label:'苍绿' },
+  ywl:     { base:'#006E5F', soft:'#026F60', ink:'#004D42', label:'翠绿' },
+  lili:    { base:'#4F7E57', soft:'#517F58', ink:'#37583D', label:'琉璃绿' },
+  molv:    { base:'#3F5B50', soft:'#415C52', ink:'#2C4038', label:'墨绿' },
+  jhuang:  { base:'#C77A3A', soft:'#C77B3C', ink:'#8B5529', label:'金黄' },
+  xiah:    { base:'#E1A14D', soft:'#E1A24F', ink:'#9E7136', label:'虾黄' },
+  tuhuang: { base:'#CE9335', soft:'#CE9437', ink:'#906725', label:'土黄' },
+  liliu:   { base:'#1A638A', soft:'#1C648B', ink:'#124561', label:'琉璃蓝' },
+  yushi:   { base:'#507883', soft:'#527984', ink:'#38545C', label:'玉石蓝' },
+  gulan:   { base:'#6493AF', soft:'#6594B0', ink:'#46677A', label:'钴蓝' },
+  kongque: { base:'#168570', soft:'#188671', ink:'#0F5D4E', label:'孔雀绿' }
 };
 let currentTheme = 'plum';
 function applyTheme(name) {
   const t = THEMES[name] || THEMES.plum;
   currentTheme = name in THEMES ? name : 'plum';
   const root = document.documentElement;
-  root.style.setProperty('--plum', t.base);
-  root.style.setProperty('--plum-soft', t.soft);
-  // 同步辅助色（按钮 hover / 边框用），由主色派生
+  // 三色体系：base=突显色 / soft=底色 / ink=字体色
+  root.style.setProperty('--plum', t.base);        // 突显色
+  root.style.setProperty('--plum-soft', t.soft);   // 底色（浅背景）
+  root.style.setProperty('--accent', t.base);      // 突显色别名
+  root.style.setProperty('--tint', t.soft);        // 底色别名
+  root.style.setProperty('--on-accent', t.ink);    // 字体色（在突显色上）
   root.style.setProperty('--plum-deep', shade(t.base, -18));
   try { localStorage.setItem('pf_theme', currentTheme); } catch (_) {}
 }
@@ -201,6 +193,11 @@ function buildFontOpts() {
       <span class="fo-note">${f.note}</span>
     </button>`;
   }).join('');
+  // 预览卡需要内联字体（会被全局 !important 覆盖），故改为直接在元素上写 style 属性并加 inline 优先级
+  box.querySelectorAll('.fo-name').forEach((el, i) => {
+    const k = Object.keys(FONTS)[i];
+    el.setAttribute('style', 'font-family:' + FONTS[k].stack + ' !important');
+  });
 }
 function pickFont(name) {
   applyFont(name);
@@ -212,9 +209,14 @@ function applyFont(name) {
   currentFont = FONTS[name] ? name : 'default';
   const f = FONTS[currentFont];
   const root = document.documentElement;
+  // 同时写入 --f-ui/--f-serif（实际生效，带 !important 覆盖）与 --font-ui/--font-serif（兼容）
+  root.style.setProperty('--f-ui', f.stack);
+  root.style.setProperty('--f-serif', f.serif);
   root.style.setProperty('--font-ui', f.stack);
   root.style.setProperty('--font-serif', f.serif);
   try { localStorage.setItem('pf_font', currentFont); } catch (_) {}
+  // 预览卡内联字体同步刷新
+  document.querySelectorAll('.fo-name').forEach((el) => { el.style.fontFamily = f.stack; });
 }
 
 // ===== 登录 =====
@@ -1597,42 +1599,33 @@ function buildThemeGrid() {
   const grid = $('#themeGrid');
   if (!grid) return;
   grid.innerHTML = '';
-  // 按 group 分组展示
-  const groups = {};
-  Object.keys(THEMES).forEach((k) => {
-    const g = THEMES[k].group || '其他';
-    (groups[g] = groups[g] || []).push(k);
-  });
-  const order = ['经典', '红', '紫', '绿', '黄', '蓝', '其他'];
   const cnt = $('#themeCount');
   if (cnt) cnt.textContent = `共 ${Object.keys(THEMES).length} 种`;
 
-  order.forEach((g) => {
-    const keys = groups[g];
-    if (!keys) return;
-    const sec = document.createElement('div');
-    sec.className = 'theme-group';
-    sec.innerHTML = `<span class="tg-label">${g}</span>`;
-    grid.appendChild(sec);
-    const row = document.createElement('div');
-    row.className = 'theme-row';
-    keys.forEach((k) => {
-      const t = THEMES[k];
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'theme-swatch' + (k === currentTheme ? ' active' : '');
-      b.style.background = t.base;
-      b.innerHTML = `<span>${t.label}</span><i style="background:${t.soft}"></i>`;
-      b.title = `${t.label} ${t.base}`;
-      b.addEventListener('click', () => {
-        applyTheme(k);
-        buildThemeGrid();
-        toast('已应用配色：' + t.label);
-      });
-      row.appendChild(b);
+  // 不分组，平铺展示；每格展示 底色 / 突显色 / 字体色 三色条
+  const row = document.createElement('div');
+  row.className = 'theme-row';
+  Object.keys(THEMES).forEach((k) => {
+    const t = THEMES[k];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'theme-swatch' + (k === currentTheme ? ' active' : '');
+    b.title = `${t.label}｜突显 ${t.base}｜底色 ${t.soft}｜字体 ${t.ink}`;
+    b.innerHTML = `
+      <span class="ts-strip">
+        <i class="ts-soft" style="background:${t.soft}"></i>
+        <i class="ts-base" style="background:${t.base}"></i>
+        <i class="ts-ink" style="background:${t.ink}"></i>
+      </span>
+      <span class="ts-name" style="background:${t.base};color:${t.ink}">${t.label}</span>`;
+    b.addEventListener('click', () => {
+      applyTheme(k);
+      buildThemeGrid();
+      toast('已应用配色：' + t.label);
     });
-    grid.appendChild(row);
+    row.appendChild(b);
   });
+  grid.appendChild(row);
 }
 
 async function renderSettings() {
