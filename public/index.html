@@ -186,6 +186,16 @@
           <div><p class="eyebrow">待办提醒</p><h2>今天要做的事</h2></div>
           <button class="btn primary" id="addTodoBtn" type="button"><svg><use href="#i-plus"/></svg>新增待办</button>
         </div>
+        <article class="panel todo-filter-panel">
+          <div class="tf-row">
+            <span class="tf-label">优先级</span>
+            <div class="tf-chips" id="tfPriority"></div>
+          </div>
+          <div class="tf-row">
+            <span class="tf-label">类别</span>
+            <div class="tf-chips" id="tfList"></div>
+          </div>
+        </article>
         <article class="panel">
           <div class="panel-head"><div><p class="eyebrow">今日待办</p><h2>专注完成今天的安排</h2></div><span class="muted" id="todoCount"></span></div>
           <div id="todoList" class="todo-stack"></div>
@@ -434,8 +444,16 @@
         </div>
         <div class="field-row">
           <label class="field"><span>清单</span><select name="list" id="todoListSel"></select></label>
-          <label class="field"><span>优先级</span><select name="priority"><option value="normal">普通</option><option value="high">高优先</option></select></label>
+          <label class="field"><span>提醒</span><label class="check-line" style="margin:0"><input type="checkbox" name="remind"><span>需要邮件提醒</span></label></label>
         </div>
+        <label class="field"><span>优先级</span>
+          <div class="prio-picker" id="prioPicker">
+            <label class="prio-item" data-p="P0"><input type="radio" name="priority" value="P0" checked><b>P0</b><small>重要且紧急</small></label>
+            <label class="prio-item" data-p="P1"><input type="radio" name="priority" value="P1"><b>P1</b><small>重要不紧急</small></label>
+            <label class="prio-item" data-p="P2"><input type="radio" name="priority" value="P2"><b>P2</b><small>紧急不重要</small></label>
+            <label class="prio-item" data-p="P3"><input type="radio" name="priority" value="P3"><b>P3</b><small>不重要不紧急</small></label>
+          </div>
+        </label>
         <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
         <button class="btn primary full" type="submit">添加待办</button>
         <p class="login-error" id="todoFormError" hidden></p>

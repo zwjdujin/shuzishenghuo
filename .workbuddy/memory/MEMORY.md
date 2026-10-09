@@ -3,7 +3,8 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.6。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.7。
+- **模块状态**：个人首页、成长打卡、个人中心、**日历中心(v0.2.7 周历/月历/农历)**、**待办提醒(v0.2.7 今日待办)**、**我的账本(v0.2.7 记账理财)** 均已补齐；仅剩家庭药箱、人际关系为留白页。
 - **个人中心（v0.2.5 当前）**：**子菜单是唯一入口**，页面顶部无标题、无页签，直接显示子页内容。
   - 侧栏：`#profileBtn`（在 `.local-card` 下方）→ 向上弹出 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security/sysinfo）。
   - 移动端：底部导航 `.mnav-profile > #profileBtnMobile`（文案「我的」）→ 向上弹出 `#profilePopoverMobile`，结构同上。
@@ -19,6 +20,11 @@
 - **固定高度+border/padding 坑**：给固定 `height` 的元素加 border/padding 会压缩内容盒（除非显式 `box-sizing:border-box`），视觉上表现为「内容不居中」。`.side-bottom` 曾因此把 44px 按钮的文字挤偏，分隔线应放到父容器。
 - **模块状态**：个人首页已成型；**成长打卡已补齐**；**个人中心(v0.2.2) 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
 - **数据表**：app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts, sessions。建表见 `schema.sql`，示例见 `seed.sql`。
+- **日历/待办/账本（v0.2.7）**：
+  - 农历：`public/js/lunar.js` 独立模块（app.js 前引入）。`lunarLabel(date)` 初一显示月名/其余显示日名、节气优先；`lunarFull(date)` 含干支生肖。1900–2100 压缩表算法，已校验。
+  - 日历中心：`CAL_COLOR` 四类配色；周历 8–22 点时间轴、月历整月网格；点格子新增、点事件编辑、双击或弹窗内按钮删除。
+  - 账本：`renderDonut()` 内联 SVG 环图；支出红收入绿（国内习惯）。
+  - **删除路由坑**：Pages Functions 中 `onRequestDelete` + `[id].js` 拿不到 `context.params.id`（400/405）。**必须导出 `onRequest()`，用 `url.pathname.match(/\/events\/(\d+)/)` 解析**，见 events/[id].js、transactions/[id].js、todos/[id]/delete.js。
 - **成长打卡（v0.2.1）数据结构**：
   - `habits`：`category`(分类名) / `type`('normal'|'sleep') / `method`('count'按次|'duration'按时长，仅 normal) / `target`&`unit`(目标值+单位) / `bed_time`&`rise_time`&`nap_time`(仅 sleep；nap_time 为「12:30-14:00」格式午睡区间)。
   - `habit_logs`：`done`(normal 存累计值，count=次数/duration=分钟；sleep 存完成项数) / `done_bed` / `done_rise` / `done_nap`(各 0/1)；每日每习惯 UNIQUE(habit_id, log_date)。

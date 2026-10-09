@@ -50,13 +50,17 @@ CREATE TABLE IF NOT EXISTS habit_logs (
 );
 
 -- 待办提醒
+-- priority：P0 重要且紧急 / P1 重要不紧急 / P2 紧急不重要 / P3 不重要不紧急
+-- important / urgent：优先级背后的两个独立维度（1/0），用于筛选与排序
 CREATE TABLE IF NOT EXISTS todos (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   title      TEXT NOT NULL,
   todo_date  TEXT,
   todo_time  TEXT,
   list       TEXT DEFAULT '生活',
-  priority   TEXT DEFAULT 'normal',
+  priority   TEXT DEFAULT 'P3',
+  important  INTEGER DEFAULT 0,
+  urgent     INTEGER DEFAULT 0,
   note       TEXT,
   remind     INTEGER DEFAULT 0,
   done       INTEGER DEFAULT 0,

@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.7
-const VERSION = '0.2.7';
+// 数字生活 · 前端逻辑 v0.2.8
+const VERSION = '0.2.8';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = 'f90112a2 · 提交 19e2cd3';
 const __BUILD_TIME__ = '2026-10-09 12:36';
@@ -249,7 +249,7 @@ function renderTodayTasks(list) {
       <div class="main"><b></b><small></small></div>
       <span class="when"></span>`;
     row.querySelector('.main b').textContent = t.title;
-    row.querySelector('.main small').textContent = [t.list, t.priority === 'high' ? '高优先' : ''].filter(Boolean).join(' · ');
+    row.querySelector('.main small').textContent = [t.list, t.priority && t.priority.startsWith('P') ? t.priority : ''].filter(Boolean).join(' · ');
     row.querySelector('.when').textContent = t.when || '';
     if (t.actionable) {
       const btn = document.createElement('button');
@@ -594,22 +594,32 @@ function toLocalInput(d) {
 }
 function closeEventModal() { $('#eventModal').hidden = true; }
 
-// ===== 待办提醒（今日） =====
+// ===== 待办提醒（今日 + P0-P3 优先级筛选） =====
 let todoLists = ['生活'];
+const PRIO_DESC = { P0: '重要且紧急', P1: '重要不紧急', P2: '紧急不重要', P3: '不重要不紧急' };
+let todoFilter = { priority: [], list: '' };
+
 async function renderTodos() {
   const box = $('#todoList');
   if (!box) return;
   box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  const qs = new URLSearchParams();
+  qs.set('scope', 'today');
+  if (todoFilter.priority.length) qs.set('priority', todoFilter.priority.join(','));
+  if (todoFilter.list) qs.set('list', todoFilter.list);
   try {
-    const res = await api('/api/todos?scope=today');
+    const res = await api('/api/todos?' + qs.toString());
     const data = await res.json();
     todoLists = data.lists || todoLists;
     fillCalendarSel('#todoListSel', todoLists);
+    renderTodoFilters(data.counts || {});
     const list = data.todos || [];
     $('#todoCount').textContent = list.length ? `共 ${list.length} 项` : '';
     box.innerHTML = '';
     if (!list.length) {
-      box.innerHTML = '<div class="empty-hint">今天没有待办，轻松一天 ☕</div>';
+      box.innerHTML = '<div class="empty-hint">' +
+        (todoFilter.priority.length || todoFilter.list ? '当前筛选条件下没有待办' : '今天没有待办，轻松一天 ☕') +
+        '</div>';
       return;
     }
     list.forEach((t) => {
@@ -622,8 +632,8 @@ async function renderTodos() {
       row.querySelector('b').textContent = t.title;
       const meta = row.querySelector('.todo-meta');
       meta.innerHTML =
-        `<span class="todo-pill${t.priority === 'high' ? ' high' : ''}">${t.list}</span>` +
-        (t.priority === 'high' ? '<span class="todo-pill high">高优先</span>' : '') +
+        `<span class="prio-pill ${t.priority}">${t.priority} ${PRIO_DESC[t.priority] || ''}</span>` +
+        `<span class="todo-pill">${t.list}</span>` +
         (t.overdue ? `<span class="todo-pill high">逾期 ${t.date}</span>` : '') +
         (t.note ? `<span>${t.note}</span>` : '');
       if (t.time) {
@@ -640,6 +650,38 @@ async function renderTodos() {
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载待办失败</div>';
   }
+}
+
+// 筛选栏：优先级多选 + 类别单选
+function renderTodoFilters(counts) {
+  const pBox = $('#tfPriority');
+  const lBox = $('#tfList');
+  if (!pBox || !lBox) return;
+  // 优先级
+  pBox.innerHTML = ['P0', 'P1', 'P2', 'P3'].map((p) =>
+    `<button class="tf-chip${todoFilter.priority.includes(p) ? ' on' : ''}" data-p="${p}">${p} ${PRIO_DESC[p]}<span class="n">${counts[p] || 0}</span></button>`
+  ).join('');
+  pBox.querySelectorAll('.tf-chip').forEach((b) =>
+    b.addEventListener('click', () => {
+      const p = b.dataset.p;
+      const i = todoFilter.priority.indexOf(p);
+      if (i >= 0) todoFilter.priority.splice(i, 1);
+      else todoFilter.priority.push(p);
+      renderTodos();
+    })
+  );
+  // 类别
+  lBox.innerHTML =
+    `<button class="tf-chip${todoFilter.list === '' ? ' on' : ''}" data-l="">全部</button>` +
+    todoLists.map((l) =>
+      `<button class="tf-chip${todoFilter.list === l ? ' on' : ''}" data-l="${l}">${l}</button>`
+    ).join('');
+  lBox.querySelectorAll('.tf-chip').forEach((b) =>
+    b.addEventListener('click', () => {
+      todoFilter.list = b.dataset.l;
+      renderTodos();
+    })
+  );
 }
 
 async function finishTodo(id) {
@@ -1549,7 +1591,8 @@ $('#todoForm').addEventListener('submit', async (e) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title, date: fd.get('date'), time: fd.get('time'),
-        list: fd.get('list'), priority: fd.get('priority'), note: fd.get('note'),
+        list: fd.get('list'), priority: fd.get('priority'),
+        note: fd.get('note'), remind: e.target.remind.checked,
       }),
     });
     if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); await renderTodos(); }

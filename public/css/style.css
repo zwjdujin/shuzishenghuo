@@ -274,6 +274,35 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .txn-amt.inc{color:var(--green)}
 
 /* 待办 */
+.todo-filter-panel{padding:16px 20px}
+.tf-row{display:flex;align-items:flex-start;gap:12px}
+.tf-row+.tf-row{margin-top:10px}
+.tf-label{flex:0 0 auto;font-size:12px;color:var(--muted);font-weight:600;padding-top:6px}
+.tf-chips{display:flex;gap:7px;flex-wrap:wrap}
+.tf-chip{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:#fffdfa;color:var(--muted);font-size:12px;font-weight:600;transition:.15s}
+.tf-chip:hover{background:var(--plum-soft)}
+.tf-chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.tf-chip .n{opacity:.7;margin-left:3px}
+.tf-chip[data-p="P0"].on{background:var(--red);border-color:var(--red)}
+.tf-chip[data-p="P1"].on{background:var(--terra);border-color:var(--terra)}
+.tf-chip[data-p="P2"].on{background:var(--sand);border-color:var(--sand)}
+
+/* 优先级选择器（P0-P3） */
+.prio-picker{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.prio-item{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;cursor:pointer;transition:.15s}
+.prio-item:hover{border-color:var(--plum)}
+.prio-item input{position:absolute;opacity:0;pointer-events:none}
+.prio-item b{font-size:14px;font-weight:700;color:var(--ink)}
+.prio-item small{font-size:11px;color:var(--muted)}
+.prio-item:has(input:checked){border-color:var(--plum);background:var(--plum-soft);box-shadow:0 0 0 2px var(--plum-soft)}
+.prio-item[data-p="P0"]:has(input:checked){border-color:var(--red);background:#fbe3e0;box-shadow:0 0 0 2px #fbe3e0}
+.prio-item[data-p="P1"]:has(input:checked){border-color:var(--terra);background:var(--terra-soft);box-shadow:0 0 0 2px var(--terra-soft)}
+.prio-item[data-p="P2"]:has(input:checked){border-color:var(--sand);background:var(--sand-soft);box-shadow:0 0 0 2px var(--sand-soft)}
+.prio-pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;white-space:nowrap}
+.prio-pill.P0{background:var(--red)}
+.prio-pill.P1{background:var(--terra)}
+.prio-pill.P2{background:var(--sand)}
+.prio-pill.P3{background:#a59c90}
 .todo-stack{display:flex;flex-direction:column;gap:9px}
 .todo-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa}
 .todo-row.overdue{border-color:#ecc9c4;background:#fdf3f1}
