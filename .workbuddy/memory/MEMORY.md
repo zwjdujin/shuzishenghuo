@@ -32,6 +32,10 @@
 - **十二时辰经络（v0.2.2）**：`SHICHEN` 数组(12 项，name/range/meridian/tip)，`shichenOf(hour)` 用 `Math.floor(((hour+1)%24)/2)` 索引；`renderShichen()` 把时辰名写入 hero 的 `#dayBadge`、时间段写入 `.score-orbit` 内 `.shichen-range` small、`#heroGreeting` 显示经络、`#heroSummary` 显示养生口诀。数据源 https://www.dujin.org/6100.html。
 - **本地验证**：可用 Node + mock D1 跑 `functions/api/*` 处理器（`signToken` 必须把 JSON 字符串先 `TextEncoder().encode` 再 base64url，否则 payload 为空）。
 - **部署**：Cloudflare 控制台建 D1/R2→绑定 DB/BUCKET→环境变量；或 `wrangler pages deploy ./public`。D1 迁移用 `wrangler d1 execute shuzishenghuo --remote --file=./migrate-vX.Y.Z.sql`（用 `--command "..."` 可直接跑 SQL）。查部署记录用 `wrangler pages deployment list --project-name=shuzishenghuo`。仓库 `zwjdujin/shuzishenghuo`。
-- **Git 推送（重要）**：已改用 **SSH**，推送不再弹凭据框且只需几秒（原 HTTPS+wincred 每次弹窗且耗时数分钟）。远程 `git@github.com:zwjdujin/shuzishenghuo.git`；仓库级 `core.sshCommand` 绑定 `.ssh-keys/id_ed25519`（`IdentitiesOnly=yes`）；该目录已 gitignore，**私钥禁止入库**。新机器需先把公钥加到 GitHub（Settings → SSH keys）。
+- **Git 推送（重要）**：已改用 **SSH**，推送不弹窗且约 4 秒完成（原 HTTPS+wincred 每次弹凭据框且耗时数分钟）。
+  - 远程 `git@github.com:zwjdujin/shuzishenghuo.git`；仓库级 `core.sshCommand` 已配置，**必须保留以下三个参数**，否则会触发安全中心弹窗：
+    `ssh -F "<abs>/.ssh-keys/ssh_config" -i "<abs>/.ssh-keys/id_ed25519" -o IdentitiesOnly=yes -o UserKnownHostsFile="<abs>/.ssh-keys/known_hosts" -o GlobalKnownHostsFile=NUL`
+  - **`~/.ssh/` 是 WorkBuddy 受保护路径**，「始终允许」对其无效。SSH 一切文件（私钥/known_hosts/ssh_config）都放项目内 `.ssh-keys/`（已 gitignore），并显式屏蔽默认路径查找。
+  - 新机器需把 `.ssh-keys/id_ed25519.pub` 加到 GitHub（Settings → SSH keys），并重建 `.ssh-keys/known_hosts`（`ssh-keyscan github.com > .ssh-keys/known_hosts`）。
 - **PWA 缓存坑（重要）**：`public/js/sw.js` 必须静态资源走「网络优先」、且每次部署改 `CACHE` 名（现 `shuzishenghuo-v4`）。否则旧缓存会一直提供旧资源，导致“代码更新了但浏览器不生效”。用户侧遇“改了没生效”先让其硬刷新/清站点数据/Ctrl+Shift+R 两次。
 - **CSS hidden 覆盖坑（重要）**：若元素用作者样式设了 `display`（如 `.login-overlay{display:grid}`），会盖掉浏览器默认的 `[hidden]{display:none}`，使 JS 里 `el.hidden=true` 失效。统一在样式表顶部加 `[hidden]{display:none!important}` 兜底。曾导致“登录成功后遮罩不消失、页面变两页高”。
