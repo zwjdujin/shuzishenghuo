@@ -7,7 +7,9 @@ INSERT OR IGNORE INTO app_settings(key, value) VALUES
   ('brand_name',   '数字生活'),
   ('brand_avatar', '数'),
   ('brand_tagline','把日子过成自己喜欢的样子'),
-  ('theme',        'plum');
+  ('theme',        'zhiyin'),
+  ('font',         'default'),
+  ('mode',         'auto');
 
 -- 成长打卡：默认三大分类（看书→学习，运动→锻炼，睡觉→睡眠；已删除喝水/冥想）
 -- 用户可在此基础上自行新增自定义分类

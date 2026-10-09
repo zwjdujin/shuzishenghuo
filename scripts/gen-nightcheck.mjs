@@ -60,6 +60,43 @@ const inject = `
   $$('.view').forEach(function(v){ v.classList.remove('active'); });
   var target = $('#view-' + mv);
   if (target) target.classList.add('active');
+  // hash 里带 ptab-xxx 时切到个人中心的对应子页（如 ptab-data 数据处理页）
+  var pt = (location.hash.match(/ptab-(\\w+)/) || [])[1];
+  if (pt) {
+    $$('.profile-page').forEach(function(p){ p.classList.toggle('active', p.id === 'page-' + pt); });
+  }
+  // 数据处理页需要样例数据才能看出层次
+  if (pt === 'data') {
+    var ds = $('#dataStats');
+    if (ds) ds.innerHTML =
+      '<div class="data-stat"><span>成长打卡 · 习惯</span><b>3</b></div>' +
+      '<div class="data-stat"><span>成长打卡 · 打卡记录</span><b>21</b></div>' +
+      '<div class="data-stat"><span>待办提醒</span><b>6</b></div>' +
+      '<div class="data-stat"><span>我的账本</span><b>12</b></div>' +
+      '<div class="data-stat zero"><span>推送订阅</span><b>0</b></div>';
+    var dt = $('#dataTotal');
+    if (dt) dt.textContent = '42 条数据';
+  }
+  // 账户安全：样例登录设备（第一条为当前设备）
+  if (pt === 'security') {
+    var dl = $('#deviceList');
+    if (dl) dl.innerHTML =
+      '<div class="device-item current"><div class="dev-icon"><svg><use href="#i-people"/></svg></div>' +
+      '<div class="dev-main"><b>Windows · 桌面端</b><small>Edge · IP 203.0.113.7</small>' +
+      '<em>登录于 2026-10-09 20:11 · 最近活跃 2026-10-09 23:05</em></div>' +
+      '<div class="dev-action"><span class="dev-current-tag">当前设备</span></div></div>' +
+      '<div class="device-item"><div class="dev-icon"><svg><use href="#i-people"/></svg></div>' +
+      '<div class="dev-main"><b>Android · 移动端</b><small>微信 · IP 198.51.100.23</small>' +
+      '<em>登录于 2026-10-08 09:02 · 最近活跃 2026-10-08 21:40</em></div>' +
+      '<div class="dev-action"><button class="chip danger-chip">登出</button></div></div>';
+  }
+  // 清空确认弹窗
+  if (location.hash.indexOf('modal-clear') >= 0) {
+    var cm = $('#clearModal');
+    if (cm) cm.hidden = false;
+    var cct = $('#clearCountText');
+    if (cct) cct.textContent = '42 条';
+  }
 
   // ==== 探测 ====
   var out = [];
@@ -93,7 +130,9 @@ const inject = `
     ['.calToday/今天 按钮', $('#calToday')],
     ['.rel-search .inp 搜索框', $('#relSearch')],
     ['日历 .seg-item.active 选中', $('#view-calendar .seg-item.active')],
-    ['人际关系 .seg-item.active 选中', $('#view-relations .seg-item.active')]
+    ['人际关系 .seg-item.active 选中', $('#view-relations .seg-item.active')],
+    ['首页 .hero-card 大模块', $('.hero-card')],
+    ['待办提醒图标(逾期 alert 态)', (function(){ var e = $('#card-todos .stat-icon'); if (e) e.classList.add('alert'); return e; })()]
   ];
   // 相对亮度与对比度（WCAG）
   var lin = function(c){ c/=255; return c<=.03928 ? c/12.92 : Math.pow((c+.055)/1.055,2.4); };
@@ -112,6 +151,32 @@ const inject = `
       + ' 对比=' + (cr==null?'--':cr.toFixed(2))
       + (cr!=null && cr<3 ? '  <<< 低' : ''));
   });
+  out.push('HERO background-image=' + g($('.hero-card'), 'background-image'));
+  // ==== 移动端「我的」子菜单几何检查（窄视口下 @media max-width:860px 才生效）====
+  var popEl = $('#profilePopoverMobile');
+  if (popEl) popEl.hidden = false;
+  var navEl = $('.mobile-nav');
+  var rect = function(el){
+    if (!el) return 'N/A';
+    var r = el.getBoundingClientRect();
+    return 'w=' + Math.round(r.width) + ' h=' + Math.round(r.height)
+      + ' left=' + Math.round(r.left) + ' right=' + Math.round(r.right)
+      + ' top=' + Math.round(r.top) + ' bottom=' + Math.round(r.bottom);
+  };
+  out.push('--- 移动端菜单几何 ---');
+  out.push('viewport=' + window.innerWidth + 'x' + window.innerHeight);
+  out.push('.mobile-nav display=' + g(navEl, 'display') + ' | ' + rect(navEl));
+  out.push('.mnav-popover position=' + g(popEl, 'position') + ' | ' + rect(popEl));
+  var pr = popEl ? popEl.getBoundingClientRect() : null;
+  var nr = navEl ? navEl.getBoundingClientRect() : null;
+  if (pr && nr) {
+    // 用 clientWidth（排除滚动条）才能算出真实的左右留边
+    var vw = document.documentElement.clientWidth;
+    out.push('popover 宽度合理(>200px)=' + (pr.width > 200)
+      + ' 左右留边~14px=' + (Math.abs(pr.left - 14) < 2 && Math.abs(vw - pr.right - 14) < 2)
+      + ' 位于底栏之上=' + (pr.bottom <= nr.top + 1)
+      + ' (clientWidth=' + vw + ')');
+  }
   out.push('DIAG --terra-soft@root=' + getComputedStyle(document.documentElement).getPropertyValue('--terra-soft').trim()
     + ' | @qa=' + getComputedStyle($('.quick-action.terracotta')).getPropertyValue('--terra-soft').trim()
     + ' | qa.bg=' + g($('.quick-action.terracotta'),'background-color')

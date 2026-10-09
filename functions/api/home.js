@@ -35,7 +35,13 @@ export async function onRequestGet(context) {
     name: settings.brand_name || '数字生活',
     avatar: settings.brand_avatar || '数',
     tagline: settings.brand_tagline || '把日子过成自己喜欢的样子',
-    theme: settings.theme || 'plum',
+    theme: settings.theme || 'zhiyin',
+  };
+  // 外观（主题 / 字体 / 明暗）以云端为准，保证电脑端设置后手机端一致
+  const appearance = {
+    theme: settings.theme || '',
+    font: settings.font || '',
+    mode: settings.mode || '',
   };
 
   const cnt = async (sql, ...params) => {
@@ -180,8 +186,9 @@ export async function onRequestGet(context) {
 
   const now = new Date();
   return json({
-    version: '0.3.7',
+    version: '0.3.10',
     brand,
+    appearance,
     today,
     todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN(now)}`,
     weekday: weekdayCN(now),

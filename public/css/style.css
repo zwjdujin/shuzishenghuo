@@ -4,10 +4,13 @@
   --t-day-plum:#952e3a;--t-day-accent:#7b2330;--t-day-soft:#f7eff0;--t-day-card:#fdfafa;
   --t-day-paper:#f8f3f2;--t-day-side:#f1e5e6;--t-day-ink:#33141a;--t-day-muted:#6f575c;
   --t-day-line:#ecdcdd;--t-day-deep:#7b2330;
+  /* 首页 Hero 大模块渐变（日间由主色派生、夜间走主题暗色，跟着配色走） */
+  --t-day-hero:linear-gradient(135deg,#952e3a,#7b2330);
   /* 夜间色板 */
   --t-night-plum:#ce5463;--t-night-accent:#d4667a;--t-night-soft:#281418;--t-night-card:#1b0f12;
   --t-night-paper:#130b0d;--t-night-side:#0c0709;--t-night-ink:#f2e8ea;--t-night-muted:#a8949a;
   --t-night-line:#3a2428;--t-night-deep:#d4667a;
+  --t-night-hero:linear-gradient(135deg,#281418,#1b0f12);
   /* 实际生效变量：日间为默认，夜间由 html[data-mode="night"] 覆盖 */
   --paper:var(--t-day-paper);--card:var(--t-day-card);--ink:var(--t-day-ink);
   --muted:var(--t-day-muted);--line:var(--t-day-line);--side:var(--t-day-side);
@@ -16,6 +19,8 @@
   /* 次级容器面（列表行 / 输入框 / 次级按钮）：日间固定近白，夜间取自主题夜间令牌，
      避免任何元素在夜间残留亮白底。新增此类容器一律用 var(--surface)。 */
   --surface:#fffdfa;--t-night-surface-fallback:#2e1c1e;
+  /* Hero 背景（日/夜由 [data-mode] 切换，applyTheme 会写入主题化渐变） */
+  --hero:var(--t-day-hero);
   /* 固定语义色（习惯分类 / 账本收支 / 状态提示，不随主题变化） */
   --terra:#b65f42;--terra-soft:#f3dfd6;--sage:#627a67;--sage-soft:#dfe8df;
   --sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;--clay-soft:#ecd9d0;--red:#b44d43;--green:#477358;
@@ -33,6 +38,7 @@ html[data-mode="night"]{
   --accent:var(--t-night-accent);--tint:var(--t-night-soft);
   /* 次级容器面：跟随主题夜间色（由 applyTheme 写入 --t-night-surface），比卡片亮一档 */
   --surface:var(--t-night-surface,var(--t-night-surface-fallback));
+  --hero:var(--t-night-hero);
   /* 六色图标底统一压到与卡片同档的暗色，只靠色相区分，夜间不再各自发亮 */
   --terra-soft:#241d1a;--sage-soft:#1c231f;--sand-soft:#231f16;--clay-soft:#241b18;
   --clay:#d07a5f;--red:#e88a7c;--green:#8cbb9b;
@@ -44,8 +50,9 @@ html[data-mode="night"] body{background:var(--paper);color:var(--ink)}
    注意：列表行 / 输入框 / 次级按钮 / 分段按钮 / 标签 等「次级容器」都走 var(--surface)，
    不在这里重复覆盖——否则夜间会被 !important 抢成 --card，与日间层次不一致（这正是
    「今天要处理 / 今日待办 / 打卡按钮 / 日历与人际关系顶部按钮」夜间发亮的根因）。 */
+/* .hero-card 不在白名单内——它自带 var(--hero) 主题渐变，夜间由 --t-night-hero 提供 */
 html[data-mode="night"] .sidebar,html[data-mode="night"] .side,
-html[data-mode="night"] .panel,html[data-mode="night"] .hero-card,
+html[data-mode="night"] .panel,
 html[data-mode="night"] .pf-hero,html[data-mode="night"] .modal-card,
 html[data-mode="night"] .local-card,html[data-mode="night"] .habit-card,
 html[data-mode="night"] .stat-card{background:var(--card)!important;border-color:var(--line)!important;color:var(--ink)!important}
@@ -145,7 +152,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .span-2{grid-column:span 2}
 
 /* Hero */
-.hero-card{grid-column:span 2;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:30px 34px;background:linear-gradient(135deg,#4d3045,#6b4259);color:#fff;border:0;border-radius:var(--radius);box-shadow:0 18px 44px rgba(77,48,69,.28)}
+.hero-card{grid-column:span 2;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:30px 34px;background:var(--hero);color:#fff;border:0;border-radius:var(--radius);box-shadow:0 18px 44px rgba(0,0,0,.18)}
 .hero-card>div:first-child{min-width:0}
 .hero-card .eyebrow.light{color:rgba(255,255,255,.7)}
 .hero-card h2{margin:10px 0 8px;font:700 30px/1.15 var(--font-serif)}
@@ -179,6 +186,8 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .stat-icon.sand{background:var(--sand-soft);color:var(--sand)}
 .stat-icon.terra{background:var(--terra-soft);color:var(--terra)}
 .stat-icon.clay{background:var(--clay-soft);color:var(--clay)}
+/* 待办有逾期时的提醒态：走语义令牌，日夜两态都暗（旧版写死内联 #fdf0ee，夜间是一块亮粉） */
+.stat-icon.alert{background:var(--danger-tint);color:var(--red)}
 .stat-card span{font-size:12px;color:var(--muted)}
 .stat-card strong{display:block;margin-top:2px;font:700 22px/1.1 var(--font-serif)}
 .stat-card small{display:block;margin-top:3px;font-size:11px;color:#a59c90}
@@ -306,7 +315,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .mnav-profile>button{width:100%;height:100%;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
 .mnav-profile>button svg{width:21px;height:21px}
 .mnav-profile>button.active{background:var(--plum);color:#fff}
-.mnav-popover{left:6px;right:6px;bottom:calc(100% + 8px);z-index:50}
+/* 移动端底部导航的「我的」子菜单：必须用 fixed 定位。
+   它被包在 .mnav-profile{position:relative} 里，而 .mnav-profile 只是 6 列栅格中的一格，
+   若用 absolute 会以那一小格为包含块 → 弹出菜单被压成几十像素宽（这正是手机端子菜单显示异常的根因）。
+   fixed 后以视口为基准：左右各留 14px，底边落在底部导航（8px + 64px 高）之上。 */
+.mnav-popover{position:fixed;left:14px;right:14px;bottom:calc(82px + env(safe-area-inset-bottom));z-index:50}
 
 /* 系统信息：键值信息网格 */
 .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:6px}
@@ -766,16 +779,35 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 /* 设备列表 */
 .device-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
 .device-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
-.device-item.current{border-color:var(--sage);background:var(--sage-soft)}
+/* 当前设备：主色描边 + 主色图标块 + 醒目标签，一眼能认出"这台就是本机" */
+.device-item.current{border-color:var(--plum);background:var(--plum-soft)}
+.device-item.current .dev-icon{background:var(--plum);color:#fff}
 .dev-icon{width:40px;height:40px;flex:0 0 auto;border-radius:12px;background:var(--plum-soft);color:var(--plum);display:grid;place-items:center}
 .dev-icon svg{width:20px;height:20px}
 .dev-main{flex:1;min-width:0}
 .dev-main b{display:block;font-size:14px;font-weight:600}
 .dev-main small{display:block;font-size:12px;color:var(--muted)}
 .dev-main em{display:block;font-size:11px;color:#a59c90;font-style:normal;margin-top:2px}
-.dev-current-tag{font-size:11px;font-weight:600;color:var(--sage);white-space:nowrap}
+.dev-current-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;background:var(--plum);color:#fff;font-size:11.5px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.dev-current-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
 .danger-chip{color:var(--red);border-color:var(--danger-line)}
 .danger-chip:hover{background:var(--danger-soft);color:var(--red)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:disabled:hover{box-shadow:none}
+
+/* ===== 数据处理页（v0.3.10） ===== */
+.data-stat-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:14px}
+.data-stat{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:var(--surface);min-width:0}
+.data-stat span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.data-stat b{font-size:14px;font-weight:700;flex:0 0 auto}
+.data-stat.zero{opacity:.5}
+.data-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.data-warn{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:12px 14px;border:1px solid var(--danger-line);border-radius:12px;background:var(--danger-soft);font-size:13px;line-height:1.55}
+.data-warn b{color:var(--red)}
+.ack-line{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13px;cursor:pointer}
+.ack-line input{width:16px;height:16px;flex:0 0 auto;accent-color:var(--red)}
+.danger-zone{border-color:var(--danger-line)}
+.danger-zone .eyebrow{color:var(--red)}
 
 /* 新增/编辑习惯弹窗内的分段与提示 */
 .seg{display:flex;gap:8px;flex-wrap:wrap}
@@ -892,8 +924,8 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
   .modal-card .field{margin-bottom:14px}
   .modal-card .check-line{margin:-4px 0 14px}
   .modal-card .btn.full{width:100%;justify-content:center}
-  /* 移动端个人中心子菜单：向上弹出、限高可滚动、防止与底部导航重叠 */
-  .mnav-popover{left:8px;right:8px;bottom:calc(100% + 10px);max-height:56vh;overflow-y:auto;border-radius:16px;padding:8px}
+  /* 移动端个人中心子菜单：向上弹出、限高可滚动、防止与底部导航重叠（定位见 .mnav-popover 基础规则） */
+  .mnav-popover{left:14px;right:14px;bottom:calc(82px + env(safe-area-inset-bottom));max-height:min(56vh,320px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:16px;padding:8px}
   .mnav-popover .pp-item{height:46px;font-size:14.5px}
   .mnav-profile{z-index:60}
   .cal-week-grid,.cal-week-head{grid-template-columns:34px repeat(7,1fr);gap:3px}

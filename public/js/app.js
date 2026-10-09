@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.3.7
-const VERSION = '0.3.9';
+// 数字生活 · 前端逻辑 v0.3.10
+const VERSION = '0.3.10';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '家庭药箱 v0.3.7 · 已部署';
-const __BUILD_TIME__ = '2026-10-09 20:30';
+const __BUILD_ID__ = '多端外观同步 · 数据处理 v0.3.10 · 已部署';
+const __BUILD_TIME__ = '2026-10-09 23:09';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -186,9 +186,12 @@ function applyTheme(name) {
   put('--t-day-paper', d.paper);   put('--t-day-side', d.side);
   put('--t-day-ink', d.ink);       put('--t-day-muted', d.muted);
   put('--t-day-line', d.line);     put('--t-day-deep', d.accent);
+  /* 首页 Hero 大模块渐变：日间用主色→突显色（都够深，白字可读），夜间用主题暗色 */
+  put('--t-day-hero', `linear-gradient(135deg,${d.main},${d.accent})`);
   put('--t-night-plum', n.main);   put('--t-night-accent', n.accent);
   put('--t-night-soft', n.soft);   put('--t-night-card', n.card);
   put('--t-night-surface', n.surface);
+  put('--t-night-hero', `linear-gradient(135deg,${n.soft},${n.card})`);
   put('--t-night-paper', n.paper); put('--t-night-side', n.side);
   put('--t-night-ink', n.ink);     put('--t-night-muted', n.muted);
   put('--t-night-line', n.line);   put('--t-night-deep', n.accent);
@@ -205,6 +208,32 @@ function syncThemeColor() {
   const night = document.documentElement.getAttribute('data-mode') === 'night';
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', night ? t.night.paper : t.day.paper);
+}
+
+/* ===== 外观多端同步 =====
+   服务端 app_settings 是权威源（电脑上选好配色，手机打开就是同一套）；
+   localStorage 只作首屏缓存，避免每次刷新先闪一下默认色。 */
+/** 用云端返回的外观覆盖本机（静默应用，不回写服务端） */
+function applyAppearanceFromServer(ap) {
+  if (!ap) return;
+  if (ap.theme && THEMES[ap.theme]) applyTheme(ap.theme);
+  if (ap.font && FONTS[ap.font]) applyFont(ap.font);
+  if (ap.mode && ['light', 'night', 'auto'].includes(ap.mode)) {
+    uiMode = ap.mode;
+    lastAppliedMode = '';
+    applyUIMode();
+    buildModeOpts();
+  }
+}
+/** 用户显式改动外观 → 回写服务端；失败静默（本机已生效，页面顶部同步状态会提示） */
+async function pushAppearance(patch) {
+  try {
+    await api('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  } catch (_) { /* 离线 / 未登录时忽略 */ }
 }
 
 // ===== 字体（v0.3.8：只提供「默认字体」与「霞鹜文楷」两种） =====
@@ -274,14 +303,16 @@ function buildModeOpts() {
   if (!box) return;
   box.querySelectorAll('[data-mode]').forEach((b) => {
     b.classList.toggle('on', b.dataset.mode === uiMode);
-    b.addEventListener('click', () => {
+    // 用 onclick 赋值而非 addEventListener：本函数会被重复调用，后者会让监听器成倍累积
+    b.onclick = () => {
       uiMode = b.dataset.mode;
       lastAppliedMode = '';      // 强制重算
       applyUIMode();
       buildModeOpts();
       syncThemeColor();
+      pushAppearance({ mode: uiMode });
       toast(uiMode === 'auto' ? '已开启日出日落自动切换' : (uiMode === 'night' ? '已切换夜间模式' : '已切换日间模式'));
-    });
+    };
   });
   applyUIMode();
   // 每分钟检查一次（跨过日出/日落时自动切换）；全局只注册一个定时器
@@ -312,6 +343,7 @@ function buildFontOpts() {
 function pickFont(name) {
   applyFont(name);
   buildFontOpts();
+  pushAppearance({ font: currentFont });
   toast('已切换字体：' + FONTS[currentFont].label);
 }
 
@@ -459,7 +491,9 @@ function renderHome(d) {
   $('#brandAvatar').textContent = (d.brand && d.brand.avatar) || '数';
   $('#brandName').textContent = (d.brand && d.brand.name) || '数字生活';
   $('#brandTagline').textContent = (d.brand && d.brand.tagline) || '把日子过成自己喜欢的样子';
-  if (d.brand && d.brand.theme && !hasLocalTheme()) applyTheme(d.brand.theme);
+  // 外观以云端为准（首屏已由 localStorage 兜底渲染，这里对齐到云端值，实现多端一致）
+  if (d.appearance) applyAppearanceFromServer(d.appearance);
+  else if (d.brand && d.brand.theme && !hasLocalTheme()) applyTheme(d.brand.theme);
 
   // Hero 问候：按十二时辰显示时辰 + 对应循行经络
   const h = new Date().getHours();
@@ -469,7 +503,9 @@ function renderHome(d) {
   const s = d.stats;
   $('#stTodos').textContent = s.todos.today;
   $('#stTodosHint').textContent = `逾期 ${s.todos.overdue} · 本周 ${s.todos.week}`;
-  $('#card-todos').querySelector('.stat-icon').style.background = s.todos.overdue > 0 ? '#fdf0ee' : '';
+  // 有逾期 → 加 .alert 类走语义令牌（日夜都暗）；不再写死内联底色
+  const todoIcon = $('#card-todos').querySelector('.stat-icon');
+  if (todoIcon) todoIcon.classList.toggle('alert', s.todos.overdue > 0);
   $('#stHabits').textContent = `${s.habits.done} / ${s.habits.total}`;
   $('#stHabitsHint').textContent = '今日完成';
   $('#stLedger').textContent = money(s.ledger.balance);
@@ -1702,7 +1738,7 @@ $('#habitForm').addEventListener('submit', async (e) => {
 
 // ===== 个人中心 =====
 // 子页名称（站点信息 / 主题风格 / 账户安全 / 系统信息）
-const PROFILE_TITLES = { site: '站点信息', style: '主题风格', security: '账户安全', sysinfo: '系统信息' };
+const PROFILE_TITLES = { site: '站点信息', style: '主题风格', data: '数据处理', security: '账户安全', sysinfo: '系统信息' };
 
 /** 主题配色：18 张国色色卡 */
 function buildThemeGrid() {
@@ -1730,6 +1766,7 @@ function buildThemeGrid() {
       applyTheme(el.dataset.theme);
       buildThemeGrid();
       renderThemePreview();
+      pushAppearance({ theme: currentTheme });
       toast('已应用配色：' + THEMES[currentTheme].label);
     });
   });
@@ -1779,7 +1816,9 @@ async function renderSessions() {
   try {
     const res = await api('/api/sessions');
     const data = await res.json();
-    const devices = data.devices || [];
+    // 当前设备排最前，方便第一时间确认「哪台是本机」
+    const devices = (data.devices || []).slice()
+      .sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
     if (!devices.length) {
       box.innerHTML = '<div class="empty-hint">暂无登录设备记录。</div>';
       return;
@@ -1829,6 +1868,111 @@ async function revokeSession(sid) {
       await renderSessions();
     }
   } catch { /* 401 已处理 */ }
+}
+
+// ===== 数据处理：备份下载 / 清空所有数据 =====
+let dataStatsCache = { total: 0, tables: [] };
+
+async function renderDataPage() {
+  const box = $('#dataStats');
+  const totalEl = $('#dataTotal');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">统计中…</div>';
+  try {
+    const res = await api('/api/data/stats');
+    const d = await res.json();
+    dataStatsCache = { total: d.total || 0, tables: d.tables || [] };
+    if (totalEl) totalEl.textContent = `${dataStatsCache.total} 条数据`;
+    if (!dataStatsCache.tables.length) {
+      box.innerHTML = '<div class="empty-hint">暂无数据。</div>';
+      return;
+    }
+    box.innerHTML = dataStatsCache.tables.map((t) => `
+      <div class="data-stat${t.count ? '' : ' zero'}">
+        <span title="${t.label}">${t.label}</span><b>${t.count}</b>
+      </div>`).join('');
+    const ct = $('#clearCountText');
+    if (ct) ct.textContent = `${dataStatsCache.total} 条`;
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+    box.innerHTML = '<div class="empty-hint">读取数据统计失败，请稍后重试。</div>';
+  }
+}
+
+/** 下载全部数据备份：走后端附件流，避免把大数据塞进 JS 内存做字符串拼接 */
+async function exportAllData() {
+  const btn = $('#exportDataBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/data/export', { credentials: 'same-origin' });
+    if (res.status === 401) { showLogin(); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const cd = res.headers.get('content-disposition') || '';
+    const m = /filename="([^"]+)"/.exec(cd);
+    const name = m ? m[1] : `shuzishenghuo-backup-${Date.now()}.json`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('备份已下载：' + name);
+  } catch (err) {
+    toast('备份下载失败，请检查网络后重试');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function openClearModal() {
+  const ack = $('#ackBackup');
+  if (ack && !ack.checked) { toast('请先勾选「我已下载备份」'); return; }
+  const inp = $('#clearConfirmInput');
+  if (inp) inp.value = '';
+  const cf = $('#clearConfirmBtn');
+  if (cf) cf.disabled = true;
+  const err = $('#clearError');
+  if (err) { err.hidden = true; err.textContent = ''; }
+  const ct = $('#clearCountText');
+  if (ct) ct.textContent = `${dataStatsCache.total || 0} 条`;
+  const modal = $('#clearModal');
+  if (modal) modal.hidden = false;
+  setTimeout(() => { if (inp) inp.focus(); }, 60);
+}
+function closeClearModal() {
+  const modal = $('#clearModal');
+  if (modal) modal.hidden = true;
+}
+
+async function confirmClearData() {
+  const btn = $('#clearConfirmBtn');
+  const err = $('#clearError');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api('/api/data/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: 'CLEAR_ALL_DATA' }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    closeClearModal();
+    const ack = $('#ackBackup');
+    if (ack) ack.checked = false;
+    const cb = $('#clearDataBtn');
+    if (cb) cb.disabled = true;
+    toast(`已清空 ${(d.cleared || []).length} 张数据表`);
+    await loadHome();         // 首页统计归零
+    await renderDataPage();   // 统计数据刷新
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    if (String(msg).includes('unauthorized')) return;
+    if (err) { err.textContent = '清空失败：' + msg; err.hidden = false; }
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ===== 系统信息 =====
@@ -1964,7 +2108,10 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
     brand_name: ($('#setBrandName').value || '').trim() || '数字生活',
     brand_avatar: ($('#setBrandAvatar').value || '').trim() || '数',
     brand_tagline: ($('#setBrandTagline').value || '').trim() || '把日子过成自己喜欢的样子',
+    // 一并保存外观，保证多端一致（外观本身在切换时已即时回写，这里作为兜底）
     theme: currentTheme,
+    font: currentFont,
+    mode: uiMode,
   };
   const btn = $('#saveSettingsBtn');
   btn.disabled = true;
@@ -1993,6 +2140,23 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
 
 $('#logoutBtn2').addEventListener('click', doLogout);
 
+// ===== 数据处理页交互 =====
+$('#exportDataBtn').addEventListener('click', exportAllData);
+$('#refreshDataBtn').addEventListener('click', renderDataPage);
+$('#ackBackup').addEventListener('change', (e) => {
+  const cb = $('#clearDataBtn');
+  if (cb) cb.disabled = !e.target.checked;
+});
+$('#clearDataBtn').addEventListener('click', openClearModal);
+$('#clearModalClose').addEventListener('click', closeClearModal);
+$('#clearCancelBtn').addEventListener('click', closeClearModal);
+$('#clearModal').addEventListener('click', (e) => { if (e.target === $('#clearModal')) closeClearModal(); });
+$('#clearConfirmInput').addEventListener('input', (e) => {
+  const cb = $('#clearConfirmBtn');
+  if (cb) cb.disabled = e.target.value.trim() !== '清空';
+});
+$('#clearConfirmBtn').addEventListener('click', confirmClearData);
+
 // ===== 个人中心子菜单（唯一入口） =====
 // 记住当前选中的子页，从子菜单进入时不被 switchView 重置
 let currentProfileTab = 'site';
@@ -2000,6 +2164,7 @@ function switchProfileTab(name) {
   const tab = name && PROFILE_TITLES[name] ? name : 'site';
   currentProfileTab = tab;
   $$('.profile-page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
+  if (tab === 'data') renderDataPage();
   if (tab === 'security') renderSessions();
   if (tab === 'sysinfo') renderSysInfo();
 }
