@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.2
-const VERSION = '0.2.2';
+// 数字生活 · 前端逻辑 v0.2.3
+const VERSION = '0.2.3';
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -325,11 +325,36 @@ const CAT_COLOR = { plum:'#4d3045', terra:'#b65f42', sage:'#627a67', sand:'#a57c
 const catColor = (c) => CAT_COLOR[c] || '#746d63';
 const catTint = (c) => catColor(c) + '1f'; // 半透明底色
 
+// 按时间打卡的单位备选项（用户直接选，无需手输）
+const DURATION_UNITS = ['秒', '分钟', '小时'];
+
+// 根据打卡方式填充单位下拉：按次→次；按时间→秒/分钟/小时
+function fillUnitOptions(method, preferred) {
+  const sel = $('#unitSelect');
+  if (!sel) return;
+  const options = method === 'duration' ? DURATION_UNITS : ['次'];
+  const want = preferred && options.includes(preferred) ? preferred : options[0];
+  sel.innerHTML = options.map((u) => `<option value="${u}">${u}</option>`).join('');
+  sel.value = want;
+}
+
+// 打卡方式切换时，联动单位下拉与提示文案
+function syncMethodUI(method, preferred) {
+  fillUnitOptions(method, preferred);
+  const hint = $('#methodHint');
+  if (hint) {
+    hint.textContent =
+      method === 'duration'
+        ? '按时间：一天累计时长，单位可选秒/分钟/小时。'
+        : '按次：每打一次卡 +1。';
+  }
+}
+
 async function renderGrowth() {
   try {
     const [hRes, hmRes] = await Promise.all([
       api('/api/habits'),
-      api('/api/habits/heatmap?days=30'),
+      api('/api/habits/heatmap?days=60'),
     ]);
     const habits = (await hRes.json()).habits || [];
     window.__habits = habits;
@@ -353,17 +378,21 @@ function checkinCard(h) {
     const parts = [['bed', '早睡', h.today.done_bed], ['rise', '早起', h.today.done_rise], ['nap', '午睡', h.today.done_nap]];
     actions = parts.map((p) => `<button class="chk-btn ${p[2] ? 'on' : ''}" data-id="${h.id}" data-field="${p[0]}">${p[1]}</button>`).join('');
   } else if (h.method === 'duration') {
+    // 按时间打卡：快捷按钮与输入框都跟随所选单位（秒/分钟/小时）
+    const UNIT_STEPS = { 秒: [10, 20, 30], 分钟: [15, 30, 60], 小时: [1, 2, 3] };
+    const steps = UNIT_STEPS[h.unit] || UNIT_STEPS['分钟'];
     sub = `按时间打卡 · 目标 ${h.target} ${h.unit}`;
+    const cur = h.today.done || 0;
+    const pct = h.target > 0 ? Math.min(100, Math.round((cur / h.target) * 100)) : 0;
     actions = `
       <div class="dur-control">
+        <div class="dur-progress"><i style="width:${pct}%"></i><span>${cur} / ${h.target} ${h.unit}</span></div>
         <div class="dur-quick">
-          <button class="chip" data-id="${h.id}" data-val="15">+15</button>
-          <button class="chip" data-id="${h.id}" data-val="30">+30</button>
-          <button class="chip" data-id="${h.id}" data-val="60">+60</button>
+          ${steps.map((s) => `<button class="chip" data-id="${h.id}" data-val="${s}">+${s}</button>`).join('')}
         </div>
         <div class="dur-input">
-          <input type="number" min="1" value="30" class="dur-min" data-id="${h.id}" aria-label="分钟">
-          <span>分钟</span>
+          <input type="number" min="1" value="10" class="dur-min" data-id="${h.id}" aria-label="${h.unit}">
+          <span>${h.unit}</span>
           <button class="chk-btn" data-id="${h.id}" data-field="done" data-input="1">记录</button>
         </div>
       </div>`;
@@ -526,9 +555,12 @@ function openHabitModal() {
   $('#habitForm').reset();
   const f = $('#habitForm');
   f.querySelector('[name=category]').value = '学习';
+  f.querySelector('[name=target]').value = 1;
   $('#customCatField').hidden = true;
   $('#sleepField').hidden = true;
   $('#methodField').hidden = false;
+  f.querySelector('[name=method][value=count]').checked = true;
+  fillUnitOptions('count');
   $('#habitFormError').hidden = true;
   $('#habitModal').hidden = false;
 }
@@ -562,12 +594,14 @@ async function editHabit(id) {
     f.querySelector('[name=nap_start]').value = nt[0] || '12:30';
     f.querySelector('[name=nap_end]').value = nt[1] || '14:00';
   } else {
-    f.querySelector(`[name=method][value="${h.method === 'duration' ? 'duration' : 'count'}"]`).checked = true;
+    const method = h.method === 'duration' ? 'duration' : 'count';
+    f.querySelector(`[name=method][value="${method}"]`).checked = true;
     f.querySelector('[name=target]').value = h.target || 1;
-    f.querySelector('[name=unit]').value = h.unit || (h.method === 'duration' ? '分钟' : '次');
+    fillUnitOptions(method, h.unit);
   }
   f.querySelector('[name=icon]').value = h.icon || 'sprout';
   f.querySelector('[name=color]').value = h.color || 'sage';
+  syncMethodUI(method, h.unit);
   $('#habitFormError').hidden = true;
   $('#habitModal').hidden = false;
 }
@@ -586,6 +620,13 @@ $('#habitForm').querySelector('[name=category]').addEventListener('change', (e) 
   $('#sleepField').hidden = v !== '睡眠';
   $('#methodField').hidden = v === '睡眠';
 });
+
+// 切换打卡方式时，联动单位下拉（按次→次；按时间→秒/分钟/小时）
+$$('#habitForm [name=method]').forEach((r) =>
+  r.addEventListener('change', (e) => {
+    if (e.target.checked) syncMethodUI(e.target.value);
+  })
+);
 
 $('#habitForm').addEventListener('submit', async (e) => {
   e.preventDefault();

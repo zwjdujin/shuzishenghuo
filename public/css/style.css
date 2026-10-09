@@ -180,9 +180,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .heatmap-scroll{display:flex;flex-direction:column;gap:18px;overflow-x:auto;padding-bottom:6px}
 .heatmap-block{display:flex;flex-direction:column;gap:6px}
 .hm-label{font-size:12px;font-weight:600;text-align:left;line-height:1}
-/* 网页端：30 天一行（30 列）；每个小块占满可用宽度 */
-.hm-cells{display:grid;grid-template-columns:repeat(30,1fr);gap:3px}
-.hm-cell{aspect-ratio:1;border-radius:3px;background:#ece5db;min-width:0}
+/* 网页端：60 天一行（60 列）；格子自适应铺满 */
+.hm-cells{display:grid;grid-template-columns:repeat(60,1fr);gap:2px}
+.hm-cell{aspect-ratio:1;border-radius:2px;background:#ece5db;min-width:0}
 .hm-tip{margin:12px 0 0;font-size:11px;color:var(--muted)}
 
 /* 侧栏底部「个人中心」 */
@@ -240,6 +240,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .chk-btn.round{width:38px;padding:0;font-size:20px;line-height:1}
 /* 打卡控件：按时间 */
 .dur-control{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+/* 按时间打卡的当日进度条 */
+.dur-progress{position:relative;width:100%;min-width:180px;height:22px;border-radius:11px;background:var(--sage-soft);overflow:hidden}
+.dur-progress i{position:absolute;left:0;top:0;bottom:0;background:var(--sage);opacity:.5;border-radius:11px;transition:width .3s}
+.dur-progress span{position:relative;display:block;line-height:22px;text-align:center;font-size:12px;font-weight:600;color:var(--ink)}
 .dur-quick{display:flex;gap:6px}
 .chip{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fffdfa;color:var(--muted);font-size:12px;font-weight:600}
 .chip:hover{background:var(--plum-soft);color:var(--plum)}
@@ -253,7 +257,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .modal-head h3{margin:0;font:700 19px/1.2 "Songti SC",serif}
 .field-row{display:flex;gap:12px}
-.field-row .field{flex:1;margin-bottom:14px}
+.field-row .field{flex:1;min-width:0;margin-bottom:14px}
 .time-row{display:flex;flex-direction:column;gap:8px}
 .time-row span{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .time-row input[type=time]{height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:15px}
@@ -278,7 +282,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 /* 表单 */
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .field span{font-size:12px;color:var(--muted);font-weight:600}
-.field input,.field select{height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;font-size:16px;outline:none}
+.field input,.field select{width:100%;max-width:100%;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;font-size:16px;outline:none}
 .field input:focus{border-color:var(--plum)}
 
 /* toast */
@@ -305,8 +309,8 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
   .glance-grid{grid-template-columns:1fr 1fr}
   .growth-head{flex-direction:column;align-items:flex-start;gap:10px}
   .field-row{flex-direction:column;gap:0}
-  /* 热力图手机端：15 列两行显示 30 天 */
-  .hm-cells{grid-template-columns:repeat(15,1fr);gap:3px}
+  /* 热力图手机端：20 列三行显示 60 天 */
+  .hm-cells{grid-template-columns:repeat(20,1fr);gap:2px}
   /* 打卡卡片手机端堆叠 */
   .checkin-card{flex-direction:column;align-items:stretch}
   .checkin-card .ci-actions{flex-wrap:wrap}

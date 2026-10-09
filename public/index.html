@@ -281,9 +281,9 @@
           </div>
           <div class="field-row" style="margin-top:10px">
             <label class="field"><span>目标值</span><input name="target" type="number" min="1" step="1" value="1"></label>
-            <label class="field"><span>单位</span><input name="unit" type="text" maxlength="4" value="次"></label>
+            <label class="field"><span>单位</span><select name="unit" id="unitSelect"></select></label>
           </div>
-          <small class="field-hint">按次：每打一次卡 +1；按时间：一天累计分钟数。</small>
+          <small class="field-hint" id="methodHint">按次：每打一次卡 +1。</small>
         </label>
         <div class="field-row">
           <label class="field"><span>图标</span>

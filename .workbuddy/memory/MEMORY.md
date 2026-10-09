@@ -3,9 +3,9 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.1。
-- **模块状态**：个人首页已成型；**成长打卡已补齐**；**个人中心(v0.2.1) 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
-- **数据表**：app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts。建表见 `schema.sql`，示例见 `seed.sql`。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.2。
+- **模块状态**：个人首页已成型；**成长打卡已补齐**；**个人中心(v0.2.2) 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
+- **数据表**：app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts, sessions。建表见 `schema.sql`，示例见 `seed.sql`。
 - **成长打卡（v0.2.1）数据结构**：
   - `habits`：`category`(分类名) / `type`('normal'|'sleep') / `method`('count'按次|'duration'按时长，仅 normal) / `target`&`unit`(目标值+单位) / `bed_time`&`rise_time`&`nap_time`(仅 sleep；nap_time 为「12:30-14:00」格式午睡区间)。
   - `habit_logs`：`done`(normal 存累计值，count=次数/duration=分钟；sleep 存完成项数) / `done_bed` / `done_rise` / `done_nap`(各 0/1)；每日每习惯 UNIQUE(habit_id, log_date)。
@@ -14,6 +14,9 @@
   - 共享帮助函数放 `functions/api/_helpers.js`（progressOf、parseHabitBody），供 habits.js 与 [id].js 复用。
   - **PWA/Pages Functions 打包坑（重要）**：下划线前缀文件放错目录会导致 esbuild 报 `Could not resolve`。`_helpers.js` 必须在 `functions/api/_helpers.js`（与 `habits.js` 同级），`habits.js` 用 `./_helpers.js`、`habits/[id].js` 用 `../_helpers.js`；不能放在 `habits/` 子目录里。
 - **个人中心（v0.2.1）**：侧栏底部 `.side-bottom` 的「个人中心」入口（`data-nav="settings"`）；页内可改 站点名/头像字/副标题/主题配色(plum/terra/sage/sand/clay)，`GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)。主题切换在 app.js 的 `applyTheme(name)`，直接改 `:root` 的 `--plum`/`--plum-soft` CSS 变量。退出登录按钮 `#logoutBtn2` 移到个人中心页（原 topbar `#logoutBtn` 已删）。
+- **个人中心（v0.2.2 重构）**：`#profileBtn` 按钮移到 `local-card` 下方（不再用 `data-nav` 直接切视图），点击弹出 `.profile-popover` 子菜单（站点信息/风格字体/账户安全，`data-ptab`）。个人中心页 `#view-settings` 改为「页签 `.ptab` + 三个 `.profile-page`(site/style/security)」结构，`switchProfileTab(name)` 切换。移动端底部仍用 `data-nav="settings"` 直接进个人中心。账户安全页 `renderSessions()` 渲染设备列表，`DELETE /api/sessions/[sid]` 登出设备。
+- **会话/设备（v0.2.2）**：`sessions` 表(sid PK/user/ip/user_agent/created_at/last_seen_at)。`signToken(user,secret,ttlMs,extra)` 支持额外字段，登录时生成 `sid` 写入 token 并落库；`decodeToken(token)` 取**第一段 payload**（token 格式 `payload.sig`，切勿取第二段）。`_middleware.js` 校验 token 后还查 sessions 表确认 sid 存在（被登出设备 token 立即 401）。IP 取 `cf-connecting-ip` 或 `x-forwarded-for`。终端识别 `parseDevice(ua)` 在 sessions.js。
+- **十二时辰经络（v0.2.2）**：`SHICHEN` 数组(12 项，name/range/meridian/tip)，`shichenOf(hour)` 用 `Math.floor(((hour+1)%24)/2)` 索引；`renderShichen()` 把时辰名写入 hero 的 `#dayBadge`、时间段写入 `.score-orbit` 内 `.shichen-range` small、`#heroGreeting` 显示经络、`#heroSummary` 显示养生口诀。数据源 https://www.dujin.org/6100.html。
 - **本地验证**：可用 Node + mock D1 跑 `functions/api/*` 处理器（`signToken` 必须把 JSON 字符串先 `TextEncoder().encode` 再 base64url，否则 payload 为空）。
 - **部署**：Cloudflare 控制台建 D1/R2→绑定 DB/BUCKET→环境变量；或 `wrangler pages deploy ./public`。D1 迁移用 `wrangler d1 execute shuzishenghuo --remote --file=./migrate-vX.Y.Z.sql`（用 `--command "..."` 可直接跑 SQL）。仓库 `zwjdujin/shuzishenghuo`。
 - **PWA 缓存坑（重要）**：`public/js/sw.js` 必须静态资源走「网络优先」、且每次部署改 `CACHE` 名（现 `shuzishenghuo-v4`）。否则旧缓存会一直提供旧资源，导致“代码更新了但浏览器不生效”。用户侧遇“改了没生效”先让其硬刷新/清站点数据/Ctrl+Shift+R 两次。
