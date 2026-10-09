@@ -3,9 +3,9 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.5。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.6。
 - **个人中心（v0.2.5 当前）**：**子菜单是唯一入口**，页面顶部无标题、无页签，直接显示子页内容。
-  - 侧栏：`#profileBtn`（在 `.local-card` 下方）→ 向上弹出 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security）。
+  - 侧栏：`#profileBtn`（在 `.local-card` 下方）→ 向上弹出 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security/sysinfo）。
   - 移动端：底部导航 `.mnav-profile > #profileBtnMobile`（文案「我的」）→ 向上弹出 `#profilePopoverMobile`，结构同上。
   - 统一由 `PROFILE_MENUS` 数组 + `closeAllProfilePopovers()` 管理；点击子菜单项走 `openProfileTab(name)`。
   - **坑**：`switchView('settings')` 内不可无条件 `switchProfileTab('site')`，会把带参进入的子页重置（曾导致子菜单点了没反应）。现用 `currentProfileTab` 记忆 + `switchView(name,{keepTab:true})`。
@@ -13,6 +13,7 @@
   - `#view-settings` 子页容器 `.profile-page`(id=page-site/style/security)，`switchProfileTab()` 切换 active。
   - 站点信息页 `GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)；主题切换 `applyTheme(name)` 改 `:root` 的 `--plum`/`--plum-soft`。
   - 账户安全页 `renderSessions()` 渲染设备列表，`DELETE /api/sessions/[sid]` 登出设备；退出登录 `#logoutBtn2`。
+  - 系统信息页 `renderSysInfo()`：后端 `GET /api/sysinfo`（instance+health，实测 D1 探测耗时；边缘节点取 `request.cf.colo`）+ 客户端本地采集 `collectClientInfo()`（浏览器/系统/设备型号/架构/引擎/语言硬件/分辨率/时区）；同步状态 `markSynced()`。部署 ID/时间可用 `wrangler pages deployment list --project-name=shuzishenghuo` 查到后写入常量。
 - **打卡卡片布局（v0.2.5）**：`.ci-actions` 固定 `width:210px`（=手机端一行宽），各类控件统一；睡眠三件套加 `.tri` 类三按钮 flex:1 均分；移动端 `.checkin-card` 纵向两行、操作区 `width:100%`。
 - **JS 作用域坑（重要）**：`const/let` 声明在 `if/else` 块内，块外不可见。改造函数时若把变量声明收进分支、块外又要用，会抛 `xxx is not defined`，且 `node --check` 查不出——必须人工核对作用域。
 - **固定高度+border/padding 坑**：给固定 `height` 的元素加 border/padding 会压缩内容盒（除非显式 `box-sizing:border-box`），视觉上表现为「内容不居中」。`.side-bottom` 曾因此把 44px 按钮的文字挤偏，分隔线应放到父容器。
