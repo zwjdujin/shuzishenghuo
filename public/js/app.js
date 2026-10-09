@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.4
-const VERSION = '0.2.4';
+// 数字生活 · 前端逻辑 v0.2.5
+const VERSION = '0.2.5';
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -302,20 +302,27 @@ function renderGlance(d) {
 }
 
 // ===== 导航切换 =====
-function switchView(name) {
+// keepTab：从子菜单进入个人中心时，保留已选中的子页，不强制回到默认页
+function switchView(name, opts = {}) {
   const target = $('#view-' + name);
   if (!target) return;
   $$('.view').forEach((v) => v.classList.remove('active'));
   target.classList.add('active');
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
-  $$('.mobile-nav button').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
+  $$('.mobile-nav > button, .mnav-profile > button').forEach((n) =>
+    n.classList.toggle('active', n.dataset.nav === name)
+  );
   if (name === 'growth') renderGrowth();
-  if (name === 'settings') { renderSettings(); switchProfileTab('site'); }
+  if (name === 'settings') {
+    renderSettings();
+    switchProfileTab(opts.keepTab ? currentProfileTab : 'site');
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
   const navEl = e.target.closest('[data-nav]');
-  if (navEl) {
+  // 移动端「我的」按钮只负责弹子菜单，不直接切视图（由它自己的监听器处理）
+  if (navEl && navEl.id !== 'profileBtnMobile') {
     switchView(navEl.dataset.nav);
   }
 });
@@ -410,7 +417,7 @@ function checkinCard(h) {
       <span class="ci-icon" style="background:${catTint(h.color)};color:${catColor(h.color)}"><svg><use href="#i-${h.icon}"/></svg></span>
       <div class="ci-text"><b></b><small>${cat} ${sub}</small></div>
     </div>
-    <div class="ci-actions">${actions}</div>`;
+    <div class="ci-actions${h.type === 'sleep' ? ' tri' : ''}">${actions}</div>`;
   el.querySelector('b').textContent = h.name;
 
   el.querySelectorAll('.chk-btn').forEach((btn) => {
@@ -680,16 +687,8 @@ $('#habitForm').addEventListener('submit', async (e) => {
 });
 
 // ===== 个人中心 =====
-// 页签切换（站点信息 / 风格字体 / 账户安全）
+// 子页名称（站点信息 / 风格字体 / 账户安全）
 const PROFILE_TITLES = { site: '站点信息', style: '风格字体', security: '账户安全' };
-function switchProfileTab(name) {
-  const tab = name && PROFILE_TITLES[name] ? name : 'site';
-  $$('.ptab').forEach((t) => t.classList.toggle('active', t.dataset.ptab === tab));
-  $$('.profile-page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
-  const title = $('#profilePageTitle');
-  if (title) title.textContent = PROFILE_TITLES[tab];
-  if (tab === 'security') renderSessions();
-}
 
 function buildThemeGrid() {
   const grid = $('#themeGrid');
@@ -819,35 +818,55 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
 
 $('#logoutBtn2').addEventListener('click', doLogout);
 
-// 页签点击
-document.addEventListener('click', (e) => {
-  const tabEl = e.target.closest('[data-ptab]');
-  if (!tabEl) return;
-  switchProfileTab(tabEl.dataset.ptab);
-  // 若在侧栏 popover 里点击，切到个人中心视图并关闭 popover
-  if (tabEl.classList.contains('pp-item')) {
-    switchView('settings');
-    closeProfilePopover();
-  }
+// ===== 个人中心子菜单（唯一入口） =====
+// 记住当前选中的子页，从子菜单进入时不被 switchView 重置
+let currentProfileTab = 'site';
+function switchProfileTab(name) {
+  const tab = name && PROFILE_TITLES[name] ? name : 'site';
+  currentProfileTab = tab;
+  $$('.profile-page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
+  if (tab === 'security') renderSessions();
+}
+
+// 从子菜单进入个人中心的指定子页
+function openProfileTab(name) {
+  switchProfileTab(name);
+  switchView('settings', { keepTab: true });
+}
+
+// 侧栏与移动端两套「个人中心 / 我的」按钮 + 子菜单
+const PROFILE_MENUS = [
+  { btn: '#profileBtn', pop: '#profilePopover' },
+  { btn: '#profileBtnMobile', pop: '#profilePopoverMobile' },
+];
+function closeAllProfilePopovers() {
+  PROFILE_MENUS.forEach(({ pop }) => { const p = $(pop); if (p) p.hidden = true; });
+}
+PROFILE_MENUS.forEach(({ btn, pop }) => {
+  const b = $(btn);
+  const p = $(pop);
+  if (!b || !p) return;
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = p.hidden;
+    closeAllProfilePopovers();
+    p.hidden = !willOpen;
+  });
 });
 
-// 侧栏「个人中心」按钮：弹出子菜单
-function toggleProfilePopover() {
-  const p = $('#profilePopover');
-  p.hidden = !p.hidden;
-}
-function closeProfilePopover() {
-  $('#profilePopover').hidden = true;
-}
-$('#profileBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  toggleProfilePopover();
-});
+// 子菜单项点击：进入对应子页并关闭所有子菜单
 document.addEventListener('click', (e) => {
-  const p = $('#profilePopover');
-  if (!p.hidden && !e.target.closest('#profilePopover') && !e.target.closest('#profileBtn')) {
-    p.hidden = true;
+  const tabEl = e.target.closest('[data-ptab]');
+  if (tabEl) {
+    openProfileTab(tabEl.dataset.ptab);
+    closeAllProfilePopovers();
+    return;
   }
+  // 点击页面其他处关闭子菜单
+  const inMenu = PROFILE_MENUS.some(({ btn, pop }) =>
+    e.target.closest(pop) || e.target.closest(btn)
+  );
+  if (!inMenu) closeAllProfilePopovers();
 });
 
 // ===== PWA =====

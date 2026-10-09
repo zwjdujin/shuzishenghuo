@@ -183,18 +183,8 @@
       <section class="view" id="view-calendar" data-title="日历中心"><div class="coming-soon"><svg><use href="#i-calendar"/></svg><h2>日历中心</h2><p>日程事件与月历模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
       <section class="view" id="view-relations" data-title="人际关系"><div class="coming-soon"><svg><use href="#i-people"/></svg><h2>人际关系</h2><p>联系人、生日与纪念日模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
 
-      <!-- 个人中心（v0.2.2 子页面化） -->
+      <!-- 个人中心（v0.2.5：子菜单为唯一入口，无顶部标题与页签） -->
       <section class="view" id="view-settings" data-title="个人中心">
-        <div class="growth-head">
-          <div><p class="eyebrow">个人中心</p><h2 id="profilePageTitle">站点信息</h2></div>
-        </div>
-
-        <div class="profile-tabs" role="tablist">
-          <button class="ptab active" data-ptab="site" type="button">站点信息</button>
-          <button class="ptab" data-ptab="style" type="button">风格字体</button>
-          <button class="ptab" data-ptab="security" type="button">账户安全</button>
-        </div>
-
         <!-- 子页：站点信息 -->
         <div class="profile-page active" id="page-site">
           <article class="panel">
@@ -240,7 +230,14 @@
     <button data-nav="todos"><svg><use href="#i-bell"/></svg><span>待办</span></button>
     <button data-nav="ledger"><svg><use href="#i-wallet"/></svg><span>账本</span></button>
     <button data-nav="relations"><svg><use href="#i-people"/></svg><span>人际</span></button>
-    <button data-nav="settings"><svg><use href="#i-settings"/></svg><span>我的</span></button>
+    <div class="mnav-profile">
+      <button id="profileBtnMobile" data-nav="settings" type="button"><svg><use href="#i-settings"/></svg><span>我的</span></button>
+      <div class="profile-popover mnav-popover" id="profilePopoverMobile" hidden>
+        <button class="pp-item" data-ptab="site"><svg><use href="#i-home"/></svg><span>站点信息</span></button>
+        <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>风格字体</span></button>
+        <button class="pp-item" data-ptab="security"><svg><use href="#i-people"/></svg><span>账户安全</span></button>
+      </div>
+    </div>
   </nav>
 
   <!-- 新增习惯弹窗 -->

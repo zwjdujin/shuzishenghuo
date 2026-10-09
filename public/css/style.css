@@ -146,9 +146,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .growth-head h2{margin:4px 0 0;font:700 26px/1.2 "Songti SC",serif}
 .muted{color:var(--muted);font-size:13px}
 
-/* 个人中心模块间距 */
-#view-settings.active{display:flex;flex-direction:column;gap:0}
-#view-settings .growth-head{margin-bottom:0}
+/* 个人中心：入口为子菜单，页面直接显示子页内容 */
+#view-settings.active{display:block}
+#view-settings .profile-page.active{display:block;animation:fade .3s ease}
 
 .checkin-stack{display:flex;flex-direction:column;gap:10px}
 .checkin-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
@@ -159,7 +159,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .ci-text b{display:block;font-size:15px;font-weight:600}
 .ci-text small{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
 .cat-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;margin-right:6px;background:var(--plum-soft);color:var(--plum)}
-.ci-actions{display:flex;gap:8px;flex:0 0 auto}
+/* 右侧操作区固定为「手机端一行」的宽度，各类打卡控件（睡眠三件/按次/按时长）宽度一致 */
+.ci-actions{display:flex;gap:8px;flex:0 0 auto;width:210px;max-width:210px}
+.ci-actions>*{width:100%}
 .chk-btn{height:38px;padding:0 16px;border:1px solid var(--line);border-radius:11px;background:#fffdfa;color:var(--ink);font-weight:600;font-size:13px;transition:.2s;white-space:nowrap}
 .chk-btn:hover{box-shadow:var(--shadow)}
 .chk-btn.on{background:var(--sage);border-color:var(--sage);color:#fff}
@@ -196,11 +198,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .pp-item{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#5e574e;text-align:left;font-size:14px}
 .pp-item:hover{background:var(--plum-soft);color:var(--plum)}
 .pp-item svg{width:18px;height:18px}
+/* 移动端底部导航里的「我的」及其子菜单 */
+.mnav-profile{position:relative;min-width:0}
+.mnav-profile>button{width:100%;height:100%;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
+.mnav-profile>button svg{width:21px;height:21px}
+.mnav-profile>button.active{background:var(--plum);color:#fff}
+.mnav-popover{left:6px;right:6px;bottom:calc(100% + 8px);z-index:50}
 
-/* 个人中心页签 */
-.profile-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
-.ptab{height:38px;padding:0 16px;border:1px solid var(--line);border-radius:11px;background:#fffdfa;color:var(--muted);font-weight:600;font-size:13px}
-.ptab.active{background:var(--plum);border-color:var(--plum);color:#fff}
+/* 个人中心子页（入口为侧栏/移动端子菜单，无顶部页签） */
 .profile-page{display:none}
 .profile-page.active{display:block;animation:fade .3s ease}
 
@@ -234,23 +239,28 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .seg-item input{accent-color:var(--plum)}
 .field-hint{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
 
+/* 打卡控件：睡眠三件套（三按钮均分固定宽度） */
+.ci-actions.tri{display:flex;gap:6px;width:210px;max-width:210px}
+.ci-actions.tri .chk-btn{flex:1 1 0;min-width:0;padding:0 4px}
 /* 打卡控件：按次 */
-.count-control{display:flex;align-items:center;gap:10px}
-.count-control .cnt{font-size:14px;font-weight:600;min-width:74px;text-align:center}
+.count-control{display:flex;align-items:center;gap:8px;width:100%}
+.count-control .cnt{flex:1;font-size:14px;font-weight:600;text-align:center;white-space:nowrap}
 .count-control .cnt i{font-style:normal;font-weight:400;color:var(--muted);font-size:12px}
-.chk-btn.round{width:38px;padding:0;font-size:20px;line-height:1}
+.chk-btn.round{width:38px;flex:0 0 auto;padding:0;font-size:20px;line-height:1}
 /* 打卡控件：按时间 */
-.dur-control{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.dur-control{display:flex;flex-direction:column;gap:7px;width:100%}
 /* 按时间打卡的当日进度条 */
-.dur-progress{position:relative;width:100%;min-width:180px;height:22px;border-radius:11px;background:var(--sage-soft);overflow:hidden}
+.dur-progress{position:relative;width:100%;height:22px;border-radius:11px;background:var(--sage-soft);overflow:hidden}
 .dur-progress i{position:absolute;left:0;top:0;bottom:0;background:var(--sage);opacity:.5;border-radius:11px;transition:width .3s}
 .dur-progress span{position:relative;display:block;line-height:22px;text-align:center;font-size:12px;font-weight:600;color:var(--ink)}
 .dur-quick{display:flex;gap:6px}
+.dur-quick .chip{flex:1 1 0;min-width:0;padding:0 4px}
 .chip{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fffdfa;color:var(--muted);font-size:12px;font-weight:600}
 .chip:hover{background:var(--plum-soft);color:var(--plum)}
-.dur-input{display:flex;align-items:center;gap:8px}
-.dur-input input{width:74px;height:38px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:15px;text-align:center}
-.dur-input span{font-size:13px;color:var(--muted)}
+.dur-input{display:flex;align-items:center;gap:8px;width:100%}
+.dur-input input{flex:1 1 0;min-width:0;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:15px;text-align:center}
+.dur-input span{font-size:13px;color:var(--muted);flex:0 0 auto}
+.dur-input .chk-btn{flex:0 0 auto;padding:0 12px}
 
 /* 弹窗 */
 .modal-overlay{position:fixed;inset:0;z-index:110;display:grid;place-items:center;background:rgba(40,30,38,.5);padding:20px}
@@ -312,13 +322,13 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
   .field-row{flex-direction:column;gap:0}
   /* 热力图手机端：20 列三行显示 60 天 */
   .hm-cells{grid-template-columns:repeat(20,1fr);gap:2px}
-  /* 打卡卡片手机端堆叠 */
-  .checkin-card{flex-direction:column;align-items:stretch}
-  .checkin-card .ci-actions{flex-wrap:wrap}
+  /* 打卡卡片手机端：名称一行 + 操作一行，两行显示完一个目标 */
+  .checkin-card{flex-direction:column;align-items:stretch;gap:10px}
+  .checkin-card .ci-actions,.checkin-card .ci-actions.tri{width:100%;max-width:100%}
   .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid rgba(85,69,55,.14);border-radius:20px;background:rgba(255,252,247,.94);box-shadow:0 14px 35px rgba(53,41,31,.16);backdrop-filter:blur(14px)}
-  .mobile-nav button{min-width:0;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
-  .mobile-nav button svg{width:21px;height:21px}
-  .mobile-nav button.active{background:var(--plum);color:#fff}
+  .mobile-nav>button{min-width:0;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
+  .mobile-nav>button svg{width:21px;height:21px}
+  .mobile-nav>button.active{background:var(--plum);color:#fff}
   .login-card{padding:28px 22px}
 }
 @media(max-width:560px){
