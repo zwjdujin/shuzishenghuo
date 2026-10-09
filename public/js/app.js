@@ -1,8 +1,8 @@
 // 数字生活 · 前端逻辑 v0.3.7
-const VERSION = '0.3.7';
+const VERSION = '0.3.8';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '家庭药箱 v0.3.7 · 待提交';
-const __BUILD_TIME__ = '2026-10-09 20:10';
+const __BUILD_ID__ = '家庭药箱 v0.3.7 · 已部署';
+const __BUILD_TIME__ = '2026-10-09 20:30';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -52,66 +52,165 @@ async function api(path, opts = {}) {
   return res;
 }
 
-// ===== 主题配色 =====
-// 18 种中国传统色（主色 + 浅色背景），数据源 https://api.dujin.org/colors/cn-colors/
-const THEMES = {
-  zhiyin:   { main:'#4d3045', accent:'#63455A', bg:'#F2EFF1', card:'#FBF9FA', ink:'#2B1F2C', on:'#FFFFFF', label:'绛紫' },
-  longdan:  { main:'#423171', accent:'#5A4790', bg:'#EFEEF5', card:'#F9F8FC', ink:'#231C3F', on:'#FFFFFF', label:'龙胆紫' },
-  ziluolan: { main:'#732E7E', accent:'#8A4A95', bg:'#F4EFF5', card:'#FBF8FC', ink:'#331636', on:'#FFFFFF', label:'紫罗蓝' },
-  zitao:    { main:'#722E41', accent:'#8A445A', bg:'#F4EFF1', card:'#FBF8FA', ink:'#331722', on:'#FFFFFF', label:'紫绦色' },
-  yanzhi:   { main:'#952E3A', accent:'#AC4552', bg:'#F7EFF0', card:'#FDFAFA', ink:'#3F161C', on:'#FFFFFF', label:'胭脂' },
-  mdh:      { main:'#B80233', accent:'#CB1B49', bg:'#FBEEF1', card:'#FEF9FA', ink:'#4C0819', on:'#FFFFFF', label:'牡丹红' },
-  yinhh:    { main:'#A4414F', accent:'#B95664', bg:'#F8EFF0', card:'#FDFAFA', ink:'#461A21', on:'#FFFFFF', label:'殷红' },
-  yinzhu:   { main:'#C15B5C', accent:'#CE7273', bg:'#FBF0EF', card:'#FEFBFB', ink:'#522525', on:'#FFFFFF', label:'银朱' },
-  cangh:    { main:'#C05206', accent:'#D06A1E', bg:'#FAF0E9', card:'#FDF9F5', ink:'#542203', on:'#FFFFFF', label:'苍黄' },
-  jinhuang: { main:'#C77A3A', accent:'#D28C4E', bg:'#F9F2EA', card:'#FDF9F4', ink:'#573415', on:'#FFFFFF', label:'金黄' },
-  tanxiang: { main:'#DC943B', accent:'#E5A355', bg:'#FBF3E9', card:'#FEFAF4', ink:'#5E3D14', on:'#FFFFFF', label:'檀香' },
-  cangl:    { main:'#4E5F45', accent:'#66765A', bg:'#EFF1ED', card:'#F9FAF8', ink:'#252D21', on:'#FFFFFF', label:'苍绿' },
-  cuilv:    { main:'#006E5F', accent:'#1C8071', bg:'#E9F2F0', card:'#F5FAF9', ink:'#03302A', on:'#FFFFFF', label:'翠绿' },
-  hulv:     { main:'#46817E', accent:'#5C9793', bg:'#ECF2F1', card:'#F7FAFA', ink:'#22403F', on:'#FFFFFF', label:'湖绿' },
-  maolv2:   { main:'#155461', accent:'#2A6C7B', bg:'#E9EFF1', card:'#F5F8F9', ink:'#0A2930', on:'#FFFFFF', label:'毛绿' },
-  yushil:   { main:'#507883', accent:'#688E98', bg:'#EDF1F2', card:'#F8FAFA', ink:'#263A3F', on:'#FFFFFF', label:'玉石蓝' },
-  liulil:   { main:'#1A638A', accent:'#2A779F', bg:'#EBF0F4', card:'#F6F9FB', ink:'#0C2E3F', on:'#FFFFFF', label:'琉璃蓝' },
-  gulan2:   { main:'#5F8FAC', accent:'#77A2BD', bg:'#EEF2F5', card:'#F9FAFB', ink:'#2E4351', on:'#FFFFFF', label:'钴蓝' }
-};
-let currentTheme = 'zhiyin';
-function applyTheme(name) {
-  const t = THEMES[name] || THEMES.zhiyin;
-  currentTheme = name in THEMES ? name : 'zhiyin';
-  const root = document.documentElement;
-  // 六色体系：main主色 / accent突显色 / bg整体底色 / card卡面色 / ink字体色 / on反白字
-  root.style.setProperty('--plum', t.main);
-  root.style.setProperty('--plum-soft', t.bg);
-  root.style.setProperty('--accent', t.accent);
-  root.style.setProperty('--tint', t.bg);
-  root.style.setProperty('--card', t.card);
-  root.style.setProperty('--ink', t.ink);
-  root.style.setProperty('--on-accent', t.on);
-  root.style.setProperty('--plum-deep', shade(t.main, -18));
-  try { localStorage.setItem('pf_theme', currentTheme); } catch (_) {}
+// ===== 主题配色（v0.3.8 全新设计） =====
+// 18 款中国传统色，每款自动派生出「日间 / 夜间」两套色板。
+// 色名与色值来源：https://api.dujin.org/colors/cn-colors/
+const CN_COLORS = [
+  { key: 'zhiyin',    label: '胭脂',   base: '#952E3A' },
+  { key: 'mudan',     label: '牡丹红', base: '#B80233' },
+  { key: 'meigui',    label: '玫瑰红', base: '#973444' },
+  { key: 'yinhong',   label: '殷红',   base: '#A4414F' },
+  { key: 'zhangdan',  label: '章丹',   base: '#EB652D' },
+  { key: 'juhuang',   label: '桔黄',   base: '#E8853B' },
+  { key: 'tanxiang',  label: '檀香',   base: '#DC943B' },
+  { key: 'minghuang', label: '明黄',   base: '#F0C649' },
+  { key: 'ganlan',    label: '橄榄绿', base: '#6A6834' },
+  { key: 'canglv',    label: '苍绿',   base: '#4E5F45' },
+  { key: 'cuilv',     label: '翠绿',   base: '#006E5F' },
+  { key: 'hulv',      label: '湖绿',   base: '#46817E' },
+  { key: 'yushi',     label: '玉石蓝', base: '#507883' },
+  { key: 'zhuyue',    label: '竹月',   base: '#5E90B8' },
+  { key: 'liuli',     label: '琉璃蓝', base: '#1A638A' },
+  { key: 'shenzhu',   label: '深竹月', base: '#2578B5' },
+  { key: 'longdan',   label: '龙胆紫', base: '#423171' },
+  { key: 'ziluo',     label: '紫罗蓝', base: '#732E7E' },
+];
+
+/* ---------- 色彩工具 ---------- */
+function hexToHsl(hex) {
+  let s = String(hex).replace('#', '');
+  if (s.length === 3) s = s.split('').map((c) => c + c).join('');
+  const r = parseInt(s.slice(0, 2), 16) / 255;
+  const g = parseInt(s.slice(2, 4), 16) / 255;
+  const b = parseInt(s.slice(4, 6), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  const l = (mx + mn) / 2;
+  let h = 0, sat = 0;
+  if (d) {
+    sat = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    if (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h, s: sat * 100, l: l * 100 };
+}
+function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s = Math.min(100, Math.max(0, s)) / 100;
+  l = Math.min(100, Math.max(0, l)) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const to = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return '#' + to(r) + to(g) + to(b);
+}
+/** WCAG 相对亮度：用来保证主色上的白字可读 */
+function relLum(hex) {
+  const s = String(hex).replace('#', '');
+  const ch = [0, 2, 4].map((i) => {
+    const v = parseInt(s.slice(i, i + 2), 16) / 255;
+    return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+  });
+  return .2126 * ch[0] + .7152 * ch[1] + .0722 * ch[2];
+}
+/** 给定色相/饱和度，二分求出相对亮度约为 target 的明度（relLum 随明度单调递增） */
+function lumToLightness(h, s, target) {
+  let lo = 0, hi = 100;
+  for (let i = 0; i < 16; i++) {
+    const mid = (lo + hi) / 2;
+    if (relLum(hslToHex(h, s, mid)) < target) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
-// ===== 字体（默认 + 免费商用字体） =====
-// 霞鹜文楷经 Google Fonts 加载（OFL 协议可商用）；临海隶书未安装时自动回退
+/* ---------- 由单一国色派生两套色板 ---------- */
+function dayPalette(base) {
+  const { h, s, l } = hexToHsl(base);
+  return {
+    // 主色：浅色自动压深到「白字可读」的亮度，深色保持原汁原味
+    main:   hslToHex(h, s, Math.min(l, lumToLightness(h, s, .145))),
+    accent: hslToHex(h, Math.min(s + 6, 100), lumToLightness(h, s, .085)),
+    soft:   hslToHex(h, Math.min(Math.round(s * .55), 42), 95),
+    card:   hslToHex(h, Math.min(Math.round(s * .32), 24), 98.6),
+    paper:  hslToHex(h, Math.min(Math.round(s * .42), 32), 96.2),
+    side:   hslToHex(h, Math.min(Math.round(s * .50), 38), 93.2),
+    ink:    hslToHex(h, Math.min(Math.round(s * .45), 40), 16),
+    muted:  hslToHex(h, Math.min(Math.round(s * .26), 24), 44),
+    line:   hslToHex(h, Math.min(Math.round(s * .36), 30), 88),
+    on: '#ffffff',
+  };
+}
+function nightPalette(base) {
+  const { h, s } = hexToHsl(base);
+  const ns = Math.min(Math.round(s * 1.05), 88);
+  const pl = lumToLightness(h, ns, .20);
+  return {
+    main:   hslToHex(h, ns, pl),
+    accent: hslToHex(h, ns, Math.min(pl + 8, 78)),
+    soft:   hslToHex(h, Math.min(Math.round(s * .55), 34), 15),
+    card:   hslToHex(h, Math.min(Math.round(s * .40), 22), 10),
+    paper:  hslToHex(h, Math.min(Math.round(s * .48), 26), 6.5),
+    side:   hslToHex(h, Math.min(Math.round(s * .48), 26), 4.4),
+    ink:    hslToHex(h, Math.min(Math.round(s * .20), 20), 93),
+    muted:  hslToHex(h, Math.min(Math.round(s * .18), 18), 66),
+    line:   hslToHex(h, Math.min(Math.round(s * .34), 28), 21),
+    on: '#ffffff',
+  };
+}
+
+const THEMES = {};
+CN_COLORS.forEach((c) => {
+  THEMES[c.key] = { label: c.label, base: c.base, day: dayPalette(c.base), night: nightPalette(c.base) };
+});
+const DEFAULT_THEME = CN_COLORS[0].key;
+
+let currentTheme = DEFAULT_THEME;
+/** 把主题的日/夜色板写入 CSS 令牌；实际生效变量由 [data-mode] 决定 */
+function applyTheme(name) {
+  const key = THEMES[name] ? name : DEFAULT_THEME;
+  currentTheme = key;
+  const { day: d, night: n } = THEMES[key];
+  const put = (p, v) => document.documentElement.style.setProperty(p, v);
+  put('--t-day-plum', d.main);     put('--t-day-accent', d.accent);
+  put('--t-day-soft', d.soft);     put('--t-day-card', d.card);
+  put('--t-day-paper', d.paper);   put('--t-day-side', d.side);
+  put('--t-day-ink', d.ink);       put('--t-day-muted', d.muted);
+  put('--t-day-line', d.line);     put('--t-day-deep', d.accent);
+  put('--t-night-plum', n.main);   put('--t-night-accent', n.accent);
+  put('--t-night-soft', n.soft);   put('--t-night-card', n.card);
+  put('--t-night-paper', n.paper); put('--t-night-side', n.side);
+  put('--t-night-ink', n.ink);     put('--t-night-muted', n.muted);
+  put('--t-night-line', n.line);   put('--t-night-deep', n.accent);
+  syncThemeColor();
+  try { localStorage.setItem('pf_theme', key); } catch (_) {}
+}
+function hasLocalTheme() {
+  try { return !!localStorage.getItem('pf_theme'); } catch (_) { return false; }
+}
+/** 同步浏览器地址栏 / PWA 的主题色 */
+function syncThemeColor() {
+  const t = THEMES[currentTheme];
+  if (!t) return;
+  const night = document.documentElement.getAttribute('data-mode') === 'night';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', night ? t.night.paper : t.day.paper);
+}
+
+// ===== 字体（v0.3.8：只提供「默认字体」与「霞鹜文楷」两种） =====
+// 霞鹜文楷经 Google Fonts 加载，OFL 开源协议，可免费商用
 const FONTS = {
-  default: { label: '默认字体', stack: `-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif`, serif: `"Songti SC",serif`, note: '系统默认（苹方/雅黑）' },
-  lxgwwk:  { label: '霞鹜文楷', stack: `"LXGW WenKai","霞鹜文楷",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`, serif: `"LXGW WenKai","霞鹜文楷","Songti SC",serif`, note: '免费商用 · 工楷书写感' },
-  lhls:    { label: '临海隶书', stack: `"Linhai LiShu","临海隶书","LXGW WenKai","霞鹜文楷",-apple-system,"PingFang SC",sans-serif`, serif: `"Linhai LiShu","临海隶书","LXGW WenKai","Songti SC",serif`, note: '免费商用 · 古隶风味' },
+  default: { label: '默认字体', note: '系统默认 · 苹方 / 雅黑', stack: `-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif`, serif: `"Songti SC",serif` },
+  lxgwwk:  { label: '霞鹜文楷', note: 'OFL 开源 · 可免费商用', stack: `"LXGW WenKai","霞鹜文楷",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`, serif: `"LXGW WenKai","霞鹜文楷","Songti SC",serif` },
 };
 let currentFont = 'default';
-
-// 主色加深（用于 hover 态）
-function shade(hex, pct) {
-  try {
-    const n = parseInt(hex.slice(1), 16);
-    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    const f = 1 + pct / 100;
-    r = Math.max(0, Math.min(255, Math.round(r * f)));
-    g = Math.max(0, Math.min(255, Math.round(g * f)));
-    b = Math.max(0, Math.min(255, Math.round(b * f)));
-    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-  } catch (_) { return hex; }
-}
 
 // ===== 日夜模式（日出日落自动） =====
 let uiMode = 'auto';           // light | night | auto
@@ -149,35 +248,43 @@ function applyUIMode() {
   document.documentElement.setAttribute('data-mode', mode);
   try { localStorage.setItem('pf_mode', uiMode); } catch (_) {}
   updateModeTip(mode);
+  syncThemeColor();
+  const badge = $('#modeNow');
+  if (badge) badge.textContent = mode === 'night' ? '夜间' : '日间';
 }
 
 function updateModeTip(actual) {
   const tip = $('#modeTip');
   if (!tip) return;
+  const now = actual === 'night' ? '夜间' : '日间';
   if (uiMode !== 'auto') {
-    tip.textContent = actual === 'night' ? '当前：夜间模式' : '当前：日间模式';
+    tip.textContent = `固定为${uiMode === 'night' ? '夜间模式' : '日间模式'}，界面当前以${now}显示。`;
     return;
   }
   const t = sunTimes(30.5, new Date());
   const fmt = (x) => `${String(Math.floor(x)).padStart(2, '0')}:${String(Math.round((x % 1) * 60)).padStart(2, '0')}`;
-  tip.textContent = `当前：${actual === 'night' ? '夜间模式' : '日间模式'} · 今日日出约 ${fmt(t.sunrise)}，日落约 ${fmt(t.sunset)}`;
+  tip.textContent = `跟随日出日落自动切换，当前为${now} · 今日日出约 ${fmt(t.sunrise)}，日落约 ${fmt(t.sunset)}`;
 }
 
 function buildModeOpts() {
-  const box = $('#modeOpts');
+  const box = $('#modeSeg');
   if (!box) return;
-  box.querySelectorAll('input[name=uiMode]').forEach((r) => {
-    r.checked = r.value === uiMode;
-    r.addEventListener('change', () => {
-      uiMode = r.value;
+  box.querySelectorAll('[data-mode]').forEach((b) => {
+    b.classList.toggle('on', b.dataset.mode === uiMode);
+    b.addEventListener('click', () => {
+      uiMode = b.dataset.mode;
       lastAppliedMode = '';      // 强制重算
       applyUIMode();
+      buildModeOpts();
+      syncThemeColor();
       toast(uiMode === 'auto' ? '已开启日出日落自动切换' : (uiMode === 'night' ? '已切换夜间模式' : '已切换日间模式'));
     });
   });
   applyUIMode();
-  // 每分钟检查一次（跨过日出/日落时自动切换）
-  setInterval(() => { if (uiMode === 'auto') { lastAppliedMode = ''; applyUIMode(); } }, 60000);
+  // 每分钟检查一次（跨过日出/日落时自动切换）；全局只注册一个定时器
+  if (!buildModeOpts._timer) {
+    buildModeOpts._timer = setInterval(() => { if (uiMode === 'auto') { lastAppliedMode = ''; applyUIMode(); } }, 60000);
+  }
 }
 
 function buildFontOpts() {
@@ -185,15 +292,18 @@ function buildFontOpts() {
   if (!box) return;
   box.innerHTML = Object.keys(FONTS).map((k) => {
     const f = FONTS[k];
-    return `<button class="font-opt${currentFont === k ? ' on' : ''}" onclick="pickFont('${k}')">
-      <span class="fo-name" style="font-family:${f.stack}">${f.label}</span>
-      <span class="fo-note">${f.note}</span>
+    return `<button type="button" class="tf${currentFont === k ? ' on' : ''}" data-font="${k}">
+      <span class="tf-spec">Aa</span>
+      <span class="tf-meta"><b>${f.label}</b><small>${f.note}</small></span>
+      <span class="tf-check"><svg><use href="#i-check"/></svg></span>
     </button>`;
   }).join('');
-  // 预览卡需要内联字体（会被全局 !important 覆盖），故改为直接在元素上写 style 属性并加 inline 优先级
-  box.querySelectorAll('.fo-name').forEach((el, i) => {
-    const k = Object.keys(FONTS)[i];
-    el.setAttribute('style', 'font-family:' + FONTS[k].stack + ' !important');
+  box.querySelectorAll('.tf').forEach((el) => {
+    const f = FONTS[el.dataset.font];
+    const spec = el.querySelector('.tf-spec');
+    // 预览字样必须使用对应字体：内联 !important 才能压过全站的 !important 字体规则
+    if (f && spec) spec.style.setProperty('font-family', f.stack, 'important');
+    el.addEventListener('click', () => pickFont(el.dataset.font));
   });
 }
 function pickFont(name) {
@@ -206,14 +316,12 @@ function applyFont(name) {
   currentFont = FONTS[name] ? name : 'default';
   const f = FONTS[currentFont];
   const root = document.documentElement;
-  // 同时写入 --f-ui/--f-serif（实际生效，带 !important 覆盖）与 --font-ui/--font-serif（兼容）
+  // --f-ui / --f-serif 为实际生效变量（配套样式表中的 !important 覆盖层）；另写 --font-* 兼容旧引用
   root.style.setProperty('--f-ui', f.stack);
   root.style.setProperty('--f-serif', f.serif);
   root.style.setProperty('--font-ui', f.stack);
   root.style.setProperty('--font-serif', f.serif);
   try { localStorage.setItem('pf_font', currentFont); } catch (_) {}
-  // 预览卡内联字体同步刷新
-  document.querySelectorAll('.fo-name').forEach((el) => { el.style.fontFamily = f.stack; });
 }
 
 // ===== 登录 =====
@@ -348,7 +456,7 @@ function renderHome(d) {
   $('#brandAvatar').textContent = (d.brand && d.brand.avatar) || '数';
   $('#brandName').textContent = (d.brand && d.brand.name) || '数字生活';
   $('#brandTagline').textContent = (d.brand && d.brand.tagline) || '把日子过成自己喜欢的样子';
-  if (d.brand && d.brand.theme) applyTheme(d.brand.theme);
+  if (d.brand && d.brand.theme && !hasLocalTheme()) applyTheme(d.brand.theme);
 
   // Hero 问候：按十二时辰显示时辰 + 对应循行经络
   const h = new Date().getHours();
@@ -1590,46 +1698,59 @@ $('#habitForm').addEventListener('submit', async (e) => {
 });
 
 // ===== 个人中心 =====
-// 子页名称（站点信息 / 风格字体 / 账户安全）
-const PROFILE_TITLES = { site: '站点信息', style: '风格字体', security: '账户安全', sysinfo: '系统信息' };
+// 子页名称（站点信息 / 主题风格 / 账户安全 / 系统信息）
+const PROFILE_TITLES = { site: '站点信息', style: '主题风格', security: '账户安全', sysinfo: '系统信息' };
 
+/** 主题配色：18 张国色色卡 */
 function buildThemeGrid() {
   const grid = $('#themeGrid');
   if (!grid) return;
-  grid.innerHTML = '';
   const cnt = $('#themeCount');
-  if (cnt) cnt.textContent = `共 ${Object.keys(THEMES).length} 种`;
-
-  // 方案A：横向卡片，每张是一个模块缩略图（顶栏/内容/按钮三段）
-  Object.keys(THEMES).forEach((k) => {
-    const t = THEMES[k];
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'thm' + (k === currentTheme ? ' on' : '');
-    card.title = `${t.label}｜主色 ${t.main}｜突显 ${t.accent}｜底色 ${t.bg}`;
-    card.innerHTML =
-      `<span class="thm-nav">` +
-        `<i style="background:${t.main}"></i>` +
-        `<i style="background:${t.accent}"></i>` +
-        `<em>导航</em>` +
-      `</span>` +
-      `<span class="thm-body" style="background:${t.card}">` +
-        `<b style="color:${t.ink}">${t.label}</b>` +
-        `<u style="background:${t.ink}"></u>` +
-        `<u class="s" style="background:${t.ink}"></u>` +
-        `<q style="background:${t.accent};color:${t.on}">突显</q>` +
-      `</span>` +
-      `<span class="thm-foot" style="background:${t.bg}">` +
-        `<i style="background:${t.main};color:${t.on}">主要</i>` +
-        `<i class="sub" style="border-color:${t.ink};color:${t.ink}">次要</i>` +
-      `</span>`;
-    card.addEventListener('click', () => {
-      applyTheme(k);
+  if (cnt) cnt.textContent = `${CN_COLORS.length} 款国色`;
+  grid.innerHTML = CN_COLORS.map((c) => {
+    const t = THEMES[c.key];
+    return `<button type="button" class="tc${c.key === currentTheme ? ' on' : ''}" data-theme="${c.key}"
+        title="${t.label} · 日间 ${t.day.main} · 夜间 ${t.night.main}">
+      <span class="tc-swatch" style="background:linear-gradient(135deg,${t.base},${t.day.main})">
+        <span class="tc-ck"><svg><use href="#i-check"/></svg></span>
+      </span>
+      <span class="tc-name">${t.label}</span>
+      <span class="tc-hex">${t.base.toUpperCase()}</span>
+      <span class="tc-duo">
+        <i style="background:${t.day.main}" title="日间主色"></i>
+        <i style="background:${t.night.main}" title="夜间主色"></i>
+      </span>
+    </button>`;
+  }).join('');
+  grid.querySelectorAll('.tc').forEach((el) => {
+    el.addEventListener('click', () => {
+      applyTheme(el.dataset.theme);
       buildThemeGrid();
-      toast('已应用配色：' + t.label);
+      renderThemePreview();
+      toast('已应用配色：' + THEMES[currentTheme].label);
     });
-    grid.appendChild(card);
   });
+}
+
+/** 当前配色的「日间 / 夜间」对照预览 */
+function renderThemePreview() {
+  const box = $('#themePreview');
+  if (!box) return;
+  const t = THEMES[currentTheme] || THEMES[DEFAULT_THEME];
+  const half = (p, tag) => `
+    <div class="tsp" style="background:${p.card}">
+      <span class="tsp-tag" style="background:${p.soft};color:${p.main}">${tag}</span>
+      <div class="tsp-card" style="color:${p.ink}">
+        <b>数字生活</b>
+        <p style="color:${p.muted}">把日子过成自己喜欢的样子</p>
+        <div class="tsp-row">
+          <i class="tsp-dot" style="background:${p.accent}"></i>
+          <i class="tsp-bar" style="background:${p.main};color:${p.on}">按钮</i>
+          <i class="tsp-dot" style="background:${p.main}"></i>
+        </div>
+      </div>
+    </div>`;
+  box.innerHTML = half(t.day, '日间预览') + half(t.night, '夜间预览');
 }
 
 async function renderSettings() {
@@ -1640,9 +1761,9 @@ async function renderSettings() {
     $('#setBrandName').value = s.brand_name || '';
     $('#setBrandAvatar').value = s.brand_avatar || '';
     $('#setBrandTagline').value = s.brand_tagline || '';
-    currentTheme = s.theme && THEMES[s.theme] ? s.theme : 'plum';
-    applyTheme(currentTheme);
+    // 外观（主题 / 字体 / 明暗）以本机为准，这里只负责渲染，不再覆盖用户已选的外观
     buildThemeGrid();
+    renderThemePreview();
   } catch (err) {
     if (String(err.message).includes('unauthorized')) return;
   }
@@ -2107,14 +2228,15 @@ if (window.medBindEvents) window.medBindEvents();
 
 // 恢复本地外观设置（主题 / 字体 / 日夜模式）
 (function restoreAppearance() {
+  let th = null, fo = null, mo = null;
   try {
-    const th = localStorage.getItem('pf_theme');
-    if (th && THEMES[th]) applyTheme(th);
-    const fo = localStorage.getItem('pf_font');
-    if (fo && FONTS[fo]) applyFont(fo);
-    const mo = localStorage.getItem('pf_mode');
-    if (mo) uiMode = mo;
+    th = localStorage.getItem('pf_theme');
+    fo = localStorage.getItem('pf_font');
+    mo = localStorage.getItem('pf_mode');
   } catch (_) { /* 隐私模式忽略 */ }
+  applyTheme(th && THEMES[th] ? th : DEFAULT_THEME);
+  if (fo && FONTS[fo]) applyFont(fo);
+  if (mo) uiMode = mo;
   lastAppliedMode = '';
   applyUIMode();
   buildModeOpts();
