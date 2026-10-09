@@ -10,9 +10,12 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 
 -- 成长打卡：习惯定义
--- category：所属分类（学习/锻炼/早睡早起/自定义名）
--- type：普通习惯 'normal' | 睡眠习惯 'sleep'（早睡早起，分两个打卡项）
--- bed_time / rise_time：仅 sleep 类型使用，用户自定的早起/早睡目标时间
+-- category：所属分类（学习/锻炼/睡眠/自定义名）
+-- type：普通习惯 'normal' | 睡眠习惯 'sleep'
+-- method（仅 normal 使用）：'count' 按次打卡 / 'duration' 按时间（累计时长）打卡
+-- target / unit：目标值与单位（如 3 次、60 分钟）
+-- bed_time / rise_time：睡眠类型——几点前睡/起算早睡早起
+-- nap_time：睡眠类型——午睡有效区间（如 12:30-14:00）
 CREATE TABLE IF NOT EXISTS habits (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT NOT NULL,
@@ -22,13 +25,17 @@ CREATE TABLE IF NOT EXISTS habits (
   unit       TEXT DEFAULT '次',
   category   TEXT DEFAULT '自定义',
   type       TEXT DEFAULT 'normal',
+  method     TEXT DEFAULT 'count',
   bed_time   TEXT,
   rise_time  TEXT,
+  nap_time   TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- 成长打卡：每日打卡记录（每习惯每天一条）
--- normal 类型看 done（0/1）；sleep 类型看 done_bed / done_rise（各 0/1）
+-- normal(count)：done = 已打卡次数
+-- normal(duration)：done = 已累计分钟数
+-- sleep：done_bed / done_rise / done_nap 各 0/1
 CREATE TABLE IF NOT EXISTS habit_logs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   habit_id   INTEGER NOT NULL,
@@ -36,6 +43,7 @@ CREATE TABLE IF NOT EXISTS habit_logs (
   done       REAL DEFAULT 0,
   done_bed   INTEGER DEFAULT 0,
   done_rise  INTEGER DEFAULT 0,
+  done_nap   INTEGER DEFAULT 0,
   note       TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(habit_id, log_date)

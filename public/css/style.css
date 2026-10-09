@@ -137,6 +137,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .coming-soon p{max-width:42ch;font-size:14px;line-height:1.6}
 
 /* ===== 成长打卡 ===== */
+/* 模块之间留出明显间距 */
+#view-growth.active{display:flex;flex-direction:column;gap:22px}
+#view-growth .growth-head{margin-bottom:0}
 .growth-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
 .growth-head .eyebrow{color:#a59c90}
 .growth-head h2{margin:4px 0 0;font:700 26px/1.2 "Songti SC",serif}
@@ -172,9 +175,43 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .heatmap-scroll{display:flex;flex-direction:column;gap:8px;overflow-x:auto;padding-bottom:6px}
 .heatmap-row{display:flex;align-items:center;gap:10px}
 .hm-label{width:72px;flex:0 0 auto;font-size:12px;font-weight:600;text-align:right}
-.hm-cells{display:flex;gap:2px}
-.hm-cell{width:11px;height:11px;border-radius:3px;flex:0 0 auto;background:#ece5db}
+.hm-cells{display:flex;gap:4px;flex-wrap:nowrap}
+.hm-cell{width:13px;height:13px;border-radius:4px;flex:0 0 auto;background:#ece5db}
 .hm-tip{margin:10px 0 0;font-size:11px;color:var(--muted)}
+
+/* 侧栏底部「个人中心」 */
+.side-bottom{margin-top:14px;border-top:1px solid rgba(104,87,68,.12);padding-top:14px;color:#5e574e}
+.side-bottom:hover{background:rgba(255,255,255,.48);color:var(--ink)}
+
+/* 个人中心 */
+.settings-actions{display:flex;justify-content:flex-end;margin-top:4px}
+.btn.danger{color:var(--red);border-color:#ecc9c4;background:#fffdfa}
+.btn.danger:hover{background:#fdf3f1}
+.theme-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
+.theme-swatch{position:relative;width:74px;height:54px;border:0;border-radius:14px;color:#fff;display:grid;place-items:center;box-shadow:var(--shadow);transition:.2s}
+.theme-swatch span{font-size:12px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.theme-swatch.active{outline:3px solid var(--ink);outline-offset:2px}
+.theme-swatch:hover{transform:translateY(-2px)}
+
+/* 新增/编辑习惯弹窗内的分段与提示 */
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+.seg-item{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--line);border-radius:11px;background:#fffdfa;font-size:14px;cursor:pointer}
+.seg-item input{accent-color:var(--plum)}
+.field-hint{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
+
+/* 打卡控件：按次 */
+.count-control{display:flex;align-items:center;gap:10px}
+.count-control .cnt{font-size:14px;font-weight:600;min-width:74px;text-align:center}
+.count-control .cnt i{font-style:normal;font-weight:400;color:var(--muted);font-size:12px}
+.chk-btn.round{width:38px;padding:0;font-size:20px;line-height:1}
+/* 打卡控件：按时间 */
+.dur-control{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.dur-quick{display:flex;gap:6px}
+.chip{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fffdfa;color:var(--muted);font-size:12px;font-weight:600}
+.chip:hover{background:var(--plum-soft);color:var(--plum)}
+.dur-input{display:flex;align-items:center;gap:8px}
+.dur-input input{width:74px;height:38px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:15px;text-align:center}
+.dur-input span{font-size:13px;color:var(--muted)}
 
 /* 弹窗 */
 .modal-overlay{position:fixed;inset:0;z-index:110;display:grid;place-items:center;background:rgba(40,30,38,.5);padding:20px}
@@ -238,7 +275,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
   .growth-head{flex-direction:column;align-items:flex-start;gap:10px}
   .field-row{flex-direction:column;gap:0}
   .hm-label{width:56px;font-size:11px}
-  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid rgba(85,69,55,.14);border-radius:20px;background:rgba(255,252,247,.94);box-shadow:0 14px 35px rgba(53,41,31,.16);backdrop-filter:blur(14px)}
+  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid rgba(85,69,55,.14);border-radius:20px;background:rgba(255,252,247,.94);box-shadow:0 14px 35px rgba(53,41,31,.16);backdrop-filter:blur(14px)}
   .mobile-nav button{min-width:0;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
   .mobile-nav button svg{width:21px;height:21px}
   .mobile-nav button.active{background:var(--plum);color:#fff}

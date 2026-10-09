@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.1.1
-const VERSION = '0.1.1';
+// 数字生活 · 前端逻辑 v0.2.1
+const VERSION = '0.2.1';
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -35,6 +35,23 @@ async function api(path, opts = {}) {
     throw new Error('unauthorized');
   }
   return res;
+}
+
+// ===== 主题配色 =====
+const THEMES = {
+  plum:  { base: '#4d3045', soft: '#e8dfe5', label: '绛紫' },
+  terra: { base: '#b65f42', soft: '#f3dfd6', label: '赤陶' },
+  sage:  { base: '#627a67', soft: '#dfe8df', label: '青绿' },
+  sand:  { base: '#a57c45', soft: '#eee2ce', label: '砂金' },
+  clay:  { base: '#8f4f3b', soft: '#ecd9d0', label: '陶土' },
+};
+let currentTheme = 'plum';
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.plum;
+  currentTheme = name in THEMES ? name : 'plum';
+  const root = document.documentElement;
+  root.style.setProperty('--plum', t.base);
+  root.style.setProperty('--plum-soft', t.soft);
 }
 
 // ===== 登录 =====
@@ -88,10 +105,11 @@ $('#loginForm').addEventListener('submit', async (e) => {
   }
 });
 
-$('#logoutBtn').addEventListener('click', async () => {
+// 退出登录（入口在「个人中心」）
+async function doLogout() {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
   showLogin();
-});
+}
 
 // ===== 启动：检查登录状态 =====
 async function boot() {
@@ -124,6 +142,7 @@ function renderHome(d) {
   $('#brandAvatar').textContent = (d.brand && d.brand.avatar) || '数';
   $('#brandName').textContent = (d.brand && d.brand.name) || '数字生活';
   $('#brandTagline').textContent = (d.brand && d.brand.tagline) || '把日子过成自己喜欢的样子';
+  if (d.brand && d.brand.theme) applyTheme(d.brand.theme);
 
   // 顶部日期
   $('#todayLabel').textContent = d.todayLabel || d.today;
@@ -256,6 +275,7 @@ function switchView(name) {
   $$('.mobile-nav button').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
   $('#viewTitle').textContent = target.dataset.title || '数字生活';
   if (name === 'growth') renderGrowth();
+  if (name === 'settings') renderSettings();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
@@ -274,9 +294,10 @@ async function renderGrowth() {
   try {
     const [hRes, hmRes] = await Promise.all([
       api('/api/habits'),
-      api('/api/habits/heatmap?days=120'),
+      api('/api/habits/heatmap?days=30'),
     ]);
     const habits = (await hRes.json()).habits || [];
+    window.__habits = habits;
     const heat = await hmRes.json();
     renderCheckin(habits);
     renderHabitGrid(habits);
@@ -291,16 +312,34 @@ function checkinCard(h) {
   const el = document.createElement('div');
   el.className = 'checkin-card';
   const cat = `<span class="cat-tag" style="background:${catTint(h.color)};color:${catColor(h.color)}">${h.category}</span>`;
-  const sub = h.type === 'sleep'
-    ? `目标 ${h.bed_time || '--:--'} 前睡 / ${h.rise_time || '--:--'} 前起`
-    : '每天一次打卡';
-  let actions = '';
+  let sub, actions;
   if (h.type === 'sleep') {
+    sub = `目标 ${h.bed_time || '--:--'} 前睡 / ${h.rise_time || '--:--'} 前起 / ${h.nap_time || '--:--'} 午睡`;
+    const parts = [['bed', '早睡', h.today.done_bed], ['rise', '早起', h.today.done_rise], ['nap', '午睡', h.today.done_nap]];
+    actions = parts.map((p) => `<button class="chk-btn ${p[2] ? 'on' : ''}" data-id="${h.id}" data-field="${p[0]}">${p[1]}</button>`).join('');
+  } else if (h.method === 'duration') {
+    sub = `按时间打卡 · 目标 ${h.target} ${h.unit}`;
     actions = `
-      <button class="chk-btn ${h.today.done_bed ? 'on' : ''}" data-id="${h.id}" data-field="bed">早睡</button>
-      <button class="chk-btn ${h.today.done_rise ? 'on' : ''}" data-id="${h.id}" data-field="rise">早起</button>`;
+      <div class="dur-control">
+        <div class="dur-quick">
+          <button class="chip" data-id="${h.id}" data-val="15">+15</button>
+          <button class="chip" data-id="${h.id}" data-val="30">+30</button>
+          <button class="chip" data-id="${h.id}" data-val="60">+60</button>
+        </div>
+        <div class="dur-input">
+          <input type="number" min="1" value="30" class="dur-min" data-id="${h.id}" aria-label="分钟">
+          <span>分钟</span>
+          <button class="chk-btn" data-id="${h.id}" data-field="done" data-input="1">记录</button>
+        </div>
+      </div>`;
   } else {
-    actions = `<button class="chk-btn" data-id="${h.id}" data-field="done">完成打卡</button>`;
+    sub = `按次打卡 · 目标 ${h.target} ${h.unit}`;
+    actions = `
+      <div class="count-control">
+        <button class="chk-btn round" data-id="${h.id}" data-field="done" data-dec="1" aria-label="减少">−</button>
+        <span class="cnt">${h.today.done || 0}<i> / ${h.target} ${h.unit}</i></span>
+        <button class="chk-btn" data-id="${h.id}" data-field="done" data-inc="1">打卡 +1</button>
+      </div>`;
   }
   el.innerHTML = `
     <div class="ci-main">
@@ -309,9 +348,26 @@ function checkinCard(h) {
     </div>
     <div class="ci-actions">${actions}</div>`;
   el.querySelector('b').textContent = h.name;
-  el.querySelectorAll('.chk-btn').forEach((b) =>
-    b.addEventListener('click', () => checkHabit(Number(b.dataset.id), b.dataset.field))
-  );
+
+  el.querySelectorAll('.chk-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.id);
+      if (btn.dataset.input) {
+        const inp = btn.parentElement.querySelector('.dur-min');
+        const v = Number(inp.value) || 0;
+        if (v > 0) checkHabit(id, 'done', v);
+      } else if (btn.dataset.dec) {
+        checkHabit(id, 'done', -1);
+      } else if (btn.dataset.inc) {
+        checkHabit(id, 'done', 1);
+      } else {
+        checkHabit(id, btn.dataset.field); // 睡眠：翻转该项
+      }
+    });
+  });
+  el.querySelectorAll('.chip').forEach((c) => {
+    c.addEventListener('click', () => checkHabit(Number(c.dataset.id), 'done', Number(c.dataset.val)));
+  });
   return el;
 }
 
@@ -319,7 +375,7 @@ function renderCheckin(habits) {
   const box = $('#growthToday');
   box.innerHTML = '';
   const pending = habits.filter((h) => !h.today.todayDone);
-  $('#growthTodayCount').textContent = pending.length ? `共 ${pending.length} 项` : '';
+  $('#growthTodayCount').textContent = pending.length ? `共 ${pending.length} 项待完成` : '';
   if (!pending.length) {
     box.innerHTML = '<div class="empty-hint">今天的习惯都完成啦，继续保持 🎉</div>';
     return;
@@ -327,12 +383,13 @@ function renderCheckin(habits) {
   pending.forEach((h) => box.appendChild(checkinCard(h)));
 }
 
-async function checkHabit(id, field) {
+async function checkHabit(id, field, value) {
   try {
+    const body = value === undefined ? { field } : { field, value };
     const res = await api(`/api/habits/${id}/check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field }),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
       toast('已记录 ✓');
@@ -351,17 +408,23 @@ function renderHabitGrid(habits) {
   habits.forEach((h) => {
     const el = document.createElement('div');
     el.className = 'habit-card';
-    const prog = h.type === 'sleep'
-      ? `今日 ${h.today.completed}/${h.today.needed}`
-      : (h.today.todayDone ? '今日已完成' : '今日待打卡');
+    let prog;
+    if (h.type === 'sleep') {
+      prog = `今日 ${h.today.done_bed + h.today.done_rise + h.today.done_nap}/3 完成`;
+    } else {
+      prog = `今日 ${h.today.done || 0} / ${h.target} ${h.unit}`;
+    }
+    const typeTag = h.type === 'sleep' ? ' · 睡眠' : (h.method === 'duration' ? ' · 按时长' : ' · 按次');
     el.innerHTML = `
       <div class="hc-top">
         <span class="ci-icon" style="background:${catTint(h.color)};color:${catColor(h.color)}"><svg><use href="#i-${h.icon}"/></svg></span>
-        <div class="hc-meta"><b></b><small>${h.category}</small></div>
+        <div class="hc-meta"><b></b><small>${h.category}${typeTag}</small></div>
+        <button class="icon-btn edit" data-id="${h.id}" title="编辑" aria-label="编辑"><svg><use href="#i-edit"/></svg></button>
         <button class="icon-btn del" data-id="${h.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
       </div>
       <div class="hc-prog">${prog}</div>`;
     el.querySelector('b').textContent = h.name;
+    el.querySelector('.edit').addEventListener('click', () => editHabit(h.id));
     el.querySelector('.del').addEventListener('click', () => deleteHabit(h.id, h.name));
     box.appendChild(el);
   });
@@ -384,7 +447,6 @@ function renderHeatmap(heat) {
     box.innerHTML = '<div class="empty-hint">暂无打卡数据，先去打几次卡吧。</div>';
     return;
   }
-  // 表头：月份刻度（粗略，每 ~30 天一个标记）
   const wrap = document.createElement('div');
   wrap.className = 'heatmap-scroll';
   cats.forEach((c) => {
@@ -420,14 +482,61 @@ function renderHeatmap(heat) {
   box.appendChild(tip);
 }
 
-// ===== 新增习惯弹窗 =====
+// ===== 新增 / 编辑 习惯弹窗 =====
+let editingId = null;
+
 function openHabitModal() {
+  editingId = null;
+  $('#habitModalTitle').textContent = '新增习惯';
   $('#habitForm').reset();
+  const f = $('#habitForm');
+  f.querySelector('[name=category]').value = '学习';
   $('#customCatField').hidden = true;
   $('#sleepField').hidden = true;
+  $('#methodField').hidden = false;
   $('#habitFormError').hidden = true;
   $('#habitModal').hidden = false;
 }
+
+async function editHabit(id) {
+  const habits = window.__habits || [];
+  const h = habits.find((x) => x.id === id);
+  if (!h) return;
+  editingId = id;
+  $('#habitModalTitle').textContent = '编辑「' + h.name + '」';
+  const f = $('#habitForm');
+  f.reset();
+  f.querySelector('[name=name]').value = h.name;
+  const preset = ['学习', '锻炼', '睡眠'].includes(h.category);
+  const catSel = f.querySelector('[name=category]');
+  if (preset) {
+    catSel.value = h.category;
+    $('#customCatField').hidden = true;
+  } else {
+    catSel.value = '__custom__';
+    $('#customCatField').hidden = false;
+    f.querySelector('[name=customCategory]').value = h.category;
+  }
+  const isSleep = h.type === 'sleep' || h.category === '睡眠';
+  $('#sleepField').hidden = !isSleep;
+  $('#methodField').hidden = isSleep;
+  if (isSleep) {
+    f.querySelector('[name=bed_time]').value = h.bed_time || '23:00';
+    f.querySelector('[name=rise_time]').value = h.rise_time || '07:00';
+    const nt = (h.nap_time || '12:30-14:00').split('-');
+    f.querySelector('[name=nap_start]').value = nt[0] || '12:30';
+    f.querySelector('[name=nap_end]').value = nt[1] || '14:00';
+  } else {
+    f.querySelector(`[name=method][value="${h.method === 'duration' ? 'duration' : 'count'}"]`).checked = true;
+    f.querySelector('[name=target]').value = h.target || 1;
+    f.querySelector('[name=unit]').value = h.unit || (h.method === 'duration' ? '分钟' : '次');
+  }
+  f.querySelector('[name=icon]').value = h.icon || 'sprout';
+  f.querySelector('[name=color]').value = h.color || 'sage';
+  $('#habitFormError').hidden = true;
+  $('#habitModal').hidden = false;
+}
+
 function closeHabitModal() { $('#habitModal').hidden = true; }
 function showHabitFormError(msg) { const el = $('#habitFormError'); el.textContent = msg; el.hidden = false; }
 
@@ -439,42 +548,54 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHabit
 $('#habitForm').querySelector('[name=category]').addEventListener('change', (e) => {
   const v = e.target.value;
   $('#customCatField').hidden = v !== '__custom__';
-  $('#sleepField').hidden = v !== '早睡早起';
+  $('#sleepField').hidden = v !== '睡眠';
+  $('#methodField').hidden = v === '睡眠';
 });
 
 $('#habitForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const catSel = fd.get('category');
-  let category, type = 'normal', bed_time = null, rise_time = null;
+  let category, type = 'normal', bed_time = null, rise_time = null, nap_time = null, method = 'count', target = 1, unit = null;
   if (catSel === '__custom__') {
-    category = String(fd.get('customCategory') || '').trim() || '自定义';
+    category = (fd.get('customCategory') || '').trim() || '自定义';
   } else {
     category = catSel;
-    if (catSel === '早睡早起') { type = 'sleep'; bed_time = fd.get('bed_time'); rise_time = fd.get('rise_time'); }
+    if (catSel === '睡眠') {
+      type = 'sleep';
+      bed_time = fd.get('bed_time');
+      rise_time = fd.get('rise_time');
+      nap_time = `${fd.get('nap_start') || ''}-${fd.get('nap_end') || ''}`;
+    }
   }
+  if (type === 'normal') {
+    method = fd.get('method') === 'duration' ? 'duration' : 'count';
+    target = Number(fd.get('target')) || 1;
+    unit = (fd.get('unit') || '').trim() || (method === 'duration' ? '分钟' : '次');
+  }
+  const name = (fd.get('name') || '').trim();
+  if (!name) { showHabitFormError('请填写习惯名称'); return; }
   const payload = {
-    name: String(fd.get('name') || '').trim(),
-    icon: fd.get('icon') || 'sprout',
-    color: fd.get('color') || 'sage',
-    category, type, bed_time, rise_time,
+    name, icon: fd.get('icon') || 'sprout', color: fd.get('color') || 'sage',
+    category, type, method, target, unit, bed_time, rise_time, nap_time,
   };
-  if (!payload.name) { showHabitFormError('请填写习惯名称'); return; }
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true;
   try {
-    const res = await api('/api/habits', {
-      method: 'POST',
+    const url = editingId ? `/api/habits/${editingId}` : '/api/habits';
+    const httpMethod = editingId ? 'PUT' : 'POST';
+    const res = await api(url, {
+      method: httpMethod,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (res.ok) {
       closeHabitModal();
-      toast('已新增习惯');
+      toast(editingId ? '已更新习惯' : '已新增习惯');
       await renderGrowth();
     } else {
       const d = await res.json().catch(() => ({}));
-      showHabitFormError(d.error || '创建失败');
+      showHabitFormError(d.error || '保存失败');
     }
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) showHabitFormError('网络错误：' + (err && err.message ? err.message : err));
@@ -482,6 +603,76 @@ $('#habitForm').addEventListener('submit', async (e) => {
     btn.disabled = false;
   }
 });
+
+// ===== 个人中心 =====
+function buildThemeGrid() {
+  const grid = $('#themeGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  Object.keys(THEMES).forEach((k) => {
+    const t = THEMES[k];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'theme-swatch' + (k === currentTheme ? ' active' : '');
+    b.style.background = t.base;
+    b.innerHTML = `<span>${t.label}</span>`;
+    b.addEventListener('click', () => {
+      currentTheme = k;
+      applyTheme(k);
+      buildThemeGrid();
+    });
+    grid.appendChild(b);
+  });
+}
+
+async function renderSettings() {
+  try {
+    const res = await api('/api/settings');
+    const data = await res.json();
+    const s = data.settings || {};
+    $('#setBrandName').value = s.brand_name || '';
+    $('#setBrandAvatar').value = s.brand_avatar || '';
+    $('#setBrandTagline').value = s.brand_tagline || '';
+    currentTheme = s.theme && THEMES[s.theme] ? s.theme : 'plum';
+    applyTheme(currentTheme);
+    buildThemeGrid();
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+  }
+}
+
+$('#saveSettingsBtn').addEventListener('click', async () => {
+  const payload = {
+    brand_name: ($('#setBrandName').value || '').trim() || '数字生活',
+    brand_avatar: ($('#setBrandAvatar').value || '').trim() || '数',
+    brand_tagline: ($('#setBrandTagline').value || '').trim() || '把日子过成自己喜欢的样子',
+    theme: currentTheme,
+  };
+  const btn = $('#saveSettingsBtn');
+  btn.disabled = true;
+  try {
+    const res = await api('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.settings) {
+        applyTheme(d.settings.theme);
+        $('#brandAvatar').textContent = d.settings.brand_avatar;
+        $('#brandName').textContent = d.settings.brand_name;
+        $('#brandTagline').textContent = d.settings.brand_tagline;
+      }
+      toast('已保存');
+    } else {
+      toast('保存失败');
+    }
+  } catch { /* 401 已处理 */ }
+  finally { btn.disabled = false; }
+});
+
+$('#logoutBtn2').addEventListener('click', doLogout);
 
 // ===== PWA =====
 if ('serviceWorker' in navigator) {

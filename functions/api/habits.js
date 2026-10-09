@@ -1,21 +1,5 @@
 import { json, todayStr } from '../_lib.js';
-
-// 计算某习惯今天的完成进度
-function progressOf(habit, log) {
-  const needed = habit.type === 'sleep' ? 2 : 1;
-  const completed =
-    habit.type === 'sleep'
-      ? (log ? (log.done_bed || 0) + (log.done_rise || 0) : 0)
-      : (log ? log.done || 0 : 0);
-  return {
-    done: log ? (log.done || 0) : 0,
-    done_bed: log ? (log.done_bed || 0) : 0,
-    done_rise: log ? (log.done_rise || 0) : 0,
-    needed,
-    completed,
-    todayDone: completed >= needed,
-  };
-}
+import { progressOf, parseHabitBody } from './_helpers.js';
 
 // GET /api/habits —— 列出全部习惯，并附上今日打卡状态
 export async function onRequestGet(context) {
@@ -44,35 +28,31 @@ export async function onRequestGet(context) {
     color: h.color || 'sage',
     category: h.category || '自定义',
     type: h.type || 'normal',
+    method: h.method || 'count',
+    target: Number(h.target) || 1,
+    unit: h.unit || '次',
     bed_time: h.bed_time || '',
     rise_time: h.rise_time || '',
+    nap_time: h.nap_time || '',
     today: progressOf(h, logMap[h.id]),
   }));
   return json({ habits: list });
 }
 
-// POST /api/habits —— 新增习惯（支持自定义分类；sleep 类型可带 bedtime/rise_time）
+// POST /api/habits —— 新增习惯
 export async function onRequestPost(context) {
   const { env } = context;
   let body = {};
-  try {
-    body = await context.request.json();
-  } catch (_) {}
-  const name = String(body.name || '').trim();
-  if (!name) return json({ error: '请填写习惯名称' }, 400);
-
-  const type = body.type === 'sleep' ? 'sleep' : 'normal';
-  let category = String(body.category || '自定义').trim() || '自定义';
-  if (category === '__custom__') category = String(body.customCategory || '').trim() || '自定义';
-  const icon = String(body.icon || 'sprout').trim() || 'sprout';
-  const color = String(body.color || 'sage').trim() || 'sage';
-  const bed_time = type === 'sleep' ? String(body.bed_time || '' ).trim() : null;
-  const rise_time = type === 'sleep' ? String(body.rise_time || '').trim() : null;
+  try { body = await context.request.json(); } catch (_) {}
+  const parsed = parseHabitBody(body);
+  if (parsed.error) return json({ error: parsed.error }, 400);
+  const h = parsed.habit;
 
   const res = await env.DB.prepare(
-    'INSERT INTO habits(name, icon, color, target, unit, category, type, bed_time, rise_time) VALUES (?,?,?,1,?,?,?,?,?)'
+    `INSERT INTO habits(name, icon, color, target, unit, category, type, method, bed_time, rise_time, nap_time)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
   )
-    .bind(name, icon, color, '次', category, type, bed_time, rise_time)
+    .bind(h.name, h.icon, h.color, h.target, h.unit, h.category, h.type, h.method, h.bed_time, h.rise_time, h.nap_time)
     .run();
   const id = res.meta && res.meta.last_row_id ? res.meta.last_row_id : null;
   const created = await env.DB.prepare('SELECT * FROM habits WHERE id = ?').bind(id).first();
@@ -84,8 +64,12 @@ export async function onRequestPost(context) {
       color: created.color,
       category: created.category,
       type: created.type,
+      method: created.method,
+      target: Number(created.target) || 1,
+      unit: created.unit,
       bed_time: created.bed_time || '',
       rise_time: created.rise_time || '',
+      nap_time: created.nap_time || '',
       today: progressOf(created, null),
     },
   }, 201);

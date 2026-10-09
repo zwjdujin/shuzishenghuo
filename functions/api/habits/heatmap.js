@@ -3,23 +3,23 @@ import { json, todayStr } from '../../_lib.js';
 function z(n) { return String(n).padStart(2, '0'); }
 function fmt(d) { return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
 
-// GET /api/habits/heatmap?days=120
+// GET /api/habits/heatmap?days=30
 // 返回每个分类最近 days 天里「每日完成比例」(0~1) 的热力图数据
 export async function onRequestGet(context) {
   const { env } = context;
-  const days = Math.min(Math.max(Number(context.request.url.split('days=')[1]) || 120, 14), 365);
+  const days = Math.min(Math.max(Number(context.request.url.split('days=')[1]) || 30, 14), 365);
   const today = todayStr();
 
-  const habits = await env.DB.prepare('SELECT id, name, category, type, color FROM habits').all();
+  const habits = await env.DB.prepare('SELECT id, name, category, type, color, target FROM habits').all();
   const hrows = habits.results || [];
 
   // 按分类聚合：每个分类包含哪些习惯、各习惯类型、所需完成项数
-  const catMap = {}; // name -> { color, habits:[{id,type}] }
+  const catMap = {}; // name -> { color, habits:[{id,type,target}] }
   hrows.forEach((h) => {
     const c = h.category || '自定义';
     if (!catMap[c]) catMap[c] = { color: h.color || 'sage', habits: [] };
     if (!catMap[c].color) catMap[c].color = h.color || 'sage';
-    catMap[c].habits.push({ id: h.id, type: h.type || 'normal' });
+    catMap[c].habits.push({ id: h.id, type: h.type || 'normal', target: Number(h.target) || 1 });
   });
 
   // 取区间内的打卡记录
@@ -29,7 +29,7 @@ export async function onRequestGet(context) {
   const logRows =
     (
       await env.DB.prepare(
-        `SELECT hl.habit_id, hl.log_date, hl.done, hl.done_bed, hl.done_rise, h.category, h.type
+        `SELECT hl.habit_id, hl.log_date, hl.done, hl.done_bed, hl.done_rise, hl.done_nap, h.category, h.type
          FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id
          WHERE hl.log_date BETWEEN ? AND ?`
       )
@@ -48,11 +48,13 @@ export async function onRequestGet(context) {
     const cat = l.category || '自定义';
     const a = ensure(l.log_date, cat);
     if (l.type === 'sleep') {
-      a.needed += 2;
-      a.completed += (l.done_bed || 0) + (l.done_rise || 0);
+      a.needed += 3;
+      a.completed += (l.done_bed || 0) + (l.done_rise || 0) + (l.done_nap || 0);
     } else {
-      a.needed += 1;
-      a.completed += l.done || 0;
+      const target = Number(l.target) || 1;
+      a.needed += target;
+      // 完成度按目标封顶，避免超量打卡把整格刷满后影响比例
+      a.completed += Math.min(target, Number(l.done || 0));
     }
   });
 

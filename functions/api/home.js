@@ -43,6 +43,28 @@ export async function onRequestGet(context) {
     return r ? Number(r.c || 0) : 0;
   };
 
+  // 习惯今日完成情况（按目标值判定是否完成）
+  const allHabits = await db.prepare('SELECT * FROM habits').all();
+  const habitList = allHabits.results || [];
+  const habitIds = habitList.map((h) => h.id);
+  let habitLogs = [];
+  if (habitIds.length) {
+    const ph = habitIds.map(() => '?').join(',');
+    habitLogs =
+      (await db.prepare(`SELECT * FROM habit_logs WHERE habit_id IN (${ph}) AND log_date = ?`).bind(...habitIds, today).all()).results || [];
+  }
+  const hlMap = {};
+  habitLogs.forEach((l) => (hlMap[l.habit_id] = l));
+  function habitTodayDone(h) {
+    const l = hlMap[h.id];
+    if (h.type === 'sleep') {
+      return (l ? (l.done_bed || 0) : 0) + (l ? (l.done_rise || 0) : 0) + (l ? (l.done_nap || 0) : 0) >= 3;
+    }
+    const done = l ? Number(l.done || 0) : 0;
+    return done >= (Number(h.target) || 1);
+  }
+  const habitDoneCount = habitList.filter(habitTodayDone).length;
+
   const stats = {
     todos: {
       overdue: await cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date < ?", today),
@@ -53,8 +75,8 @@ export async function onRequestGet(context) {
       ),
     },
     habits: {
-      done: await cnt('SELECT COUNT(DISTINCT habit_id) c FROM habit_logs WHERE log_date = ?', today),
-      total: await cnt('SELECT COUNT(*) c FROM habits'),
+      done: habitDoneCount,
+      total: habitList.length,
     },
     ledger: {},
     medicines: {
@@ -96,12 +118,7 @@ export async function onRequestGet(context) {
     .prepare('SELECT id,title,start,all_day FROM events WHERE date(start)=? ORDER BY start ASC')
     .bind(today)
     .all();
-  const habitRows = await db
-    .prepare(
-      'SELECT h.id, h.name, h.icon, h.color, h.category FROM habits h WHERE NOT EXISTS (SELECT 1 FROM habit_logs l WHERE l.habit_id=h.id AND l.log_date=?)'
-    )
-    .bind(today)
-    .all();
+  const habitRows = null; // 已由 habitList / habitTodayDone 计算，保留变量名避免误用
 
   const todayTasks = [];
   (todoRows.results || []).forEach((t) => {
@@ -127,17 +144,19 @@ export async function onRequestGet(context) {
       actionable: false,
     });
   });
-  const pendingHabits = (habitRows.results || []).map((h) => ({
-    id: h.id,
-    name: h.name,
-    icon: h.icon,
-    color: h.color,
-    category: h.category,
-  }));
+  const pendingHabits = habitList
+    .filter((h) => !habitTodayDone(h))
+    .map((h) => ({
+      id: h.id,
+      name: h.name,
+      icon: h.icon,
+      color: h.color,
+      category: h.category,
+    }));
 
   const now = new Date();
   return json({
-    version: '0.1.1',
+    version: '0.2.1',
     brand,
     today,
     todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN(now)}`,
