@@ -573,10 +573,10 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .bday-card.in-cal{border-left:3px solid var(--terra)}
 
 .contact-stack{display:flex;flex-direction:column;gap:9px}
-.contact-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer}
+.contact-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer;text-align:left}
 .contact-row:hover{box-shadow:var(--shadow)}
 .contact-avatar{width:40px;height:40px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff}
-.contact-main{flex:1;min-width:0}
+.contact-main{flex:1;min-width:0;text-align:left}
 .contact-main b{display:block;font-size:14px;font-weight:600}
 .contact-meta{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .contact-badge{padding:1px 7px;border-radius:999px;background:var(--sage-soft);color:var(--sage);font-weight:600}
@@ -665,7 +665,8 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .vocab-l{font-size:10.5px;color:#8a6d33;font-weight:700;flex:0 0 auto}
 .vc{font-size:11.5px;padding:3px 11px;border-radius:999px;background:var(--surface);color:#6b5326;font-weight:600;border:1px solid #ddd0b4}
 .vc:hover{background:var(--sand);color:#fff;border-color:var(--sand)}
-.tf-chip .x{color:rgba(255,255,255,.72);font-size:14px;line-height:1;padding:0 0 0 5px}
+/* 删除按钮：不重置的话会露出浏览器默认按钮的灰底与描边，在彩色药丸上非常突兀 */
+.tf-chip .x{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;cursor:pointer;color:rgba(255,255,255,.72);font-size:14px;line-height:1;padding:0 0 0 6px}
 .tf-chip .x:hover{color:#fff}
 
 /* 公历↔农历生日 */
@@ -692,6 +693,10 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .money-bar .money{padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}
 .money-bar span{font-size:11px;color:var(--muted);display:block}
 .money-bar b{font:700 20px/1.2 inherit;display:block;margin-top:4px}
+/* 人情流水的金额（原缺样式，数字既无颜色也可能换行） */
+.amt{margin-left:auto;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.amt.out{color:var(--red)}
+.amt.in{color:var(--green)}
 
 /* 附件 */
 .file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:11px;margin-bottom:13px}
@@ -957,6 +962,23 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
   .ts-grid{grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px}
   .ts-fonts{grid-template-columns:1fr}
   .ts-seg-item{padding:13px 6px}
+
+  /* ===== 人际关系：窄屏下的行式排版 =====
+     详细模式原先把「手机号 / 生日」整块放在右侧且 nowrap，会把姓名列挤到 ~37px，
+     导致姓名与标签逐字竖排、单行高达 326px。这里让主信息占满一行、右侧信息块整体换行。 */
+  .contact-row{flex-wrap:wrap;row-gap:8px}
+  .rel-row-right{flex:1 1 100%;flex-direction:row;flex-wrap:wrap;align-items:center;
+    justify-content:flex-start;column-gap:12px;row-gap:4px;padding-left:52px;text-align:left}
+  .rel-row-right .rel-bday-lunar{flex-basis:100%}
+  /* 档案画像：圆环单独一行，模块标签整行铺开（原被压到 196px 宽 → 每行只剩一个标签） */
+  .pf-wrap{flex-wrap:wrap;align-items:flex-start;gap:14px}
+  .pf-info{flex:1 1 100%}
+  /* 筛选面板两列，避免 7 个下拉排成 680px 高的一列 */
+  .rel-filters{grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+  .rel-filters .field{margin-bottom:0}
+  /* 承诺待办行：左侧徽标+正文占一行，右侧状态徽标+按钮整齐落到第二行 */
+  #pfPromises .contact-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:center;justify-items:start}
+  #pfPromises .contact-row>.contact-main{justify-self:stretch}
 }
 @media(max-width:560px){
   body{font-size:14px}

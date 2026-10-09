@@ -309,6 +309,7 @@ function pfRenderScore() {
     family: fill(d.family, ['father', 'mother', 'spouse', 'child', 'live']),
     pref: fill(d.pref, ['foods', 'drinks', 'hobbies', 'life']),
     trait: fill(d.trait, ['tags', 'style', 'reply', 'value', 'taboo']),
+    dates: fill(d.dates || {}, ['birth', 'anniv', 'work', 'meet', 'greet', 'cycle']),
     interact: d.interacts.length + '条',
     promise: d.promises.length + '条',
     money: d.money.length + '笔',
@@ -339,9 +340,17 @@ function pfRenderScore() {
   pfEl('pfScoreTip').textContent = pct >= 80 ? '画像已经很立体了，继续补充互动与近况会让它更鲜活'
     : pct >= 50 ? '基础信息较全，建议补充互动时间轴与承诺事项'
     : '基础信息还比较少，先把核心字段填上吧';
+  // 「a/b」「N段」「N条」「N笔」「N件」统一判定是否已填写，避免出现 "undefined" 药丸
+  const scoreOn = (v) => {
+    if (v === null || v === undefined || v === '') return false;
+    const s = String(v);
+    const [a, t] = s.split('/').map(Number);
+    if (t) return a > 0;
+    return (parseInt(s, 10) || 0) > 0;
+  };
   pfEl('pfMods').innerHTML = PF_MODULES.map((m) => {
-    const on = parts[m.id] && parts[m.id] !== '0/0' && parts[m.id] !== '0段' && parts[m.id] !== '0条' && parts[m.id] !== '0笔' && parts[m.id] !== '0件';
-    return `<span class="tf-chip${on ? '' : ' '}" data-pf-mod="${m.id}" style="${on ? '' : 'opacity:.45'}">${m.ic} ${m.n} ${parts[m.id]}</span>`;
+    const on = scoreOn(parts[m.id]);
+    return `<span class="tf-chip${on ? '' : ' '}" data-pf-mod="${m.id}" style="${on ? '' : 'opacity:.45'}">${m.ic} ${m.n} ${parts[m.id] ?? '—'}</span>`;
   }).join('');
   pfEl('pfMods').querySelectorAll('[data-pf-mod]').forEach((b2) =>
     b2.addEventListener('click', () => pfPickMod(b2.dataset.pfMod))
