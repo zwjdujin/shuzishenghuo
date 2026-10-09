@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.3.4
-const VERSION = '0.3.4';
+// 数字生活 · 前端逻辑 v0.3.5
+const VERSION = '0.3.5';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = '待更新 · 提交 71a49ac';
 const __BUILD_TIME__ = '2026-10-09 14:15';
@@ -101,6 +101,15 @@ function applyTheme(name) {
   root.style.setProperty('--plum-deep', shade(t.base, -18));
   try { localStorage.setItem('pf_theme', currentTheme); } catch (_) {}
 }
+
+// ===== 字体（默认 + 免费商用字体） =====
+// 霞鹜文楷经 Google Fonts 加载（OFL 协议可商用）；临海隶书未安装时自动回退
+const FONTS = {
+  default: { label: '默认字体', stack: `-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif`, serif: `"Songti SC",serif`, note: '系统默认（苹方/雅黑）' },
+  lxgwwk:  { label: '霞鹜文楷', stack: `"LXGW WenKai","霞鹜文楷",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif`, serif: `"LXGW WenKai","霞鹜文楷","Songti SC",serif`, note: '免费商用 · 工楷书写感' },
+  lhls:    { label: '临海隶书', stack: `"Linhai LiShu","临海隶书","LXGW WenKai","霞鹜文楷",-apple-system,"PingFang SC",sans-serif`, serif: `"Linhai LiShu","临海隶书","LXGW WenKai","Songti SC",serif`, note: '免费商用 · 古隶风味' },
+};
+let currentFont = 'default';
 
 // 主色加深（用于 hover 态）
 function shade(hex, pct) {

@@ -3,7 +3,12 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.3（全部页面已补齐，无留白页）。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.4（全部页面已补齐，无留白页）。
+- **外观设置（v0.3.4）**：
+  - `THEMES` 现有 **18 种中国传统色 + 5 种经典**，格式 `{base,soft,label,group}`，group 用于分块（红/紫/绿/黄/蓝/经典）。数据源 https://api.dujin.org/colors/cn-colors/ 。改配色时**保留原 5 种经典**，否则老用户 localStorage 主题失效。
+  - `sunTimes(lat,date)` 日出日落估算（赤纬+时角简化算法），配合 `uiMode`(light/night/auto)，auto 每分钟检查。夜间模式通过 `html[data-mode="night"]` 覆写 CSS 变量+ 硬编码 background 元素。
+  - `FONTS` 三项：default / lxgwwk(霞鹜文楷, Google Fonts) / lhls(临海隶书, 回退)。CSS 中字体已变量化为 `var(--font-ui)` / `var(--font-serif)`。
+  - 三项设置持久化 localStorage：`pf_theme` / `pf_font` / `pf_mode`，启动时 `restoreAppearance()` 恢复。
 - **改字段名必须全局搜索（教训）**：v0.3.2 修了档案页的 `nb.date`→`nb.full`，但v0.3.3 发现列表页生日卡片仍写 `b.date` → 同一问题二次出现。**任何字段重命名/修改，必须 `grep` 该字段名的所有引用处一并改**。
 - **全局模块间距（最高优先级，用户强调过多次，严禁再犯）**：**任何页面内模块之间都必须有 22px 间隔**，且每次新增页面/模块都要保证。
   - 通用规则：`.view.active>*{margin-bottom:22px}` + `:last-child{margin-bottom:0}`（`.view` 的直接子元素）。
