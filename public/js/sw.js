@@ -2,7 +2,7 @@
 // 策略：除 /api/ 接口外，所有静态资源（HTML/JS/CSS/图标/manifest）一律“网络优先”，
 // 失败再回退缓存。这样每次部署新版本后，浏览器刷新即能拿到最新代码，不再被旧缓存卡住。
 const CACHE = 'shuzishenghuo-v20';
-const PRECACHE = ['./', './index.html', './manifest.webmanifest', './css/style.css', './js/lunar.js', './js/profile.js', './js/app.js'];
+const PRECACHE = ['./', './index.html', './manifest.webmanifest', './css/style.css', './js/lunar.js', './js/profile.js', './js/medicine.js', './js/app.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
