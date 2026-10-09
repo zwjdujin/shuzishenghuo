@@ -358,6 +358,28 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 #relProfileView .rel-two{margin-bottom:22px}
 #relProfileView .rel-two>.panel{margin-bottom:0}
 .rel-search{display:flex;gap:9px;margin-bottom:12px}
+/* 搜索框：与其他输入框统一风格（--line 描边、圆角、聚焦高亮） */
+.rel-search .inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;font-size:13.5px;color:var(--ink);flex:1;min-width:0}
+.rel-search .inp::placeholder{color:#a9a196}
+.rel-search .inp:focus{outline:none;border-color:var(--plum);box-shadow:0 0 0 3px var(--plum-soft)}
+.rel-search .btn{flex:0 0 auto}
+
+/* 列表显示方式：详细模式补充信息 */
+.rel-alias{font-weight:400;color:var(--muted);font-size:12px}
+.rel-job{font-size:11.5px;color:var(--muted)}
+.rel-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:0 0 auto;text-align:right}
+.rel-bday{font-size:12px;font-weight:700;color:var(--plum);white-space:nowrap}
+.rel-bday.soon{color:var(--terra)}
+.rel-bday-lunar{font-size:10.5px;color:var(--muted);white-space:nowrap}
+
+/* 精简模式：一行多个的网格 */
+.contact-stack.rel-simple{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.rel-simple-item{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#fffdfa;text-align:left;min-width:0;transition:.15s}
+.rel-simple-item:hover{border-color:var(--plum);box-shadow:var(--shadow)}
+.rsi-av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 serif;color:#fff;flex:0 0 auto}
+.rsi-info{min-width:0;flex:1}
+.rsi-info b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsi-info small{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rel-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:14px;background:#fffdfa;border:1px solid var(--line);border-radius:13px;margin-bottom:12px}
 .filter-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
 .filter-chips:empty{display:none}

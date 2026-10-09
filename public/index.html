@@ -273,9 +273,17 @@
             <div id="bdayList" class="bday-grid"></div>
           </article>
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">筛选与查找</p><h2>全部联系人</h2></div><span class="muted" id="contactCount"></span></div>
+            <div class="panel-head"><div><p class="eyebrow">筛选与查找</p><h2>全部联系人</h2></div>
+              <div class="cal-actions">
+                <span class="muted" id="contactCount"></span>
+                <div class="seg">
+                  <button class="seg-item rel-mode active" data-relmode="detail" type="button"><span>详细</span></button>
+                  <button class="seg-item rel-mode" data-relmode="simple" type="button"><span>精简</span></button>
+                </div>
+              </div>
+            </div>
             <div class="rel-search">
-              <input class="inp" id="relSearch" placeholder="🔍 搜索姓名 / 昵称 / 备注 / 城市…">
+              <input class="inp" id="relSearch" placeholder="搜索姓名 / 昵称 / 备注 / 城市…">
               <button class="btn ghost" id="relFilterToggle" type="button">筛选</button>
             </div>
             <div class="rel-filters" id="relFilters" hidden></div>

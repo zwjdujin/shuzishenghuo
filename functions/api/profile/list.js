@@ -54,7 +54,7 @@ async function handle(context, env, request) {
   const rows = (args.length ? await stmt.bind(...args).all() : await stmt.all()).results || [];
 
   const ids = rows.map((r) => r.id);
-  const cnt = { relatives: {}, interacts: {}, promises: {}, files: {} };
+  const cnt = { relatives: {}, interacts: {}, promises: {}, files: {}, phone: {} };
   if (ids.length && ids.every((x) => x !== undefined && x !== null)) {
     const ph = ids.map(() => '?').join(',');
     const grab = async (table, bucket, cond) => {
@@ -68,6 +68,11 @@ async function handle(context, env, request) {
     await grab('contact_interacts', cnt.interacts, '');
     await grab('contact_promises', cnt.promises, ' AND done = 0');
     await grab('contact_files', cnt.files, '');
+    // 主手机号：取该人物未弃用的第一个 phones
+    const phs = (await env.DB.prepare(
+      `SELECT person_id, value FROM contact_contacts WHERE person_id IN (${ph}) AND kind='phones' AND deprecated=0 ORDER BY id`
+    ).bind(...ids).all()).results || [];
+    phs.forEach((x) => { if (!cnt.phone[x.person_id]) cnt.phone[x.person_id] = x.value; });
   }
 
   let list = rows.map((r) => {
@@ -79,6 +84,7 @@ async function handle(context, env, request) {
         birthday: bd, age: a, province: r.province, city: r.city,
         relation: r.relation, level: r.level, job: r.job, note: r.note,
         showLunar: !!r.show_lunar,
+        phone: cnt.phone[r.id] || '',
         nextBirthday: nextBirthday(bd),
         counts: {
           relatives: cnt.relatives[r.id] || 0,

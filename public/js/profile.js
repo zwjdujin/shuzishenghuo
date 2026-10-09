@@ -38,6 +38,7 @@ let PF = {
   data: null,          // 档案数据
   mod: 'base',         // 当前模块
   filters: { q: '', surname: '', gender: '', ageBand: '', relation: '', province: '', city: '', level: '' },
+  mode: 'detail',      // detail 详细 | simple 精简
   options: null,
   vocab: {},           // kind -> words
   modalCtx: null,
@@ -97,6 +98,7 @@ async function pfLoadList() {
     (d.list || []).forEach((p) => { window.__PF_NAMES[p.id] = p.name; });
     pfRenderFilters();
     pfRenderChips();
+    PF.lastList = d.list || [];
     pfRenderList(d.list || []);
     // 生日提醒卡片
     const bdays = (d.list || [])
@@ -159,22 +161,44 @@ function pfRenderList(list) {
     box.innerHTML = '<div class="empty-hint">没有符合条件的人物，试试放宽筛选</div>';
     return;
   }
+  box.className = PF.mode === 'simple' ? 'contact-stack rel-simple' : 'contact-stack';
+
+  if (PF.mode === 'simple') {
+    // 精简模式：一行多个，仅显示姓名 + 手机号
+    box.innerHTML = list.map((p) => `
+      <button class="rel-simple-item" onclick="pfOpenProfile(${p.id})">
+        <span class="rsi-av" style="background:${pfColorOf(p.id)}">${pfEsc(p.name[0])}</span>
+        <span class="rsi-info">
+          <b>${pfEsc(p.name)}</b>
+          <small>${p.phone ? pfEsc(p.phone) : '未填手机'}</small>
+        </span>
+      </button>`).join('');
+    return;
+  }
+
+  // 详细模式：一行一个，显示完整信息
   box.innerHTML = list.map((p) => {
     const b = p.nextBirthday;
+    const lun = b && b.lunar ? b.lunar.short : '';
     return `<button class="contact-row" onclick="pfOpenProfile(${p.id})">
       <span class="contact-avatar" style="background:${pfColorOf(p.id)}">${p.name[0]}</span>
       <div class="contact-main">
-        <b>${pfEsc(p.name)}${p.alias ? ' <small style="font-weight:400;color:var(--muted)">（' + pfEsc(p.alias) + '）</small>' : ''}</b>
+        <b>${pfEsc(p.name)}${p.alias ? ' <small class="rel-alias">' + pfEsc(p.alias) + '</small>' : ''}</b>
         <div class="contact-meta">
           <span class="contact-badge">${p.relation || '—'}</span>
-          ${p.gender ? `<span class="contact-badge">${p.gender}</span>` : ''}
-          ${p.age !== null ? `<span class="contact-badge">${p.age} 岁</span>` : ''}
-          ${p.province || p.city ? `<span class="contact-badge">${[p.province, p.city].filter(Boolean).join(' ')}</span>` : ''}
           ${p.level ? `<span class="contact-badge">${p.level}</span>` : ''}
-          ${p.job ? `<span>${pfEsc(p.job)}</span>` : ''}
+          ${p.gender ? `<span class="contact-badge">${p.gender}</span>` : ''}
+          ${p.age !== null && p.age !== undefined ? `<span class="contact-badge">${p.age} 岁</span>` : ''}
+          ${p.province || p.city ? `<span class="contact-badge">${[p.province, p.city].filter(Boolean).join(' ')}</span>` : ''}
+          ${p.job ? `<span class="rel-job">${pfEsc(p.job)}</span>` : ''}
         </div>
       </div>
-      <span class="contact-phone">${b ? (b.days === 0 ? '生日就是今天' : `${b.days} 天后生日`) : '未填生日'}</span>
+      <div class="rel-row-right">
+        ${p.phone ? `<span class="contact-phone">${pfEsc(p.phone)}</span>` : ''}
+        ${b ? `<span class="rel-bday${b.days <= 30 ? ' soon' : ''}">${b.days === 0 ? '生日就是今天' : b.days + ' 天后生日'}</span>
+          <small class="rel-bday-lunar">公历 ${b.full}${lun ? ' · 农历 ' + lun : ''}</small>`
+          : '<span class="contact-phone">未填生日</span>'}
+      </div>
     </button>`;
   }).join('');
 }
@@ -190,7 +214,7 @@ function pfRenderBdays(list) {
     return `<button class="bday-card" onclick="pfOpenProfile(${p.id})">
       <div class="bday-top"><span class="bday-name">${pfEsc(p.name)}</span>
         <span class="bday-days${soon ? ' soon' : ''}">${b.days === 0 ? '就是今天' : b.days + ' 天'}</span></div>
-      <div class="bd">下次生日 <b>${b.date}</b></div>
+      <div class="bd">下次生日 <b>${b.full}</b></div>
       ${lunar}
     </button>`;
   }).join('');
@@ -456,6 +480,15 @@ function pfBindEvents() {
     f.hidden = !f.hidden;
     tg.textContent = f.hidden ? '筛选' : '收起筛选';
   });
+  // 显示方式切换（详细 / 精简）
+  document.querySelectorAll('.rel-mode').forEach((b) =>
+    b.addEventListener('click', () => {
+      PF.mode = b.dataset.relmode;
+      document.querySelectorAll('.rel-mode').forEach((x) =>
+        x.classList.toggle('active', x.dataset.relmode === PF.mode));
+      pfRenderList(PF.lastList || []);
+    })
+  );
   const ab = pfEl('addContactBtn');
   if (ab) ab.addEventListener('click', () => openContactModal(null));
 
