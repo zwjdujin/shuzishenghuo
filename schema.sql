@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 -- 人际关系
+-- show_in_calendar：生日是否在日历中心显示（1=显示，0=不显示）
 CREATE TABLE IF NOT EXISTS contacts (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT NOT NULL,
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS contacts (
   birthday   TEXT,
   phone      TEXT,
   note       TEXT,
+  show_in_calendar INTEGER DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

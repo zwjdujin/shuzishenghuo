@@ -65,6 +65,30 @@ export async function onRequestGet(context) {
   }
   const habitDoneCount = habitList.filter(habitTodayDone).length;
 
+  // 关系：60 天内的生日数量
+  let upcomingBirthdays = 0;
+  try {
+    const bRows = (
+      await db.prepare("SELECT birthday FROM contacts WHERE birthday IS NOT NULL AND birthday <> ''").all()
+    ).results || [];
+    const now = new Date();
+    const todayM = now.getMonth();
+    const todayD = now.getDate();
+    bRows.forEach((r) => {
+      const b = String(r.birthday);
+      let mm, dd;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(b)) { mm = Number(b.slice(5, 7)); dd = Number(b.slice(8, 10)); }
+      else if (/^\d{2}-\d{2}$/.test(b)) { mm = Number(b.slice(0, 2)); dd = Number(b.slice(3, 5)); }
+      else return;
+      if (!mm || !dd) return;
+      // 计算今年下一次生日距今天数
+      let next = new Date(now.getFullYear(), mm - 1, dd);
+      if (next < new Date(now.getFullYear(), todayM, todayD)) next = new Date(now.getFullYear() + 1, mm - 1, dd);
+      const days = Math.round((next - new Date(now.getFullYear(), todayM, todayD)) / 86400000);
+      if (days <= 60) upcomingBirthdays++;
+    });
+  } catch (_) { /* 忽略 */ }
+
   const stats = {
     todos: {
       overdue: await cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date < ?", today),
@@ -87,7 +111,7 @@ export async function onRequestGet(context) {
       ),
     },
     events: { today: await cnt('SELECT COUNT(*) c FROM events WHERE date(start) = ?', today) },
-    relations: { upcoming: 0 },
+    relations: { upcoming: upcomingBirthdays },
   };
 
   const ledgerRow = await db
@@ -156,7 +180,7 @@ export async function onRequestGet(context) {
 
   const now = new Date();
   return json({
-    version: '0.2.9',
+    version: '0.3.0',
     brand,
     today,
     todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN(now)}`,

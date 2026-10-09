@@ -256,7 +256,46 @@
           <div id="calViewBox"></div>
         </article>
       </section>
-      <section class="view" id="view-relations" data-title="人际关系"><div class="coming-soon"><svg><use href="#i-people"/></svg><h2>人际关系</h2><p>联系人、生日与纪念日模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
+      <!-- 人际关系（v0.3.0 联系人与生日） -->
+      <section class="view" id="view-relations" data-title="人际关系">
+        <div class="growth-head">
+          <div><p class="eyebrow">人际关系</p><h2>值得记住的人</h2></div>
+          <button class="btn primary" id="addContactBtn" type="button"><svg><use href="#i-plus"/></svg>添加联系人</button>
+        </div>
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">生日提醒</p><h2>即将到来</h2></div></div>
+          <div id="bdayList" class="bday-grid"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">联系人</p><h2>全部联系人</h2></div><span class="muted" id="contactCount"></span></div>
+          <div id="contactList" class="contact-stack"></div>
+        </article>
+      </section>
+
+  <!-- 联系人弹窗 -->
+  <div class="modal-overlay" id="contactModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="contactModalTitle">添加联系人</h3>
+        <button class="icon-btn" id="contactModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <form id="contactForm">
+        <label class="field"><span>姓名</span><input name="name" maxlength="20" placeholder="例如：妈妈" required></label>
+        <div class="field-row">
+          <label class="field"><span>关系</span><select name="relation" id="contactRelSel"></select></label>
+          <label class="field"><span>生日</span><input name="birthday" type="date"></label>
+        </div>
+        <label class="field"><span>电话</span><input name="phone" maxlength="20" placeholder="选填"></label>
+        <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填，例如：喜欢喝淡茶"></label>
+        <label class="check-line"><input type="checkbox" name="showInCalendar"><span>在日历中显示生日</span></label>
+        <div class="settings-actions" style="gap:10px">
+          <button class="btn ghost danger" id="contactDeleteBtn" type="button" hidden>删除</button>
+          <button class="btn primary" type="submit" style="flex:0 0 auto">保存</button>
+        </div>
+        <p class="login-error" id="contactFormError" hidden></p>
+      </form>
+    </div>
+  </div>
 
       <!-- 个人中心（v0.2.5：子菜单为唯一入口，无顶部标题与页签） -->
       <section class="view" id="view-settings" data-title="个人中心">

@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.2.9
-const VERSION = '0.2.9';
+// 数字生活 · 前端逻辑 v0.3.0
+const VERSION = '0.3.0';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'f90112a2 · 提交 19e2cd3';
-const __BUILD_TIME__ = '2026-10-09 12:36';
+const __BUILD_ID__ = '待更新 · 提交 71a49ac';
+const __BUILD_TIME__ = '2026-10-09 14:15';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -379,6 +379,8 @@ async function loadCalEvents() {
     calState.events = data.events || [];
     fillCalendarSel('#eventCalendarSel', data.calendars || Object.keys(CAL_COLOR));
     renderCalLegend(data.calendars || Object.keys(CAL_COLOR));
+    // 合并勾选了「在日历中显示」的联系人生日
+    await mergeBirthdays(from, to);
     renderCalView();
     markSynced();
   } catch (err) {
@@ -386,6 +388,31 @@ async function loadCalEvents() {
       $('#calViewBox').innerHTML = '<div class="empty-hint">加载日程失败</div>';
     }
   }
+}
+
+// 把勾选了日历显示的生日合并进事件列表（作为全天事件）
+async function mergeBirthdays(from, to) {
+  try {
+    const res = await api('/api/contacts');
+    const data = await res.json();
+    (data.contacts || [])
+      .filter((c) => c.showInCalendar && c.nextBirthday)
+      .forEach((c) => {
+        if (c.nextBirthday < from || c.nextBirthday > to) return;
+        calState.events.push({
+          id: 'bday-' + c.id,
+          title: `${c.name} 的生日`,
+          start: `${c.nextBirthday} 00:00:00`,
+          end: null,
+          allDay: true,
+          calendar: '家庭',
+          color: null,
+          location: '',
+          note: c.age !== null && c.age !== undefined ? `满 ${c.age} 岁` : '',
+          isBirthday: true,
+        });
+      });
+  } catch { /* 未登录时忽略 */ }
 }
 
 function fillCalendarSel(sel, list) {
@@ -593,6 +620,11 @@ function calShift(dir) {
 // ===== 日程弹窗 =====
 let editingEventId = null;
 function openEventModal(ev, presetDate, presetHour) {
+  // 生日为虚拟事件，不可编辑
+  if (ev && ev.isBirthday) {
+    toast('生日由联系人资料生成，请在「人际关系」中修改');
+    return;
+  }
   editingEventId = ev ? ev.id : null;
   const f = $('#eventForm');
   f.reset();
@@ -836,6 +868,103 @@ function syncTxnCats() {
   sel.innerHTML = list.map((c) => `<option value="${c}">${c}</option>`).join('');
 }
 
+// ===== 人际关系（联系人 + 生日） =====
+let contactRelations = ['家人', '亲戚', '朋友', '同事', '同学', '其他'];
+let editingContactId = null;
+
+async function renderContacts() {
+  const listBox = $('#contactList');
+  if (!listBox) return;
+  listBox.innerHTML = '<div class="empty-hint">加载中…</div>';
+  try {
+    const res = await api('/api/contacts');
+    const data = await res.json();
+    contactRelations = data.relations || contactRelations;
+    fillCalendarSel('#contactRelSel', contactRelations);
+    renderContactsList(data.contacts || []);
+    markSynced();
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) listBox.innerHTML = '<div class="empty-hint">加载联系人失败</div>';
+  }
+}
+
+function renderContactsList(list) {
+  const box = $('#contactList');
+  $('#contactCount').textContent = list.length ? `共 ${list.length} 人` : '';
+  box.innerHTML = '';
+  if (!list.length) {
+    box.innerHTML = '<div class="empty-hint">还没有联系人，点右上角添加</div>';
+    renderBirthdays([]);
+    return;
+  }
+  list.forEach((c) => {
+    const row = document.createElement('div');
+    row.className = 'contact-row';
+    const color = catColor(CAT_ORDER[c.name.length % CAT_ORDER.length]);
+    row.innerHTML = `
+      <span class="contact-avatar" style="background:${color}"></span>
+      <div class="contact-main"><b></b><div class="contact-meta"></div></div>
+      ${c.phone ? '<span class="contact-phone"></span>' : ''}`;
+    row.querySelector('.contact-avatar').textContent = c.name.slice(0, 1);
+    row.querySelector('b').textContent = c.name;
+    const meta = row.querySelector('.contact-meta');
+    meta.innerHTML =
+      (c.relation ? `<span class="contact-badge">${c.relation}</span>` : '') +
+      (c.showInCalendar ? '<span class="contact-badge cal">日历显示</span>' : '') +
+      (c.note ? `<span>${c.note}</span>` : '');
+    if (c.phone) row.querySelector('.contact-phone').textContent = c.phone;
+    row.addEventListener('click', () => openContactModal(c));
+    box.appendChild(row);
+  });
+  renderBirthdays(list);
+}
+
+// 生日卡片：60 天内 + 已勾选日历显示
+function renderBirthdays(list) {
+  const box = $('#bdayList');
+  if (!box) return;
+  const items = list
+    .filter((c) => c.daysLeft !== null && (c.daysLeft <= 60 || c.showInCalendar))
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+    .slice(0, 12);
+  if (!items.length) {
+    box.innerHTML = '<div class="empty-hint">还没有设置生日的联系人</div>';
+    return;
+  }
+  box.innerHTML = items
+    .map((c) => {
+      const soon = c.daysLeft <= 7;
+      const when = c.daysLeft === 0 ? '就是今天' : `还有 ${c.daysLeft} 天`;
+      const ageTxt = c.age !== null && c.age !== undefined ? ` · 满 ${c.age} 岁` : '';
+      return `<div class="bday-card${c.showInCalendar ? ' in-cal' : ''}">
+        <div class="bday-top"><span class="bday-name">${c.name}</span>
+          <span class="bday-days${soon ? ' soon' : ''}">${when}</span></div>
+        <div class="bd">下次生日 <b>${c.nextBirthday}</b>${ageTxt}</div>
+        ${c.showInCalendar ? '<div class="bd" style="font-size:11px">已同步到日历</div>' : ''}
+      </div>`;
+    })
+    .join('');
+}
+
+function openContactModal(c) {
+  editingContactId = c ? c.id : null;
+  const f = $('#contactForm');
+  f.reset();
+  $('#contactModalTitle').textContent = c ? '编辑联系人' : '添加联系人';
+  $('#contactFormError').hidden = true;
+  $('#contactDeleteBtn').hidden = !c;
+  if (c) {
+    f.name.value = c.name;
+    f.relation.value = c.relation || '';
+    f.birthday.value = c.birthday || '';
+    f.phone.value = c.phone || '';
+    f.note.value = c.note || '';
+    f.showInCalendar.checked = !!c.showInCalendar;
+  }
+  $('#contactModal').hidden = false;
+}
+function closeContactModal() { $('#contactModal').hidden = true; }
+
 // ===== 导航切换 =====
 // keepTab：从子菜单进入个人中心时，保留已选中的子页，不强制回到默认页
 function switchView(name, opts = {}) {
@@ -855,6 +984,7 @@ function switchView(name, opts = {}) {
   if (name === 'calendar') loadCalEvents();
   if (name === 'todos') renderTodos();
   if (name === 'ledger') renderLedger();
+  if (name === 'relations') renderContacts();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
@@ -867,6 +997,7 @@ document.addEventListener('click', (e) => {
 
 // ===== 成长打卡 =====
 const CAT_COLOR = { plum:'#4d3045', terra:'#b65f42', sage:'#627a67', sand:'#a57c45', clay:'#8f4f3b' };
+const CAT_ORDER = ['plum', 'terra', 'sage', 'sand', 'clay'];
 const catColor = (c) => CAT_COLOR[c] || '#746d63';
 const catTint = (c) => catColor(c) + '1f'; // 半透明底色
 
@@ -1671,6 +1802,43 @@ $('#txnForm').addEventListener('submit', async (e) => {
       }),
     });
     if (res.ok) { $('#txnModal').hidden = true; toast('已记账'); markSynced(); await renderLedger(); }
+  } catch { /* 401 已处理 */ }
+});
+
+// ===== 人际关系交互 =====
+$('#addContactBtn').addEventListener('click', () => openContactModal(null));
+$('#contactModalClose').addEventListener('click', closeContactModal);
+$('#contactModal').addEventListener('click', (e) => { if (e.target === $('#contactModal')) closeContactModal(); });
+$('#contactDeleteBtn').addEventListener('click', async () => {
+  if (!editingContactId) return;
+  if (!confirm('确定删除该联系人？')) return;
+  const res = await api(`/api/contacts/${editingContactId}`, { method: 'DELETE' }).catch(() => null);
+  if (res && res.ok) { closeContactModal(); toast('已删除'); markSynced(); renderContacts(); }
+});
+$('#contactForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const fd = new FormData(f);
+  const name = String(fd.get('name') || '').trim();
+  if (!name) { const el = $('#contactFormError'); el.textContent = '请填写姓名'; el.hidden = false; return; }
+  const payload = {
+    name, relation: fd.get('relation'), birthday: fd.get('birthday'),
+    phone: fd.get('phone'), note: fd.get('note'),
+    showInCalendar: f.showInCalendar.checked,
+  };
+  try {
+    const url = editingContactId ? '/api/contacts' : '/api/contacts';
+    const res = await api(url, {
+      method: editingContactId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingContactId ? { ...payload, id: editingContactId } : payload),
+    });
+    if (res.ok) {
+      closeContactModal();
+      toast(editingContactId ? '已更新' : '已添加联系人');
+      markSynced();
+      renderContacts();
+    }
   } catch { /* 401 已处理 */ }
 });
 
