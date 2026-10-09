@@ -1,15 +1,32 @@
+/* ===== 主题令牌（由「主题风格」页 applyTheme() 写入，此处为默认「胭脂」的兜底值） ===== */
 :root{
-  --paper:#f5f0e8;--card:#fffdfa;--ink:#29251f;--muted:#746d63;--line:#ded5c8;
-  --plum:#4d3045;--plum-soft:#e8dfe5;--terra:#b65f42;--terra-soft:#f3dfd6;
-  --sage:#627a67;--sage-soft:#dfe8df;--sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;
-  --red:#b44d43;--green:#477358;--shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px;--sidebar:248px;
+  /* 日间色板 */
+  --t-day-plum:#952e3a;--t-day-accent:#7b2330;--t-day-soft:#f7eff0;--t-day-card:#fdfafa;
+  --t-day-paper:#f8f3f2;--t-day-side:#f1e5e6;--t-day-ink:#33141a;--t-day-muted:#6f575c;
+  --t-day-line:#ecdcdd;--t-day-deep:#7b2330;
+  /* 夜间色板 */
+  --t-night-plum:#dd93a2;--t-night-accent:#e5a8b5;--t-night-soft:#281418;--t-night-card:#1b0f12;
+  --t-night-paper:#130b0d;--t-night-side:#0c0709;--t-night-ink:#f2e8ea;--t-night-muted:#a8949a;
+  --t-night-line:#3a2428;--t-night-deep:#e5a8b5;
+  /* 实际生效变量：日间为默认，夜间由 html[data-mode="night"] 覆盖 */
+  --paper:var(--t-day-paper);--card:var(--t-day-card);--ink:var(--t-day-ink);
+  --muted:var(--t-day-muted);--line:var(--t-day-line);--side:var(--t-day-side);
+  --plum:var(--t-day-plum);--plum-soft:var(--t-day-soft);--plum-deep:var(--t-day-deep);
+  --accent:var(--t-day-accent);--tint:var(--t-day-soft);--on-accent:#fff;
+  /* 固定语义色（习惯分类 / 账本收支 / 状态提示，不随主题变化） */
+  --terra:#b65f42;--terra-soft:#f3dfd6;--sage:#627a67;--sage-soft:#dfe8df;
+  --sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;--red:#b44d43;--green:#477358;
+  --shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px;--sidebar:248px;
   --font-ui:-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;
-  --font-serif:var(--font-serif)
+  --font-serif:"Songti SC",serif
 }
-/* ===== 夜间模式（可按日出日落自动切换） ===== */
+/* ===== 夜间模式（可按日出日落自动切换，色板取自当前主题的夜间令牌） ===== */
 html[data-mode="night"]{
-  --paper:#14110f;--card:#201c19;--ink:#f0e9e0;--muted:#b0a496;--line:#38312b;
-  --plum-soft:#2e252c;--terra-soft:#332822;--sage-soft:#242e28;--sand-soft:#332c1d;
+  --paper:var(--t-night-paper);--card:var(--t-night-card);--ink:var(--t-night-ink);
+  --muted:var(--t-night-muted);--line:var(--t-night-line);--side:var(--t-night-side);
+  --plum:var(--t-night-plum);--plum-soft:var(--t-night-soft);--plum-deep:var(--t-night-deep);
+  --accent:var(--t-night-accent);--tint:var(--t-night-soft);
+  --terra-soft:#332822;--sage-soft:#242e28;--sand-soft:#332c1d;
   --clay:#d07a5f;--red:#e88a7c;--green:#8cbb9b;
   --shadow:0 16px 40px rgba(0,0,0,.5)
 }
@@ -23,7 +40,7 @@ html[data-mode="night"] .mcell,html[data-mode="night"] .rel-simple-item,
 html[data-mode="night"] .tf-chip:not(.on),html[data-mode="night"] .chip,
 html[data-mode="night"] .inp,html[data-mode="night"] textarea.inp,
 html[data-mode="night"] select.inp,html[data-mode="night"] .vc,
-html[data-mode="night"] .mode-opt,html[data-mode="night"] .font-opt,
+html[data-mode="night"] .local-card,
 html[data-mode="night"] .handle-opt,html[data-mode="night"] .more-btn,
 html[data-mode="night"] .rep-box,html[data-mode="night"] .tl-row,html[data-mode="night"] .tl-b,
 html[data-mode="night"] .file-box,html[data-mode="night"] .drop,
@@ -37,7 +54,7 @@ html[data-mode="night"] .pitem,html[data-mode="night"] .rep,html[data-mode="nigh
 html[data-mode="night"] .seg,html[data-mode="night"] .prio-item,
 html[data-mode="night"] .info-row{background:var(--card)!important;border-color:var(--line)!important;color:var(--ink)!important}
 html[data-mode="night"] .sidebar,html[data-mode="night"] .side{
-  background:#1b1714!important;border-right-color:rgba(255,255,255,.07)!important
+  background:var(--side)!important;border-right-color:var(--line)!important
 }
 html[data-mode="night"] .mcell.out{background:#191512!important;opacity:.65}
 html[data-mode="night"] .tf-chip.on{color:#fff!important}
@@ -52,8 +69,6 @@ html[data-mode="night"] .login-card{background:var(--card);color:var(--ink)}
 html[data-mode="night"] .note.info{background:#242e28!important;color:#cfe0d0!important}
 html[data-mode="night"] .note.p{background:#332c1d!important;color:#e8d8ab!important}
 html[data-mode="night"] .note.pp{background:#2e252c!important;color:#e0cfe0!important}
-html[data-mode="night"] .mode-opt:has(input:checked),
-html[data-mode="night"] .font-opt.on{background:var(--plum-soft)!important;border-color:var(--plum)!important}
 html[data-mode="night"] .empty-hint,html[data-mode="night"] .empty{background:var(--card)!important;border-color:var(--line)!important;color:var(--muted)!important}
 html[data-mode="night"] .muted,html[data-mode="night"] small{color:var(--muted)}
 html[data-mode="night"] .btn.line,html[data-mode="night"] .btn.ghost{color:var(--ink)!important}
@@ -91,23 +106,23 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 
 /* ===== 布局 ===== */
 .app-shell{min-height:100vh}
-.sidebar{position:fixed;inset:0 auto 0 0;width:var(--sidebar);padding:28px 20px 22px;background:#ede6dc;border-right:1px solid rgba(104,87,68,.12);display:flex;flex-direction:column;z-index:20;overflow-y:auto}
+.sidebar{position:fixed;inset:0 auto 0 0;width:var(--sidebar);padding:28px 20px 22px;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:20;overflow-y:auto}
 .brand{display:flex;flex-direction:column;gap:0;padding:0 4px 20px 8px;border:0;background:transparent;color:inherit;text-align:left}
 .brand-inner{display:flex;align-items:center;gap:12px}
 .brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:var(--plum);color:#fff;font:700 19px/1 var(--font-serif);box-shadow:0 7px 18px rgba(77,48,69,.2)}
 .brand strong{display:block;font:700 19px/1.2 var(--font-serif);letter-spacing:.05em}
 .brand span{display:block;margin-top:4px;color:var(--muted);font-size:11px;letter-spacing:.12em}
 .side-nav{display:flex;flex-direction:column;gap:4px}
-.nav-label{margin:14px 0 2px 13px;font-size:10px;letter-spacing:.18em;color:#a59c90;font-weight:700}
-.nav-item{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 13px;border:0;border-radius:12px;background:transparent;color:#5e574e;text-align:left;transition:.2s}
-.nav-item:hover{background:rgba(255,255,255,.48);color:var(--ink)}
-.nav-item.active{background:var(--plum);color:#fff;box-shadow:0 8px 18px rgba(77,48,69,.22)}
+.nav-label{margin:14px 0 2px 13px;font-size:10px;letter-spacing:.18em;color:var(--muted);font-weight:700}
+.nav-item{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 13px;border:0;border-radius:12px;background:transparent;color:var(--muted);text-align:left;transition:.2s}
+.nav-item:hover{background:var(--plum-soft);color:var(--ink)}
+.nav-item.active{background:var(--plum);color:#fff;box-shadow:0 8px 18px rgba(0,0,0,.16)}
 .nav-item svg{width:20px;height:20px;flex:0 0 auto}
-.local-card{margin-top:auto;padding:14px;border-radius:16px;background:rgba(255,253,250,.7);border:1px solid rgba(154,145,134,.18)}
+.local-card{margin-top:auto;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
 .local-status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600}
 .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(71,115,88,.18)}
 .local-card p{margin:8px 0 4px;font-size:12px;color:var(--muted);line-height:1.5}
-.local-card small{font-size:11px;color:#a59c90}
+.local-card small{font-size:11px;color:var(--muted)}
 
 .main-content{margin-left:var(--sidebar);padding:30px 40px 60px;max-width:1240px}
 .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}
@@ -280,7 +295,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 
 /* 个人中心弹子菜单 */
 .profile-popover{position:absolute;left:0;right:0;bottom:calc(100% - 8px);z-index:30;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
-.pp-item{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#5e574e;text-align:left;font-size:14px}
+.pp-item{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:var(--ink);text-align:left;font-size:14px}
 .pp-item:hover{background:var(--plum-soft);color:var(--plum)}
 .pp-item svg{width:18px;height:18px}
 /* 移动端底部导航里的「我的」及其子菜单 */
@@ -376,6 +391,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .med-stats .ms.low{--mc:var(--terra)}
 
 .med-filter-panel{padding:16px 20px}
+/* 通用输入框：项目里 .inp 被多处复用（药箱搜索、词库添加等），
+   原先只有 .rel-search .inp 有完整样式，这里补一条通用规则避免出现「裸输入框」 */
+.inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:13.5px;color:var(--ink);outline:none;min-width:0}
+.inp:focus{border-color:var(--plum)}
 .med-stack{display:flex;flex-direction:column;gap:10px}
 .med-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:#fffdfa;transition:.18s;position:relative}
 .med-row:hover{border-color:var(--plum);box-shadow:0 6px 16px rgba(63,48,36,.07)}
@@ -866,8 +885,8 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
   .med-filter-panel .tf-label{padding-top:0}
   #medSearch{max-width:100%!important;width:100%}
   .mev,.wev{font-size:9px}
-  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid rgba(85,69,55,.14);border-radius:20px;background:rgba(255,252,247,.94);box-shadow:0 14px 35px rgba(53,41,31,.16);backdrop-filter:blur(14px)}
-  .mobile-nav>button{min-width:0;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
+  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid var(--line);border-radius:20px;background:var(--card);box-shadow:0 14px 35px rgba(0,0,0,.16)}
+  .mobile-nav>button{min-width:0;border:0;border-radius:14px;background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
   .mobile-nav>button svg{width:21px;height:21px}
   .mobile-nav>button.active{background:var(--plum);color:#fff}
   .login-card{padding:28px 22px}

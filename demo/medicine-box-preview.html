@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>家庭药箱 v0.3.7 · 效果预览</title>
+<style>
+:root{
+  --paper:#f5f0e8;--card:#fffdfa;--ink:#29251f;--muted:#746d63;--line:#ded5c8;
+  --plum:#4d3045;--plum-soft:#e8dfe5;--terra:#b65f42;--terra-soft:#f3dfd6;
+  --sage:#627a67;--sage-soft:#dfe8df;--sand:#a57c45;--sand-soft:#eee2ce;
+  --red:#b44d43;--green:#477358;--shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px;
+  --font-ui:-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-serif:"Songti SC","STSong",Georgia,"PingFang SC",serif;
+}
+html[data-mode="night"]{
+  --paper:#14110f;--card:#201c19;--ink:#f0e9e0;--muted:#b0a496;--line:#38312b;
+  --plum-soft:#2e252c;--terra-soft:#332822;--sage-soft:#242e28;--sand-soft:#332c1d;
+  --clay:#d07a5f;--red:#e88a7c;--green:#8cbb9b;--shadow:0 16px 40px rgba(0,0,0,.5)
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--font-ui);-webkit-font-smoothing:antialiased;padding:26px 22px 80px}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:1120px;margin:0 auto}
+
+.pv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:8px}
+.pv-head h1{margin:0 0 6px;font:700 26px/1.2 var(--font-serif)}
+.pv-lead{margin:0;color:var(--muted);font-size:13.5px;line-height:1.7;max-width:62ch}
+.pv-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pv-btn{height:38px;padding:0 14px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-weight:600;font-size:13.5px;display:inline-flex;align-items:center;gap:7px}
+.pv-btn:hover{box-shadow:var(--shadow)}
+.pv-btn.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.pv-note{margin:16px 0 22px;padding:12px 15px;border-radius:13px;background:var(--sand-soft);color:#735730;font-size:12.5px;line-height:1.65;border-left:3px solid var(--sand)}
+html[data-mode="night"] .pv-note{color:#e8d8ab}
+
+/* 模拟真实页面外壳：左侧导航 + 主内容（复刻 .view 结构以验证间距规则） */
+.shell{display:grid;grid-template-columns:212px minmax(0,1fr);gap:22px;align-items:start}
+.side{position:sticky;top:22px;padding:18px 14px;border-radius:18px;background:#ede6dc;border-right:1px solid rgba(104,87,68,.12)}
+html[data-mode="night"] .side{background:#1b1714!important;border-color:rgba(255,255,255,.07)!important}
+.side .sb{display:flex;align-items:center;gap:10px;padding:0 4px 14px;margin-bottom:8px;border-bottom:1px solid rgba(104,87,68,.14)}
+.side .sb i{width:36px;height:36px;border-radius:11px;background:var(--plum);color:#fff;display:grid;place-items:center;font:700 16px/1 var(--font-serif);flex:0 0 auto}
+.side .sb b{display:block;font:700 15px/1.2 var(--font-serif)}
+.side .sb span{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.1em}
+.nav{display:flex;flex-direction:column;gap:3px}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;height:38px;padding:0 11px;border:0;border-radius:11px;background:transparent;color:#5e574e;text-align:left;font-size:13.5px}
+.nav button:hover{background:rgba(255,255,255,.48)}
+.nav button.on{background:var(--plum);color:#fff}
+.nav button svg{width:17px;height:17px;flex:0 0 auto}
+html[data-mode="night"] .nav button{color:#d8cfc4}
+
+/* —— 以下为真实页面模块样式（与 style.css 保持一致） —— */
+.view.active>*{margin-bottom:22px}
+.view.active>*:last-child{margin-bottom:0}
+.growth-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.eyebrow{margin:0;font-size:11px;letter-spacing:.18em;color:#a59c90;font-weight:700}
+.growth-head h2{margin:4px 0 0;font:700 22px/1.2 var(--font-serif)}
+.cal-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 16px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font-weight:600}
+.btn.primary{background:var(--plum);border-color:var(--plum);color:#fff}
+.btn.ghost{background:transparent}
+html[data-mode="night"] .btn{background:var(--card);color:var(--ink)}
+html[data-mode="night"] .btn.ghost{color:var(--ink)!important}
+.btn svg{width:17px;height:17px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+html[data-mode="night"] .panel{background:var(--card)!important;border-color:var(--line)!important}
+.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.panel-head h2{margin:4px 0 0;font:700 18px/1.2 var(--font-serif)}
+.muted{color:var(--muted);font-size:12.5px}
+.empty-hint{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+
+.med-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.med-stats .ms{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.med-stats .ms::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--mc,var(--plum))}
+.med-stats .ms span{display:block;font-size:12px;color:var(--muted)}
+.med-stats .ms strong{display:block;margin-top:6px;font:700 26px/1.1 var(--font-serif);color:var(--mc,var(--ink))}
+.med-stats .ms small{display:block;margin-top:3px;font-size:11px;color:var(--muted)}
+.med-stats .ms.soon{--mc:var(--sand)}
+.med-stats .ms.expired{--mc:var(--red)}
+.med-stats .ms.safe{--mc:var(--green)}
+.med-stats .ms.low{--mc:var(--terra)}
+
+.med-filter-panel{padding:16px 20px}
+.tf-row{display:flex;align-items:flex-start;gap:12px}
+.tf-row+.tf-row{margin-top:10px}
+.tf-label{flex:0 0 auto;font-size:12px;color:var(--muted);font-weight:600;padding-top:6px}
+.tf-chips{display:flex;gap:7px;flex-wrap:wrap}
+.tf-chip{height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--muted);font-size:12px;font-weight:600}
+.tf-chip:hover{background:var(--plum-soft)}
+.tf-chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.tf-chip .n{opacity:.7;margin-left:3px}
+.inp{height:36px;padding:0 13px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-size:13.5px;outline:none;min-width:0}
+html[data-mode="night"] .inp{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important}
+.inp:focus{border-color:var(--plum)}
+
+.med-stack{display:flex;flex-direction:column;gap:10px}
+.med-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:13px 15px;border:1px solid var(--line);border-radius:14px;background:var(--card);transition:.18s;position:relative}
+.med-row:hover{border-color:var(--plum);box-shadow:0 6px 16px rgba(63,48,36,.07)}
+.med-row .mr-main{min-width:0}
+.med-row .mr-name{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.med-row .mr-name b{font-size:14.5px;font-weight:700}
+.med-row .mr-eff{margin-top:4px;font-size:12.5px;color:var(--muted);line-height:1.55;overflow-wrap:anywhere}
+.med-row .mr-meta{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap}
+.med-row .mr-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:0 0 auto}
+.med-row .mr-ops{display:flex;gap:4px;margin-top:2px}
+.med-row .mr-ops button{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--muted)}
+.med-row .mr-ops button:hover{background:var(--plum-soft);color:var(--plum);border-color:var(--plum)}
+.med-row .mr-ops button svg{width:14px;height:14px}
+.med-row.state-expired{border-left:3px solid var(--red);background:color-mix(in srgb,var(--red) 5%,var(--card))}
+.med-row.state-soon{border-left:3px solid var(--sand)}
+.med-row.state-none{border-left:3px solid var(--line)}
+html[data-mode="night"] .med-row{background:var(--card)!important;border-color:var(--line)!important}
+html[data-mode="night"] .med-row.state-expired{background:#2b1e1c!important}
+
+.med-tag{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--plum-soft);color:var(--plum);white-space:nowrap}
+.med-tag.gray{background:#efe9e0;color:#746d63}
+.med-tag.rx{background:var(--terra-soft);color:var(--terra)}
+.med-tag.low{background:var(--sand-soft);color:var(--sand)}
+.med-tag.who{background:var(--sage-soft);color:var(--sage)}
+html[data-mode="night"] .med-tag.gray{background:#332c26!important;color:#c3b8a9!important}
+html[data-mode="night"] .med-tag.rx{background:#3a2620!important;color:#e0a48c!important}
+html[data-mode="night"] .med-tag.low{background:#332c1d!important;color:#e8d8ab!important}
+html[data-mode="night"] .med-tag.who{background:#242e28!important;color:#b9d3c0!important}
+
+.med-exp{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto;min-width:112px}
+.med-exp b{font:700 13px/1.2 var(--font-serif);color:var(--ink);white-space:nowrap}
+.med-exp small{font-size:11px;color:var(--muted);white-space:nowrap}
+.med-exp.soon b{color:var(--sand)}
+.med-exp.expired b{color:var(--red)}
+.med-exp.safe b{color:var(--green)}
+html[data-mode="night"] .med-exp b{color:var(--ink)!important}
+html[data-mode="night"] .med-exp.soon b{color:#e8c37a!important}
+html[data-mode="night"] .med-exp.expired b{color:var(--red)!important}
+html[data-mode="night"] .med-exp.safe b{color:var(--green)!important}
+.med-bar{width:100%;height:5px;border-radius:999px;background:#efe9e0;overflow:hidden;margin-top:6px}
+.med-bar i{display:block;height:100%;border-radius:999px;background:var(--green)}
+.med-bar i.soon{background:var(--sand)}
+.med-bar i.expired{background:var(--red)}
+.med-bar i.none{background:var(--line)}
+html[data-mode="night"] .med-bar{background:#38312b!important}
+
+.med-badge{display:inline-flex;align-items:center;height:26px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;background:var(--plum-soft);color:var(--plum)}
+.med-badge.soon{background:var(--sand-soft);color:var(--sand)}
+.med-badge.expired{background:#f5dedb;color:var(--red)}
+html[data-mode="night"] .med-badge{background:var(--plum-soft)!important;color:#e6d5c8!important}
+html[data-mode="night"] .med-badge.soon{background:#332c1d!important;color:#e8d8ab!important}
+html[data-mode="night"] .med-badge.expired{background:#33211f!important;color:#e88a7c!important}
+.med-alert-panel.soon{border-left:3px solid var(--sand)}
+.med-alert-panel.expired{border-left:3px solid var(--red)}
+.med-tip-line{margin:-6px 0 14px;font-size:12.5px;color:var(--muted);line-height:1.6}
+.med-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:26px 16px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center;background:var(--card)}
+html[data-mode="night"] .med-empty{background:var(--card)!important;border-color:var(--line)!important}
+.med-empty svg{width:30px;height:30px;opacity:.55}
+.med-empty b{font-size:14px;color:var(--ink)}
+.med-empty small{font-size:12px}
+
+.med-extra{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+.med-cat-list{display:flex;flex-direction:column;gap:9px}
+.med-cat-item .mc-top{display:flex;align-items:baseline;gap:8px;font-size:12.5px}
+.med-cat-item .mc-top .nm{flex:1;min-width:0;font-weight:600}
+.med-cat-item .mc-top .vl{font-weight:700}
+.med-cat-item .mc-top .sub{color:var(--muted);font-size:11px;white-space:nowrap}
+.med-cat-item .med-bar i.warn{background:var(--sand)}
+.med-cat-item .med-bar i.bad{background:var(--red)}
+.med-loc-list{display:flex;flex-direction:column;gap:8px}
+.med-loc-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+html[data-mode="night"] .med-loc-item{background:var(--card)!important;border-color:var(--line)!important}
+.med-loc-item svg{width:17px;height:17px;color:var(--plum);flex:0 0 auto}
+.med-loc-item .nm{flex:1;min-width:0;font-size:13px}
+.med-loc-item .vl{font-weight:700;font:700 15px/1 var(--font-serif)}
+.med-checklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:12px}
+.med-check{padding:14px 15px;border:1px solid var(--line);border-radius:14px;background:var(--card);display:flex;flex-direction:column;gap:6px}
+html[data-mode="night"] .med-check{background:var(--card)!important;border-color:var(--line)!important}
+.med-check .mc-h{display:flex;align-items:center;gap:7px}
+.med-check .mc-h svg{width:17px;height:17px;color:var(--plum);flex:0 0 auto}
+.med-check .mc-h b{font-size:13.5px}
+.med-check p{margin:0;font-size:12px;color:var(--muted);line-height:1.6}
+.med-check .mc-done{font-size:11px;font-weight:700;color:var(--green)}
+.med-note{margin:10px 0 0;padding:11px 13px;border-radius:12px;background:var(--sand-soft);color:#735730;font-size:12px;line-height:1.6}
+html[data-mode="night"] .med-note{background:#332c1d!important;color:#e8d8ab!important}
+
+/* 弹窗 */
+.modal-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(40,30,38,.5);padding:20px;overflow-y:auto}
+html[data-mode="night"] .modal-overlay{background:rgba(12,10,9,.75)}
+.modal-card{width:min(520px,100%);max-height:calc(100vh - 40px);overflow-y:auto;background:var(--card);border-radius:22px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,.3)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.modal-head h3{margin:0;font:700 19px/1.2 var(--font-serif)}
+.icon-btn{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--muted)}
+html[data-mode="night"] .icon-btn{color:var(--muted)!important}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field>span{font-size:12px;color:var(--muted);font-weight:600}
+.field input,.field select{width:100%;max-width:100%;height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:15px;outline:none}
+html[data-mode="night"] .field input,html[data-mode="night"] .field select{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important}
+.field input:focus,.field select:focus{border-color:var(--plum)}
+.field-row{display:flex;gap:12px}
+.field-row .field{flex:1;min-width:0;margin-bottom:14px}
+.check-line{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:13px;color:var(--muted);cursor:pointer}
+.check-line input{width:16px;height:16px;accent-color:var(--plum)}
+.field-hint{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
+.btn.full{width:100%;justify-content:center}
+.login-error{margin:12px 0 0;color:var(--red);font-size:13px}
+
+.pv-foot{margin-top:26px;padding:16px 18px;border-radius:15px;background:var(--card);border:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.75}
+html[data-mode="night"] .pv-foot{background:var(--card)!important;border-color:var(--line)!important}
+.pv-foot b{color:var(--ink)}
+.pv-tag{display:inline-block;margin:0 6px 6px 0;padding:3px 9px;border-radius:999px;background:var(--plum-soft);color:var(--plum);font-size:11px;font-weight:700}
+
+@media(max-width:980px){
+  .shell{grid-template-columns:1fr}
+  .side{position:static}
+  .nav{flex-direction:row;flex-wrap:wrap}
+  .nav button{width:auto}
+  .med-stats{grid-template-columns:repeat(3,1fr)}
+  .med-extra{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  body{padding:18px 14px 70px}
+  .med-stats{grid-template-columns:repeat(2,1fr);gap:10px}
+  .med-stats .ms strong{font-size:21px}
+  .med-row{grid-template-columns:minmax(0,1fr);gap:10px}
+  .med-row .mr-side{align-items:flex-start;flex-direction:row;flex-wrap:wrap;gap:10px}
+  .med-exp{align-items:flex-start;min-width:0}
+  .med-checklist{grid-template-columns:1fr}
+  .med-filter-panel .tf-row{flex-direction:column;gap:6px}
+  .med-filter-panel .tf-label{padding-top:0}
+  #medSearch{width:100%!important;max-width:100%!important}
+  .modal-card .field-row{gap:0}
+}
+</style>
+</head>
+<body>
+
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-sprout" viewBox="0 0 24 24"><path d="M12 22V11"/><path d="M12 11C12 7 9 4 4 4c0 5 3 7 8 7Z"/><path d="M12 13c0-3 2.5-6 8-6 0 4-3 6-8 6Z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 19a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6h15a2 2 0 0 1 2 2v11H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12v3"/><path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z"/></symbol>
+  <symbol id="i-pill" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(45 12 12)"/><path d="m8.5 8.5 7 7"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 6a3 3 0 0 1 0 6"/><path d="M18 20a6 6 0 0 0-3-5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20zM12 9v5M12 18h.01"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M19 19H6a2 2 0 0 0-2 2"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14a8 8 0 1 1-9-10 7 7 0 0 0 9 10Z"/></symbol>
+  <symbol id="i-fire" viewBox="0 0 24 24"><path d="M12 22c4 0 7-3 7-7 0-3-2-6-5-9 0 3-2 4-3 5 0-3-1-6-3-9 0 5-3 7-3 12 0 5 3 8 7 8z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="pv-head">
+    <div>
+      <h1>家庭药箱 · 效果预览</h1>
+      <p class="pv-lead">
+        这是<b>「数字生活」家庭药箱模块</b>补齐后的界面效果。左侧导航与模块样式完全沿用线上项目，
+        下面的数据为演示用模拟数据（真实部署后从 D1 读取）。可点击筛选、搜索、录入、编辑、删除，均为可交互。
+      </p>
+    </div>
+    <div class="pv-tools">
+      <button class="pv-btn" id="nightBtn" type="button">夜间模式</button>
+      <button class="pv-btn on" id="demoBtn" type="button">有数据状态</button>
+      <button class="pv-btn" id="emptyBtn" type="button">空药箱状态</button>
+    </div>
+  </div>
+
+  <p class="pv-note">
+    <b>临期定义：</b>有效期在 <b>6 个月以内</b>（含今天到期）即为临期；<b>超过保质期</b>即为过期。
+    两类均单独成表，无数据时分别显示「暂无临期药品」「暂无过期药品」。
+  </p>
+
+  <div class="shell">
+    <aside class="side">
+      <div class="sb"><i>数</i><div><b>数字生活</b><span>SHUZI SHENGHUO</span></div></div>
+      <nav class="nav">
+        <button type="button"><svg><use href="#i-home"/></svg>个人首页</button>
+        <button type="button"><svg><use href="#i-sprout"/></svg>成长打卡</button>
+        <button type="button"><svg><use href="#i-bell"/></svg>待办提醒</button>
+        <button type="button"><svg><use href="#i-wallet"/></svg>我的账本</button>
+        <button class="on" type="button"><svg><use href="#i-pill"/></svg>家庭药箱</button>
+        <button type="button"><svg><use href="#i-calendar"/></svg>日历中心</button>
+        <button type="button"><svg><use href="#i-people"/></svg>人际关系</button>
+      </nav>
+    </aside>
+
+    <main class="view active" id="view-medicine">
+      <div class="growth-head">
+        <div><p class="eyebrow">家庭药箱</p><h2>药品与效期管理</h2></div>
+        <div class="cal-actions">
+          <button class="btn ghost" id="medTipBtn" type="button"><svg><use href="#i-book"/></svg>用药常识</button>
+          <button class="btn primary" id="addMedBtn" type="button"><svg><use href="#i-plus"/></svg>录入药品</button>
+        </div>
+      </div>
+
+      <div class="med-stats" id="medStats"></div>
+
+      <article class="panel med-filter-panel">
+        <div class="tf-row">
+          <span class="tf-label">视图</span>
+          <div class="tf-chips" id="mfView">
+            <button class="tf-chip on" data-mf="all" type="button">全部</button>
+            <button class="tf-chip" data-mf="soon" type="button">临期</button>
+            <button class="tf-chip" data-mf="expired" type="button">过期</button>
+            <button class="tf-chip" data-mf="low" type="button">库存不足</button>
+          </div>
+        </div>
+        <div class="tf-row">
+          <span class="tf-label">分类</span>
+          <div class="tf-chips" id="mfCat"></div>
+        </div>
+        <div class="tf-row">
+          <span class="tf-label">搜索</span>
+          <input class="inp" id="medSearch" type="search" placeholder="按药名 / 功效 / 厂家搜索" style="max-width:320px">
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div><p class="eyebrow" id="medListEyebrow">药品一览</p><h2 id="medListTitle">全部药品</h2></div>
+          <span class="muted" id="medCount"></span>
+        </div>
+        <div id="medList" class="med-stack"></div>
+      </article>
+
+      <article class="panel med-alert-panel soon">
+        <div class="panel-head">
+          <div><p class="eyebrow">临期提醒</p><h2>6 个月内到期</h2></div>
+          <span class="med-badge soon" id="medSoonBadge">0 种</span>
+        </div>
+        <p class="med-tip-line">临期药品建议尽快用完；拆封后稳定性下降的剂型（口服液、滴剂、糖浆）请优先处理。</p>
+        <div id="medSoonList" class="med-stack"></div>
+      </article>
+
+      <article class="panel med-alert-panel expired">
+        <div class="panel-head">
+          <div><p class="eyebrow">过期清理</p><h2>超过保质期</h2></div>
+          <span class="med-badge expired" id="medExpiredBadge">0 种</span>
+        </div>
+        <p class="med-tip-line">过期药品疗效已降低、成分可能变质，请勿服用，及时清理并送药店回收点处理。</p>
+        <div id="medExpiredList" class="med-stack"></div>
+      </article>
+
+      <div class="med-extra">
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">效期分布</p><h2>按分类统计</h2></div></div>
+          <div id="medCatChart" class="med-cat-list"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">存放位置</p><h2>药箱分布</h2></div></div>
+          <div id="medLocList" class="med-loc-list"></div>
+        </article>
+      </div>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div><p class="eyebrow">常备清单</p><h2>家庭药箱建议</h2></div>
+          <span class="muted">仅供参考，具体用药请遵医嘱</span>
+        </div>
+        <div id="medChecklist" class="med-checklist"></div>
+      </article>
+    </main>
+  </div>
+
+  <div class="pv-foot">
+    <b>本次为「家庭药箱」补齐了这些能力：</b><br>
+    <span class="pv-tag">录入药品（药名/功效/规格/用量/效期）</span>
+    <span class="pv-tag">药品一览表</span>
+    <span class="pv-tag">临期一览表（6 个月）</span>
+    <span class="pv-tag">过期一览表</span>
+    <span class="pv-tag">分类 / 存放位置 / 剂型</span>
+    <span class="pv-tag">库存与补货提醒</span>
+    <span class="pv-tag">处方药标记</span>
+    <span class="pv-tag">开封日期</span>
+    <span class="pv-tag">效期进度条</span>
+    <span class="pv-tag">多维筛选 + 搜索</span>
+    <span class="pv-tag">分类与位置统计</span>
+    <span class="pv-tag">常备清单建议</span>
+    <span class="pv-tag">夜间模式适配</span><br>
+    <b>说明：</b>本页面为静态预览，修改不会写入数据库；线上版本数据存于 Cloudflare D1。
+  </div>
+</div>
+
+<!-- 录入 / 编辑弹窗 -->
+<div class="modal-overlay" id="medModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="medModalTitle">录入药品</h3>
+      <button class="icon-btn" id="medModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <form id="medForm">
+      <label class="field"><span>药品名称 *</span><input name="name" maxlength="40" placeholder="例如：布洛芬缓释胶囊" required></label>
+      <label class="field"><span>功效（主治 / 作用）</span><input name="efficacy" maxlength="60" placeholder="例如：解热镇痛，用于头痛、牙痛及退热"></label>
+      <div class="field-row">
+        <label class="field"><span>规格</span><input name="spec" maxlength="40" placeholder="例如：0.3g×20粒"></label>
+        <label class="field"><span>剂型</span><select name="form" id="medFormSel"></select></label>
+      </div>
+      <label class="field"><span>用量（用法用量）</span><input name="dosage" maxlength="60" placeholder="例如：每次1片，每日3次，饭后服用"></label>
+      <div class="field-row">
+        <label class="field"><span>有效期至 *</span><input name="expiry" type="date"></label>
+        <label class="field"><span>分类</span><select name="category" id="medCatSel"></select></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>存放位置</span><select name="location" id="medLocSel"></select></label>
+        <label class="field"><span>适用人群</span><select name="forWhom" id="medWhomSel"></select></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>库存数量</span><input name="stock" type="number" min="0" step="1" value="1"></label>
+        <label class="field"><span>库存下限</span><input name="stockMin" type="number" min="0" step="1" value="1"></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>生产厂家</span><input name="manufacturer" maxlength="40" placeholder="选填"></label>
+        <label class="field"><span>开封日期</span><input name="openDate" type="date"></label>
+      </div>
+      <label class="field"><span>参考单价（元）</span><input name="price" type="number" min="0" step="0.01" placeholder="选填"></label>
+      <label class="check-line"><input type="checkbox" name="rx"><span>处方药（需凭医师处方购买与使用）</span></label>
+      <p class="field-hint">有效期留空表示「未填效期」，该药品不会出现在临期与过期一览表中。</p>
+      <button class="btn primary full" type="submit" id="medSubmitBtn">保存入库</button>
+      <p class="login-error" id="medFormError" hidden></p>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+
+// —— 模拟数据（与 migrate-v0.3.7.sql 的示例一致，按今天 2026-10-09 计算） ——
+const TODAY=new Date(2026,9,9);
+const DB=[
+ {id:1,name:'过期示例·蒙脱石散',efficacy:'止泻，用于急慢性腹泻（已过期，请丢弃）',spec:'3g×10袋',dosage:'每次1袋，每日3次，冲服',form:'散剂',expiry:'2026-05-12',category:'肠胃消化',location:'客厅药箱',manufacturer:'博福-益普生',stock:1,stockMin:1,forWhom:'通用',rx:0,price:26,note:'过期示例数据，可直接删除'},
+ {id:2,name:'过期示例·开塞露',efficacy:'润肠通便，用于便秘（已过期，请丢弃）',spec:'20ml×6支',dosage:'每次1支，开塞露通便',form:'外用液体',expiry:'2026-06-30',category:'肠胃消化',location:'客厅药箱',manufacturer:'上海运佳',stock:1,stockMin:1,forWhom:'通用',rx:0,price:8.5,note:'过期示例数据，可直接删除'},
+ {id:3,name:'风油精',efficacy:'清凉止痛，用于蚊虫叮咬、头痛头晕、晕车晕船',spec:'3ml',dosage:'外用，涂抹患处',form:'外用液体',expiry:'2026-10-15',category:'皮肤五官',location:'客厅药箱',manufacturer:'漳州水仙药业',stock:1,stockMin:1,forWhom:'通用',rx:0,price:6.5,note:''},
+ {id:4,name:'阿莫西林胶囊',efficacy:'抗生素，用于细菌感染引起的呼吸道感染',spec:'0.25g×24粒',dosage:'每次2粒，每日3次',form:'胶囊',expiry:'2026-10-28',category:'感冒发热',location:'客厅药箱',manufacturer:'石药集团',stock:1,stockMin:1,forWhom:'成人',rx:1,price:15.6,note:'⚠ 需遵医嘱，务必吃完整个疗程'},
+ {id:5,name:'999 感冒灵颗粒',efficacy:'解热镇痛，用于感冒引起的头痛、发热、四肢酸痛',spec:'10g×9袋',dosage:'每次1袋，每日3次，开水冲服',form:'颗粒',expiry:'2026-10-25',category:'感冒发热',location:'客厅药箱',manufacturer:'华润三九',stock:5,stockMin:2,forWhom:'通用',rx:0,price:16.8,note:'注意多喝水'},
+ {id:6,name:'复方氨酚烷胺片',efficacy:'缓解感冒引起的头痛、流涕、四肢酸痛',spec:'12片',dosage:'每次1片，每日2次',form:'片剂',expiry:'2026-11-05',category:'感冒发热',location:'客厅药箱',manufacturer:'吉林敖东',stock:2,stockMin:1,forWhom:'成人',rx:0,price:9.9,note:'感冒高发季常备'},
+ {id:7,name:'健胃消食片',efficacy:'健胃消食，用于脾胃虚弱、消化不良',spec:'0.8g×32片',dosage:'每次3片，每日3次',form:'片剂',expiry:'2026-11-28',category:'肠胃消化',location:'厨房抽屉',manufacturer:'江中药业',stock:4,stockMin:2,forWhom:'通用',rx:0,price:12,note:'饭后服用'},
+ {id:8,name:'临期示例·板蓝根颗粒',efficacy:'清热解毒，用于风热感冒、咽喉肿痛',spec:'10g×20袋',dosage:'每次1袋，每日3次',form:'颗粒',expiry:'2026-11-18',category:'感冒发热',location:'客厅药箱',manufacturer:'白云山',stock:3,stockMin:1,forWhom:'通用',rx:0,price:19.9,note:''},
+ {id:9,name:'连花清瘟胶囊',efficacy:'清瘟解毒，用于流行性感冒',spec:'0.35g×24粒',dosage:'每次4粒，每日3次',form:'胶囊',expiry:'2026-12-20',category:'感冒发热',location:'客厅药箱',manufacturer:'以岭药业',stock:3,stockMin:1,forWhom:'通用',rx:0,price:23.8,note:'流感高发期常备'},
+ {id:10,name:'开塞露',efficacy:'润肠通便，用于便秘',spec:'20ml×6支',dosage:'每次1支，开塞露通便',form:'外用液体',expiry:'2027-01-15',category:'肠胃消化',location:'客厅药箱',manufacturer:'上海运佳',stock:2,stockMin:1,forWhom:'通用',rx:0,price:8.5,note:''},
+ {id:11,name:'碘伏消毒液',efficacy:'皮肤消毒，用于伤口、擦伤、烫伤处理',spec:'100ml',dosage:'外用，棉签蘸取擦拭伤口',form:'外用液体',expiry:'2027-05-10',category:'外伤急救',location:'卫生间镜柜',manufacturer:'利尔康',stock:1,stockMin:1,forWhom:'通用',rx:0,openDate:'2026-09-20',price:6.8,note:'开封后建议3个月内用完'},
+ {id:12,name:'布洛芬缓释胶囊',efficacy:'解热镇痛，用于头痛、牙痛、关节痛及退热',spec:'0.3g×20粒',dosage:'每次1粒，每日2次，饭后温水送服',form:'胶囊',expiry:'2027-08-15',category:'感冒发热',location:'客厅药箱',manufacturer:'中美天津史克',stock:2,stockMin:1,forWhom:'成人',rx:1,price:18.5,note:'38.5℃以上或疼痛时服用'},
+ {id:13,name:'维生素C片',efficacy:'补充维生素C，增强免疫力',spec:'100片',dosage:'每次1片，每日1次',form:'片剂',expiry:'2027-09-30',category:'维生素保健',location:'客厅药箱',manufacturer:'汤臣倍健',stock:2,stockMin:1,forWhom:'通用',rx:0,price:29.9,note:'饭后服用'},
+ {id:14,name:'创可贴',efficacy:'覆盖创口，保护伤口',spec:'100片/盒',dosage:'外用，贴于伤口处',form:'贴剂',expiry:'2028-01-01',category:'外伤急救',location:'客厅药箱',manufacturer:'云南白药',stock:6,stockMin:3,forWhom:'通用',rx:0,price:14,note:'多囤两盒，消耗快'},
+ {id:15,name:'医用外科口罩',efficacy:'防护呼吸道飞沫',spec:'50只/盒',dosage:'外出佩戴',form:'其他',expiry:'2027-06-30',category:'其他',location:'玄关抽屉',manufacturer:'稳健医疗',stock:2,stockMin:1,forWhom:'通用',rx:0,price:22,note:''},
+ {id:16,name:'蒙脱石散',efficacy:'止泻，用于急慢性腹泻',spec:'3g×10袋',dosage:'每次1袋，每日3次，冲服',form:'散剂',expiry:'2027-03-02',category:'肠胃消化',location:'客厅药箱',manufacturer:'博福-益普生',stock:0,stockMin:1,forWhom:'通用',rx:0,price:26,note:'空腹服用，与其他药间隔2小时'}
+];
+
+const CATS=['感冒发热','肠胃消化','外伤急救','皮肤五官','心脑血管','维生素保健','妇科儿科','其他'];
+const LOCS=['客厅药箱','卧室床头','厨房抽屉','冰箱冷藏','卫生间镜柜','玄关抽屉','随身包'];
+const FORMS=['片剂','胶囊','颗粒','散剂','口服液','注射液','软膏','贴剂','喷雾','外用液体','其他'];
+const WHOM=['通用','成人','儿童','老人','孕妇','婴幼儿'];
+const CHECKLIST=[
+ {icon:'i-drop',name:'感冒发热',desc:'退热止痛 + 抗病毒各备一种，换季时补充。',eg:'布洛芬、连花清瘟'},
+ {icon:'i-sprout',name:'肠胃消化',desc:'腹泻、便秘、消化不良是居家高频问题。',eg:'蒙脱石散、开塞露、健胃消食片'},
+ {icon:'i-alert',name:'外伤急救',desc:'碘伏、创可贴、纱布，处理小擦伤烫伤。',eg:'碘伏消毒液、创可贴'},
+ {icon:'i-moon',name:'助眠安神',desc:'短期失眠可备褪黑素，注意用量与依赖。',eg:'褪黑素、酸枣仁'},
+ {icon:'i-eye',name:'五官用品',desc:'眼药水开封后 4 周内用完，过期勿留。',eg:'人工泪液、滴鼻液'},
+ {icon:'i-fire',name:'清热解毒',desc:'上火、口腔溃疡、蚊虫叮咬。',eg:'板蓝根、风油精'},
+ {icon:'i-book',name:'慢性病用药',desc:'长期服用药建议单独记录并定期复查。',eg:'降压药、降糖药'},
+ {icon:'i-plus',name:'个人常用',desc:'按家人实际病史补充，勿盲目囤药。',eg:'抗过敏、退烧贴'}
+];
+
+let DATA=DB.map(d=>({...d}));
+const st={filter:'all',cat:'',kw:'',editing:null};
+let nextId=100;
+
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// 与后端一致的效期判定：6 个月按自然月
+function shape(m){
+  const st2 = !m.expiry ? {state:'none',days:null} : (()=>{
+    const e=new Date(m.expiry+'T00:00:00'), t=new Date(TODAY);
+    const days=Math.round((e-t)/86400000);
+    if(days<0) return {state:'expired',days};
+    const lim=new Date(t.getFullYear(),t.getMonth()+6,t.getDate());
+    if(e<=lim) return {state:'soon',days};
+    return {state:'safe',days};
+  })();
+  const d=st2.days;
+  const daysText = d===null?'未填效期' : d<0?`已过期 ${Math.abs(d)} 天` : d===0?'今天到期'
+    : d<31?`剩 ${d} 天` : d<365?`剩 ${Math.floor(d/30)} 个月` : `剩 ${Math.floor(d/365)} 年 ${Math.floor((d%365)/30)} 个月`;
+  return {...m, ...st2, daysText,
+    lowStock: Number(m.stock||0)<=0 || (Number(m.stockMin||1)>0 && Number(m.stock||0)<Number(m.stockMin||1))};
+}
+const pct=m=>{ if(m.days===null||!m.expiry) return 0; const l=Math.max(0,Math.min(730,m.days)); return Math.max(2,Math.round(l/730*100)); };
+
+function medRow(m){
+  const tags=[`<span class="med-tag gray">${esc(m.category)}</span>`];
+  if(m.rx) tags.push('<span class="med-tag rx">处方药</span>');
+  if(m.forWhom&&m.forWhom!=='通用') tags.push(`<span class="med-tag who">${esc(m.forWhom)}</span>`);
+  if(m.lowStock&&m.state!=='expired') tags.push('<span class="med-tag low">需补货</span>');
+  const meta=[];
+  if(m.spec) meta.push(`规格 ${esc(m.spec)}`);
+  if(m.dosage) meta.push(`用量 ${esc(m.dosage)}`);
+  if(m.location) meta.push(`存放 ${esc(m.location)}`);
+  if(m.stock!=null) meta.push(`库存 ${m.stock}`);
+  if(m.manufacturer) meta.push(esc(m.manufacturer));
+  const bar=m.state==='expired'?'expired':m.state==='soon'?'soon':m.state==='none'?'none':'';
+  const ec=m.state==='expired'?'expired':m.state==='soon'?'soon':m.state==='safe'?'safe':'';
+  return `<div class="med-row state-${esc(m.state)}" data-mid="${m.id}">
+    <div class="mr-main">
+      <div class="mr-name"><b>${esc(m.name)}</b>${tags.join('')}</div>
+      ${m.efficacy?`<div class="mr-eff">${esc(m.efficacy)}</div>`:''}
+      ${meta.length?`<div class="mr-meta"><span class="med-tag gray">${meta.join(' · ')}</span></div>`:''}
+      ${m.note?`<div class="mr-eff" style="opacity:.8">备注：${esc(m.note)}</div>`:''}
+      ${m.rx?'<p class="med-note">⚠ 处方药请遵医嘱使用，不可自行调整剂量。</p>':''}
+    </div>
+    <div class="mr-side">
+      <div class="med-exp ${ec}">
+        <b>${m.expiry?esc(m.expiry):'未填效期'}</b><small>${esc(m.daysText)}</small>
+        <div class="med-bar"><i class="${bar}" style="width:${pct(m)}%"></i></div>
+      </div>
+      <div class="mr-ops">
+        <button type="button" data-med-edit="${m.id}" title="编辑"><svg><use href="#i-edit"/></svg></button>
+        <button type="button" data-med-del="${m.id}" title="删除"><svg><use href="#i-trash"/></svg></button>
+      </div>
+    </div></div>`;
+}
+const emptyBox=(t,s,i)=>`<div class="med-empty"><svg><use href="#${i||'i-pill'}"/></svg><b>${esc(t)}</b>${s?`<small>${esc(s)}</small>`:''}</div>`;
+
+function render(){
+  const all=DATA.map(shape);
+  const expiring=all.filter(m=>m.state==='soon').sort((a,b)=>a.days-b.days);
+  const expired=all.filter(m=>m.state==='expired').sort((a,b)=>a.days-b.days);
+  const safe=all.filter(m=>m.state==='safe'), noEx=all.filter(m=>m.state==='none');
+  const low=all.filter(m=>m.lowStock&&m.state!=='expired');
+
+  // 统计卡
+  $('#medStats').innerHTML=`
+    <div class="ms"><span>药品总数</span><strong>${all.length}</strong><small>${new Set(all.map(m=>m.name)).size} 种药名</small></div>
+    <div class="ms soon"><span>临期（6 个月内）</span><strong>${expiring.length}</strong><small>${expiring.length?'建议尽快使用':'暂无临期'}</small></div>
+    <div class="ms expired"><span>已过期</span><strong>${expired.length}</strong><small>${expired.length?'请及时清理':'暂无过期'}</small></div>
+    <div class="ms safe"><span>效期正常</span><strong>${safe.length}</strong><small>${noEx.length?`另有 ${noEx.length} 种未填效期`:'暂无未填效期'}</small></div>
+    <div class="ms low"><span>库存不足</span><strong>${low.length}</strong><small>低于下限需补货</small></div>`;
+
+  // 分类 chips
+  const used={}; all.forEach(m=>used[m.category]=(used[m.category]||0)+1);
+  const list=CATS.filter(c=>used[c]).concat(CATS.filter(c=>!used[c]));
+  $('#mfCat').innerHTML=`<button class="tf-chip${st.cat?'':' on'}" data-cat="" type="button">不限</button>`+
+    list.map(c=>`<button class="tf-chip${st.cat===c?' on':''}" data-cat="${esc(c)}" type="button">${esc(c)}${used[c]?`<span class="n">${used[c]}</span>`:''}</button>`).join('');
+
+  // 主列表
+  let list2=all.slice();
+  if(st.filter==='soon') list2=expiring.slice();
+  else if(st.filter==='expired') list2=expired.slice();
+  else if(st.filter==='low') list2=list2.filter(m=>m.lowStock&&m.state!=='expired');
+  if(st.cat) list2=list2.filter(m=>m.category===st.cat);
+  if(st.kw){const k=st.kw.toLowerCase();list2=list2.filter(m=>[m.name,m.efficacy,m.manufacturer,m.spec,m.dosage,m.note,m.category,m.location].filter(Boolean).some(v=>String(v).toLowerCase().includes(k)));}
+  const rank={expired:0,soon:1,safe:2,none:3};
+  list2.sort((a,b)=>rank[a.state]-rank[b.state]||(a.days===null?1:b.days===null?-1:a.days-b.days));
+
+  const T={all:['药品一览','全部药品'],soon:['6 个月内到期','临期药品'],expired:['超过保质期','过期药品'],low:['需要补货','库存不足']};
+  $('#medListEyebrow').textContent=T[st.filter][0]; $('#medListTitle').textContent=T[st.filter][1];
+  $('#medCount').textContent=`${list2.length} 条`;
+  $('#medList').innerHTML = list2.length ? list2.map(medRow).join('') :
+    emptyBox(st.kw||st.cat?'没有匹配的药品':
+      st.filter==='soon'?'暂无临期药品':st.filter==='expired'?'暂无过期药品':
+      st.filter==='low'?'暂无需要补货的药品':'药品箱还是空的，先录入几味常备药吧',
+      st.filter==='all'&&!st.kw&&!st.cat?'点击右上角「录入药品」开始':'试试调整筛选条件');
+
+  // 临期 / 过期一览表
+  $('#medSoonBadge').textContent=`${expiring.length} 种`;
+  $('#medSoonList').innerHTML = expiring.length?expiring.map(medRow).join(''):emptyBox('暂无临期药品','6 个月内到期的药品会自动出现在这里','i-check');
+  $('#medExpiredBadge').textContent=`${expired.length} 种`;
+  $('#medExpiredList').innerHTML = expired.length?expired.map(medRow).join(''):emptyBox('暂无过期药品','没有超过保质期的药品，保持得不错','i-check');
+
+  // 分类统计
+  const byCat={}; all.forEach(m=>{const k=m.category||'其他';(byCat[k]=byCat[k]||{name:k,total:0,soon:0,expired:0}).total++;if(m.state==='soon')byCat[k].soon++;if(m.state==='expired')byCat[k].expired++;});
+  const cats=Object.values(byCat).sort((a,b)=>b.total-a.total);
+  const mx=Math.max(...cats.map(c=>c.total));
+  $('#medCatChart').innerHTML = cats.length?cats.map(c=>{
+    const w=c.expired>0?`<span class="sub">含过期 ${c.expired}</span>`:c.soon>0?`<span class="sub">临期 ${c.soon}</span>`:'';
+    return `<div class="med-cat-item"><div class="mc-top"><span class="nm">${esc(c.name)}</span>${w}<span class="vl">${c.total}</span></div>
+      <div class="med-bar"><i class="${c.expired>0?'bad':c.soon>0?'warn':''}" style="width:${Math.max(4,Math.round(c.total/mx*100))}%"></i></div></div>`;
+  }).join('') : emptyBox('暂无数据','录入药品后自动统计','i-alert');
+
+  // 位置分布
+  const byLoc={}; all.forEach(m=>byLoc[m.location]=(byLoc[m.location]||0)+1);
+  const es=Object.keys(byLoc).map(k=>[k,byLoc[k]]).sort((a,b)=>b[1]-a[1]);
+  $('#medLocList').innerHTML = es.length?es.map(([k,v])=>`<div class="med-loc-item"><svg><use href="#i-home"/></svg><span class="nm">${esc(k)}</span><span class="vl">${v}</span></div>`).join(''):emptyBox('暂无数据','录入药品后自动统计','i-alert');
+
+  // 常备清单
+  $('#medChecklist').innerHTML=CHECKLIST.map(c=>{
+    const has=all.filter(m=>m.category===c.name||(c.name==='个人常用'&&m.category==='其他')).length;
+    return `<div class="med-check"><div class="mc-h"><svg><use href="#${c.icon}"/></svg><b>${esc(c.name)}</b>${has?`<span class="mc-done">已备 ${has}</span>`:''}</div>
+      <p>${esc(c.desc)}</p><p style="color:var(--plum)">例如：${esc(c.eg)}</p></div>`;
+  }).join('');
+}
+
+// —— 交互 ——
+$('#mfView').addEventListener('click',e=>{const b=e.target.closest('[data-mf]');if(!b)return;
+  $$('#mfView .tf-chip').forEach(c=>c.classList.toggle('on',c===b));st.filter=b.dataset.mf;render();});
+$('#mfCat').addEventListener('click',e=>{const b=e.target.closest('[data-cat]');if(!b)return;
+  st.cat=b.dataset.cat||'';$$('#mfCat .tf-chip').forEach(c=>c.classList.toggle('on',c===b));render();});
+$('#medSearch').addEventListener('input',e=>{st.kw=e.target.value.trim();render();});
+$('#medTipBtn').addEventListener('click',()=>$('#medChecklist').scrollIntoView({behavior:'smooth',block:'center'}));
+
+function fill(sel,opts,cur){$(sel).innerHTML=opts.map(o=>`<option value="${esc(o)}"${o===cur?' selected':''}>${esc(o)}</option>`).join('');}
+function openModal(item){
+  const f=$('#medForm'); f.reset(); st.editing=item?item.id:null;
+  $('#medModalTitle').textContent=item?'编辑药品':'录入药品';
+  $('#medSubmitBtn').textContent=item?'保存修改':'保存入库';
+  $('#medFormError').hidden=true;
+  fill('#medFormSel',FORMS,'片剂'); fill('#medCatSel',CATS,'感冒发热');
+  fill('#medLocSel',LOCS,'客厅药箱'); fill('#medWhomSel',WHOM,'通用');
+  if(item){f.name.value=item.name||'';f.efficacy.value=item.efficacy||'';f.spec.value=item.spec||'';
+    f.form.value=item.form||'片剂';f.dosage.value=item.dosage||'';f.expiry.value=item.expiry||'';
+    f.category.value=item.category||'感冒发热';f.location.value=item.location||'客厅药箱';
+    f.forWhom.value=item.forWhom||'通用';f.stock.value=item.stock;f.stockMin.value=item.stockMin;
+    f.manufacturer.value=item.manufacturer||'';f.openDate.value=item.openDate||'';
+    f.price.value=item.price==null?'':item.price;f.rx.checked=!!item.rx;}
+  else{f.stock.value=1;f.stockMin.value=1;
+    const d=new Date(TODAY);d.setFullYear(d.getFullYear()+2);
+    f.expiry.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+  $('#medModal').hidden=false;
+}
+$('#addMedBtn').addEventListener('click',()=>openModal(null));
+$('#medModalClose').addEventListener('click',()=>$('#medModal').hidden=true);
+$('#medModal').addEventListener('click',e=>{if(e.target===$('#medModal'))$('#medModal').hidden=true;});
+
+['#medList','#medSoonList','#medExpiredList'].forEach(sel=>{
+  $(sel).addEventListener('click',e=>{
+    const ed=e.target.closest('[data-med-edit]'), dl=e.target.closest('[data-med-del]');
+    if(ed){const it=DATA.find(m=>m.id===Number(ed.dataset.medEdit)); if(it) openModal(it); return;}
+    if(dl){const it=DATA.find(m=>m.id===Number(dl.dataset.medDel));
+      if(!it)return; if(!confirm(`确定删除「${it.name}」吗？`))return;
+      DATA=DATA.filter(m=>m.id!==it.id); render();}
+  });
+});
+
+$('#medForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const f=e.target, fd=new FormData(f);
+  const name=String(fd.get('name')||'').trim();
+  if(!name){const el=$('#medFormError');el.textContent='请填写药品名称';el.hidden=false;return;}
+  const payload={name,efficacy:fd.get('efficacy'),spec:fd.get('spec'),form:fd.get('form'),
+    dosage:fd.get('dosage'),expiry:fd.get('expiry'),category:fd.get('category'),
+    location:fd.get('location'),forWhom:fd.get('forWhom'),stock:Number(fd.get('stock')||0),
+    stockMin:Number(fd.get('stockMin')||0),manufacturer:fd.get('manufacturer'),
+    openDate:fd.get('openDate'),price:fd.get('price')===''?null:Number(fd.get('price')),
+    rx:f.rx.checked?1:0};
+  if(st.editing){const i=DATA.findIndex(m=>m.id===st.editing); if(i>-1)DATA[i]={...DATA[i],...payload};}
+  else DATA.push({id:nextId++,note:'',...payload});
+  $('#medModal').hidden=true; render();
+});
+
+// 预览工具：夜间模式 / 空药箱状态
+$('#nightBtn').addEventListener('click',e=>{
+  const n=document.documentElement.getAttribute('data-mode')==='night';
+  document.documentElement.setAttribute('data-mode',n?'light':'night');
+  e.target.textContent=n?'夜间模式':'日间模式';
+  e.target.classList.toggle('on',!n);
+});
+let backup=null;
+$('#demoBtn').addEventListener('click',e=>{
+  if(!backup) backup=DATA;
+  DATA=backup.slice(); render(); e.target.classList.add('on'); $('#emptyBtn').classList.remove('on');
+});
+$('#emptyBtn').addEventListener('click',e=>{
+  if(!backup) backup=DATA;
+  DATA=[]; render(); e.target.classList.add('on'); $('#demoBtn').classList.remove('on');
+});
+
+render();
+})();
+</script>
+</body>
+</html>
