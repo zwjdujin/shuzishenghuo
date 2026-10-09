@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>人物档案 · 交互演示 v0.3.1</title>
+<style>
+:root{
+  --paper:#f5f0e8;--card:#fffdfa;--ink:#29251f;--muted:#746d63;--line:#ded5c8;
+  --plum:#4d3045;--plum-soft:#e8dfe5;--terra:#b65f42;--terra-soft:#f3dfd6;
+  --sage:#627a67;--sage-soft:#dfe8df;--sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;
+  --red:#b44d43;--green:#477358;--shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px
+}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+input,select,textarea{font:inherit;color:inherit}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+
+/* 布局 */
+.shell{display:flex;min-height:100vh}
+.side{position:fixed;inset:0 auto 0 0;width:266px;padding:24px 18px;background:#ede6dc;border-right:1px solid rgba(104,87,68,.12);display:flex;flex-direction:column;overflow-y:auto}
+.main{margin-left:266px;flex:1;padding:26px 30px 60px;min-width:0}
+
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.brand .av{width:40px;height:40px;border-radius:13px;background:var(--plum);color:#fff;display:grid;place-items:center;font:700 17px/1 serif}
+.brand b{display:block;font:700 17px/1.3 "Songti SC",serif}
+.brand small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+
+.back{padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.6);color:var(--muted);font-size:12px;font-weight:600;margin-bottom:16px;display:inline-flex;align-items:center;gap:6px}
+.back:hover{background:#fff;color:var(--ink)}
+
+/* 人物列表 */
+.p-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.p-head span{font-size:11px;color:var(--muted);font-weight:700}
+.p-head button{font-size:11px;color:var(--plum);font-weight:700}
+.plist{display:flex;flex-direction:column;gap:7px}
+.pitem{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid transparent;border-radius:13px;background:rgba(255,255,255,.55);text-align:left;width:100%;transition:.15s}
+.pitem:hover{background:#fff}
+.pitem.on{background:var(--plum);border-color:var(--plum)}
+.pitem.on .nm,.pitem.on .mt{color:#fff}
+.pitem.on .av{background:rgba(255,255,255,.22);color:#fff}
+.av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font:700 15px/1 serif;color:#fff;flex:0 0 auto}
+.pinfo{min-width:0;flex:1}
+.nm{display:block;font-size:13px;font-weight:700}
+.mt{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+
+/* 模块导航 */
+.mods{margin-top:20px;padding-top:16px;border-top:1px solid rgba(104,87,68,.14)}
+.mods-h{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:9px}
+.mod{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;font-size:13px;color:#5e574e;width:100%;text-align:left;transition:.15s}
+.mod:hover{background:rgba(255,255,255,.7)}
+.mod.on{background:var(--plum);color:#fff}
+.mod .dot{width:6px;height:6px;border-radius:50%;background:var(--terra);flex:0 0 auto}
+.mod .num{margin-left:auto;font-size:10px;opacity:.65}
+
+/* 头部 */
+.mhead{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:22px}
+.hero{width:100%;background:var(--plum);color:#fff;border-radius:var(--radius);padding:24px;display:flex;gap:20px;align-items:flex-start}
+.hero .av{width:76px;height:76px;border-radius:22px;background:rgba(255,255,255,.18);font-size:30px}
+.hero h2{font:700 26px/1.2 "Songti SC",serif;margin:0 0 6px}
+.hero .sub{font-size:12.5px;opacity:.82;display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.hero .sub i{font-style:normal;background:rgba(255,255,255,.16);padding:2px 9px;border-radius:999px}
+.hero-act{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+.btn{height:38px;padding:0 16px;border-radius:11px;background:#fff;color:var(--plum);font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:rgba(255,255,255,.16);color:#fff}
+.btn.line{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.save-tip{margin-top:10px;font-size:12px;color:var(--green);display:none;align-items:center;gap:6px}
+.save-tip.show{display:flex}
+
+/* 卡片与分组 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:22px}
+.card-h{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.card-h .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center}
+.card-h b{font:700 17px/1.3 "Songti SC",serif}
+.card-h small{display:block;font-size:11.5px;color:var(--muted);font-weight:400;margin-top:2px}
+.layer{font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;margin-left:auto;flex:0 0 auto}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:13px}
+.fld{display:flex;flex-direction:column;gap:5px}
+.fld>span{font-size:11px;color:var(--muted);font-weight:700}
+.inp{height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:14px;width:100%}
+textarea.inp{height:auto;padding:10px 12px;resize:vertical;min-height:70px;line-height:1.55}
+.inp:focus{outline:2px solid var(--plum-soft);border-color:var(--plum)}
+select.inp{cursor:pointer}
+
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{height:30px;padding:0 13px;border:1px solid var(--line);border-radius:999px;background:#fffdfa;font-size:12px;font-weight:600;color:var(--muted);transition:.15s}
+.chip:hover{background:var(--plum-soft)}
+.chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.chip.on.terra{background:var(--terra);border-color:var(--terra)}
+.chip.on.sage{background:var(--sage);border-color:var(--sage)}
+
+.sec-t{font-size:12px;font-weight:700;color:var(--muted);margin:18px 0 10px;padding-top:14px;border-top:1px dashed var(--line)}
+.sec-t:first-child{margin-top:0;padding-top:0;border-top:0}
+
+/* 时间轴 */
+.tl{display:flex;flex-direction:column;gap:0}
+.tl-i{display:flex;gap:12px;padding-bottom:16px;position:relative}
+.tl-i::before{content:"";position:absolute;left:11px;top:24px;bottom:0;width:2px;background:var(--line)}
+.tl-i:last-child::before{display:none}
+.tl-dot{width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;z-index:1}
+.tl-b{flex:1;min-width:0;background:#fffdfa;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+.tl-b .t{font-size:13.5px;font-weight:700;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.tl-b .m{font-size:11.5px;color:var(--muted);margin-top:4px}
+.tl-b .s{font-size:12.5px;margin-top:7px;color:#4a443c}
+.add-row{display:flex;gap:8px;margin-top:12px}
+.add-row .inp{flex:1}
+
+/* 财务 */
+.money-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:16px}
+.money{background:#fffdfa;border:1px solid var(--line);border-radius:14px;padding:14px}
+.money span{font-size:11px;color:var(--muted);display:block}
+.money b{font:700 22px/1.2 inherit;display:block;margin-top:5px}
+.balance{height:10px;border-radius:999px;background:var(--line);overflow:hidden;display:flex;margin-top:8px}
+.balance i{display:block;height:100%}
+
+.list-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;margin-bottom:8px}
+.list-row .m{flex:1;min-width:0}
+.list-row .m b{display:block;font-size:13px}
+.list-row .m small{font-size:11px;color:var(--muted)}
+.amt{font-weight:700;white-space:nowrap}
+.amt.out{color:var(--red)}.amt.in{color:var(--green)}
+
+.note{border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.6}
+.note.privacy{background:var(--sand-soft);color:#6b5326;border-left:3px solid var(--sand)}
+.note.info{background:var(--sage-soft);color:#41553f;border-left:3px solid var(--sage)}
+
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.file{border:1px dashed var(--line);border-radius:13px;padding:15px;text-align:center;color:var(--muted);background:#fffdfa}
+.file:hover{border-color:var(--plum);color:var(--plum)}
+.file svg{width:26px;height:26px;margin:0 auto;display:block}
+.file b{display:block;font-size:12.5px;color:var(--ink);margin-top:7px}
+.file small{font-size:10.5px}
+
+.empty-hint{padding:26px;text-align:center;color:var(--muted);font-size:13px;background:#fffdfa;border:1px dashed var(--line);border-radius:14px}
+.demo-banner{background:var(--sand-soft);border-left:3px solid var(--sand);color:#6b5326;padding:11px 15px;border-radius:12px;font-size:12.5px;margin-bottom:20px;display:flex;gap:9px;align-items:flex-start}
+
+@media(max-width:900px){
+  .side{position:static;width:auto;border-right:0;border-bottom:1px solid rgba(104,87,68,.12)}
+  .main{margin-left:0;padding:18px 16px 50px}
+  .shell{flex-direction:column}
+  .money-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- 侧栏：人物列表 + 12 模块导航 -->
+  <aside class="side">
+    <div class="brand">
+      <span class="av">数</span>
+      <div><b>数字生活</b><small>人物档案 · 演示版</small></div>
+    </div>
+    <button class="back" onclick="history.back()">← 返回数字生活</button>
+
+    <div class="p-head"><span>联系人</span><button onclick="toast('演示：新增联系人')">+ 新增</button></div>
+    <div class="plist" id="plist"></div>
+
+    <div class="mods">
+      <div class="mods-h">档案模块</div>
+      <div id="modlist"></div>
+    </div>
+  </aside>
+
+  <!-- 主区 -->
+  <main class="main">
+    <div class="demo-banner">
+      <span>⚠</span>
+      <div><b>这是演示页面</b>，数据为示例，不影响线上已有内容。确认方案后再决定是否执行。</div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<script>
+/* ===== 示例数据：基于现有 3 位联系人（张伟/李娜/妈妈） ===== */
+const PEOPLE = [
+  { id:4, name:'张伟', relation:'朋友', birthday:'1990-03-12', note:'大学同学', color:'#4d3045',
+    base:{ alias:'小伟', gender:'男', native:'湖南长沙', birth:'湖南长沙', city:'深圳', phone:'138****2841', email:'zw@example.com', wechat:'zw_1990', lang:'普通话 / 英语' },
+    rel:{ type:'朋友', level:'重要', via:'大学同学', intro:'—', since:'2008-09-01', scene:'大学迎新晚会', status:'活跃', score:'4' },
+    edu:{ school:'华中科技大学', major:'计算机科学', degree:'本科', start:'2008', end:'2012', cert:'CET-6', skill:'Java / 前端', grow:'武汉、深圳', story:'大三交换到德国慕尼黑半年' },
+    work:{ company:'某科技公司', dept:'基础架构部', title:'高级工程师', level:'P7', city:'深圳', field:'云原生 / 性能优化', give:'技术方案评审、内推资源', infl:'公司技术博客作者', bound:'可聊技术，不谈薪资' },
+    family:{ father:'张国强（已退休）', mother:'王秀兰', spouse:'—', child:'—', sib:'妹妹 张敏（广州）', live:'深圳市南山区', events:'2019年乔迁', pet:'猫「豆豆」· 英短 · 2021-04' },
+    pref:{ food:'不吃香菜；微辣；喜欢粤菜', drink:'美式咖啡、不喝酒', size:'42 / L', hobby:'跑步、摄影、看科幻小说', life:'每周三晚跑步；11 点前睡', social:'偏好小聚，超过 5 人会累' },
+    trait:{ tag:'理性、慢热、守信', style:'直接，邮件优先', reply:'工作快回，晚上回', taboo:'不谈政治、不问收入', value:'成长 > 金钱', comfort:'4' },
+    tl:[
+      { d:'2026-09-28', kind:'聚餐', place:'深圳 · 云南菜', who:'我、张伟、老陈', topic:'生活', q:'有收获', s:'聊了老同学近况，他准备明年跳去一家AI 创业公司。' },
+      { d:'2026-07-12', kind:'电话', place:'—', who:'张伟', topic:'工作', q:'愉快', s:'请教了数据库选型，他推荐了 TiDB。' },
+      { d:'2026-03-12', kind:'生日', place:'—', who:'我等 6 人', topic:'生活', q:'愉快', s:'生日饭，他送了一本《数据密集型应用系统设计》。' }
+    ],
+    promise:[
+      { who:'对方', what:'帮我内推其公司后端岗', due:'2026-11-30', st:'进行中', note:'已发简历，等待面试安排' },
+      { who:'我', what:'请他吃饭', due:'2026-11-15', st:'未开始', note:'等他面试完' }
+    ],
+    money:{ out:'1200', in:'800', lent:'500', borrow:'0', note:'2026-03 生日互赠礼物约 800；借出 500 未还' },
+    dates:{ birth:'03-12', anniv:'—', work:'2015-07-01', meet:'2008-09-01', greet:'生日当天', cycle:'每月一次', stale:'最近联系 2026-09-28', node:'2026-11 面试节点' },
+    files:[ { n:'合照_2026春节.jpg', s:'1.2 MB' }, { n:'名片.png', s:'240 KB' }, { n:'推荐信.pdf', s:'180 KB' }, { n:'聊天截图_技术讨论.png', s:'860 KB' } ]
+  },
+  { id:5, name:'李娜', relation:'同事', birthday:'1988-07-25', note:'项目组', color:'#627a67',
+    base:{ alias:'娜姐', gender:'女', native:'安徽合肥', birth:'安徽合肥', city:'深圳', phone:'139****5522', email:'ln@example.com', wechat:'lina_pm', lang:'普通话 / 英语 / 日语' },
+    rel:{ type:'同事', level:'核心', via:'工作', intro:'前领导引荐', since:'2022-03-01', scene:'入职培训', status:'合作中', score:'5' },
+    edu:{ school:'北京理工大学', major:'工业设计', degree:'硕士', start:'2010', end:'2013', cert:'PMP', skill:'产品规划 / 流程设计', grow:'北京、深圳', story:'曾负责两条产品线从0 到 1' },
+    work:{ company:'某科技公司', dept:'产品部', title:'产品总监', level:'M2', city:'深圳', field:'B 端产品设计', give:'产品方法论、跨部门协调', infl:'行业文章 2 篇', bound:'合作紧密' },
+    family:{ father:'李国强', mother:'刘芳', spouse:'王磊', child:'王子轩（6岁）', sib:'—', live:'深圳市福田区', events:'2024年孩子入学', pet:'—' },
+    pref:{ food:'忌海鲜过敏；喜欢川菜', drink:'龙井茶', size:'38 / M', hobby:'瑜伽、听播客、追剧', life:'每周二四晚瑜伽', social:'喜欢有质量的深聊' },
+    trait:{ tag:'果断、目标感强', style:'委婉但清晰', reply:'工作即时回', taboo:'忌迟到', value:'家庭 ≈ 事业', comfort:'5' },
+    tl:[
+      { d:'2026-10-06', kind:'会议', place:'线上 · 飞书', who:'项目组 8 人', topic:'工作', q:'有收获', s:'定了Q4 迭代范围，下周出 PRD。' },
+      { d:'2026-08-21', kind:'咖啡', place:'深圳 · 咖啡厅', who:'我、李娜', topic:'工作', q:'愉快', s:'聊了职业规划，她想再升一级后转管理。' }
+    ],
+    promise:[ { who:'对方', what:'帮我 review 年度OKR', due:'2026-10-20', st:'进行中', note:'约了下周三' } ],
+    money:{ out:'600', in:'0', lent:'0', borrow:'0', note:'AA 过一次团建' },
+    dates:{ birth:'07-25', anniv:'—', work:'2022-03-01', meet:'2022-03-01', greet:'生日当天', cycle:'每周', stale:'最近联系 2026-10-06', node:'Q4 迭代' },
+    files:[ { n:'合照_团建.jpg', s:'980 KB' }, { n:'名片.png', s:'210 KB' } ]
+  },
+  { id:6, name:'妈妈', relation:'家人', birthday:'1965-11-03', note:'下月生日', color:'#b65f42',
+    base:{ alias:'妈', gender:'女', native:'江苏南京', birth:'江苏南京', city:'南京', phone:'137****8890', email:'—', wechat:'mama_nj', lang:'普通话 / 南京话' },
+    rel:{ type:'家人', level:'核心', via:'血缘', intro:'—', since:'—', scene:'—', status:'活跃', score:'5' },
+    edu:{ school:'—', major:'—', degree:'高中', start:'—', end:'—', cert:'—', skill:'—', grow:'南京', story:'—' },
+    work:{ company:'已退休', dept:'—', title:'—', level:'—', city:'南京', field:'—', give:'家人支持', infl:'—', bound:'—' },
+    family:{ father:'已故（2019）', mother:'—', spouse:'已故（2019）', child:'我', sib:'姐姐（杭州）', live:'南京市秦淮区', events:'2019 老伴离世', pet:'—' },
+    pref:{ food:'清淡少盐；忌甜食；喜欢淮扬菜', drink:'不喝咖啡', size:'—', hobby:'看戏曲、广场舞、养花', life:'每日晨练；早睡早起', social:'喜欢邻里串门' },
+    trait:{ tag:'温和、节俭、牵挂家人', style:'电话直接说', reply:'即时回', taboo:'—', value:'家庭第一', comfort:'5' },
+    tl:[
+      { d:'2026-10-08', kind:'电话', place:'—', who:'妈妈', topic:'生活', q:'愉快', s:'聊了体检结果一切正常，叮嘱少熬夜。' },
+      { d:'2026-09-20', kind:'视频', place:'—', who:'妈妈、姐姐', topic:'生活', q:'愉快', s:'三人商量国庆回家安排。' }
+    ],
+    promise:[ { who:'我', what:'国庆回家看她', due:'2026-10-05', st:'未开始', note:'已订高铁票' } ],
+    money:{ out:'2000', in:'0', lent:'0', borrow:'0', note:'每月给生活费 2000' },
+    dates:{ birth:'11-03', anniv:'—', work:'—', meet:'—', greet:'生日 + 母亲节', cycle:'每周', stale:'最近联系 2026-10-08', node:'11-03 生日' },
+    files:[ { n:'合照_母亲节.jpg', s:'1.1 MB' } ]
+  }
+];
+
+/* ===== 12 个模块定义 ===== */
+const MODULES = [
+  { id:'base',    n:'基础身份信息', ic:'👤', c:'var(--plum)',   cs:'var(--plum-soft)', layer:'静态档案' },
+  { id:'rel',     n:'关系属性',     ic:'🔗', c:'var(--terra)',  cs:'var(--terra-soft)', layer:'静态档案' },
+  { id:'edu',     n:'教育与成长',   ic:'🎓', c:'var(--sage)',   cs:'var(--sage-soft)', layer:'静态档案' },
+  { id:'work',    n:'职业与资源',   ic:'💼', c:'var(--sand)',   cs:'var(--sand-soft)', layer:'静态档案' },
+  { id:'family',  n:'家庭与亲密',   ic:'🏠', c:'var(--clay)',   cs:'var(--terra-soft)', layer:'静态档案' },
+  { id:'pref',    n:'偏好与习惯',   ic:'☕', c:'var(--terra)',  cs:'var(--terra-soft)', layer:'静态档案' },
+  { id:'trait',   n:'性格与沟通',   ic:'🧭', c:'var(--plum)',   cs:'var(--plum-soft)', layer:'静态档案' },
+  { id:'tl',      n:'互动时间轴',   ic:'📅', c:'var(--sage)',   cs:'var(--sage-soft)', layer:'动态记录' },
+  { id:'promise', n:'承诺与待办',   ic:'✓',  c:'var(--sand)',   cs:'var(--sand-soft)', layer:'动态记录' },
+  { id:'money',   n:'财务与人情账', ic:'¥',  c:'var(--terra)',  cs:'var(--terra-soft)', layer:'价值交换' },
+  { id:'dates',   n:'重要日期提醒', ic:'🔔', c:'var(--clay)',   cs:'var(--terra-soft)', layer:'动态记录' },
+  { id:'files',   n:'附件与多媒体', ic:'📎', c:'var(--plum)',   cs:'var(--plum-soft)', layer:'安全隐私' }
+];
+
+let cur = 0, mod = 'base';
+
+/* 渲染侧栏 */
+function renderSide(){
+  document.getElementById('plist').innerHTML = PEOPLE.map((p,i)=>
+    `<button class="pitem${i===cur?' on':''}" onclick="pick(${i})">
+      <span class="av" style="background:${p.color}">${p.name[0]}</span>
+      <span class="pinfo"><span class="nm">${p.name}</span><span class="mt">${p.relation} · ${p.birthday.slice(5)}</span></span>
+    </button>`).join('');
+  document.getElementById('modlist').innerHTML = MODULES.map(m=>
+    `<button class="mod${m.id===mod?' on':''}" onclick="pickMod('${m.id}')">
+      <span class="dot" style="background:${m.id===mod?'#fff':m.c}"></span>${m.n}
+      <span class="num">${countFilled(m.id)}</span>
+    </button>`).join('');
+}
+
+// 粗略统计某模块已填字段数
+function countFilled(id){
+  const p = PEOPLE[cur];
+  const obj = p[id];
+  if(!obj) return 0;
+  if(typeof obj === 'string') return 1;
+  return Object.values(obj).filter(v=> v && v!=='—').length;
+}
+
+function pick(i){ cur=i; mod='base'; renderAll(); }
+function pickMod(m){ mod=m; renderAll(); }
+
+/* 渲染主区 */
+function renderAll(){
+  renderSide();
+  const p = PEOPLE[cur];
+  const m = MODULES.find(x=>x.id===mod);
+  const age = 2026 - Number(p.birthday.slice(0,4));
+  let h = `<div class="hero">
+    <span class="av" style="background:rgba(255,255,255,.18)">${p.name[0]}</span>
+    <div style="min-width:0">
+      <h2>${p.name}${p.base.alias?'<small style="font-size:13px;opacity:.7;font-weight:400"> · ${p.base.alias}</small>':''}</h2>
+      <div class="sub">
+        <i>${p.relation}</i><i>${age} 岁 · ${p.birthday}</i><i>${p.base.city}</i>
+        <i>${p.rel.level}</i><i>${p.rel.status}</i>
+      </div>
+    </div>
+    <div class="hero-act">
+      <button class="btn" onclick="toast('演示：编辑档案')">编辑</button>
+      <button class="btn ghost" onclick="toast('演示：更多操作')">•••</button>
+    </div>
+  </div>
+  <div class="save-tip" id="st">✓ 已保存（演示）</div>
+  <div class="card">
+    <div class="card-h">
+      <span class="ic" style="background:${m.cs};color:${m.c}">${m.ic}</span>
+      <div><b>${m.n}</b><small>${hint(m.id)}</small></div>
+      <span class="layer" style="background:${m.cs};color:${m.c}">${m.layer}</span>
+    </div>
+    <div id="body">${body(m.id)}</div>
+  </div>`;
+  document.getElementById('view').innerHTML = h;
+}
+
+function hint(id){
+  return ({
+    base:'姓名、别名、联系方式等基础档案', rel:'关系深浅、怎么认识的、现在状态',
+    edu:'学校、专业、重要经历', work:'公司职位、可提供的资源与合作边界',
+    family:'父母配偶子女、宠物、家庭大事', pref:'饮食饮品、尺码、兴趣与作息',
+    trait:'性格标签、沟通方式、禁忌话题', tl:'每次互动的记录，持续追加',
+    promise:'双方答应的事，必须能闭环', money:'送礼、借款、共同消费与人情平衡',
+    dates:'生日纪念日、联系周期、节点提醒', files:'合照、名片、合同等附件'
+  })[id];
+}
+
+// 字段助手
+const F = (label, val, type) => `<label class="fld"><span>${label}</span>${ type==='ta'
+  ? `<textarea class="inp" onchange="mark()">${val||''}</textarea>`
+  : `<input class="inp" value="${val||''}" onchange="mark()">`}</label>`;
+const S = (label, val, opts) => `<label class="fld"><span>${label}</span><select class="inp" onchange="mark()">${
+  opts.map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select></label>`;
+
+function body(id){
+  const p = PEOPLE[cur];
+  if(id==='base'){ const b=p.base; return `<div class="grid">
+    ${F('姓名', p.name)}${F('曾用名 / 昵称', b.alias)}${S('性别', b.gender, ['男','女','其他'])}${F('生日', p.birthday)}
+    ${F('年龄','26 岁')}${F('籍贯', b.native)}${F('出生地', b.birth)}${F('现居城市', b.city)}
+    ${F('手机号', b.phone)}${F('邮箱', b.email)}${F('微信', b.wechat)}${F('语言', b.lang)}</div>`;}
+  if(id==='rel'){ const r=p.rel; return `<div class="grid">
+    ${S('关系类型', r.type, ['家人','亲戚','朋友','同学','同事','客户','导师','邻居','合作伙伴'])}
+    ${S('亲疏层级', r.level, ['核心','重要','普通','弱连接'])}
+    ${S('认识渠道', r.via, ['活动','朋友介绍','工作','学校','线上社群','血缘'])}
+    ${F('介绍人 / 共同联系人', r.intro)}${F('相识时间', r.since)}${F('相识场景', r.scene)}
+    ${S('当前状态', r.status, ['活跃','疏远','失联','合作中','已终止'])}
+    ${S('相处舒适度', r.score, ['5','4','3','2','1'])}</div>`;}
+  if(id==='edu'){ const e=p.edu; return `<div class="grid">
+    ${F('学校', e.school)}${F('专业', e.major)}${S('学历', e.degree, ['博士','硕士','本科','高中','其他'])}
+    ${F('入学年份', e.start)}${F('毕业年份', e.end)}${F('证书 / 技能', e.cert)}
+    ${F('成长城市 / 长期居住地', e.grow)}</div>
+    <div class="sec-t">重要经历</div>
+    <div class="grid">${F('交换 / 留学 / 创业 / 转行等', e.story,'ta')}</div>`;}
+  if(id==='work'){ const w=p.work; return `<div class="grid">
+    ${F('公司', w.company)}${F('部门', w.dept)}${F('职位', w.title)}${F('职级', w.level)}${F('工作城市', w.city)}
+    ${F('擅长领域', w.field)}</div>
+    <div class="sec-t">可提供的资源</div>
+    <div class="grid">${F('资源清单', w.give,'ta')}${F('行业影响力（公众号 / 作品 / 专利）', w.infl,'ta')}</div>
+    <div class="sec-t">合作边界</div>
+    <div class="note privacy">${w.bound}</div>`;}
+  if(id==='family'){ const f=p.family; return `<div class="grid">
+    ${F('父亲', f.father)}${F('母亲', f.mother)}${F('配偶', f.spouse)}${F('子女', f.child)}${F('兄弟姐妹', f.sib)}
+    ${F('家庭居住地', f.live)}</div>
+    <div class="sec-t">家庭重要事件</div>
+    <div class="grid">${F('结婚 / 生子 / 乔迁 / 生病 / 离世', f.events,'ta')}</div>
+    <div class="sec-t">宠物</div>
+    <div class="grid">${F('名字 · 品种 · 生日 · 喜好', f.pet,'ta')}</div>`;}
+  if(id==='pref'){ const x=p.pref; return `<div class="grid">
+    ${F('饮食偏好（忌口 / 过敏 / 口味）', x.food,'ta')}${F('饮品偏好', x.drink)}${F('穿衣尺码', x.size)}
+    ${F('兴趣爱好', x.hobby,'ta')}${F('生活方式与作息', x.life,'ta')}${F('社交偏好', x.social,'ta')}</div>`;}
+  if(id==='trait'){ const t=p.trait; return `<div class="grid">
+    ${F('性格标签', t.tag)}${F('沟通风格', t.style)}${F('回复习惯', t.reply)}${F('价值观倾向', t.value)}
+    ${S('相处舒适度', t.comfort, ['5','4','3','2','1'])}</div>
+    <div class="sec-t">敏感话题或禁忌</div>
+    <div class="note privacy">${t.taboo}</div>`;}
+  if(id==='tl'){ return `<div class="tl">${p.tl.map(i=>`
+      <div class="tl-i">
+        <span class="tl-dot" style="background:var(--sage-soft);color:var(--sage)">◷</span>
+        <div class="tl-b">
+          <div class="t">${i.kind}<span style="font-weight:400;color:var(--muted);font-size:11px">${i.d} · ${i.place}</span></div>
+          <div class="m">参与人：${i.who} · 主题：${i.topic} · 互动质量：<b style="color:var(--green)">${i.q}</b></div>
+          <div class="s">${i.s}</div>
+        </div>
+      </div>`).join('')}</div>
+    <div class="add-row">
+      <input class="inp" placeholder="记录一次新的互动：时间 / 方式 / 地点 / 主题 / 摘要">
+      <button class="btn" onclick="toast('演示：保存互动记录')">+ 追加</button>
+    </div>`;}
+  if(id==='promise'){ return `${p.promise.map(x=>`<div class="list-row">
+      <span class="contact-badge" style="background:var(--sand-soft);color:var(--sand)">${x.who}</span>
+      <span class="m"><b>${x.what}</b><small>截止 ${x.due} · ${x.note}</small></span>
+      <span class="contact-badge">${x.st}</span>
+    </div>`).join('')}
+    <div class="add-row">
+      <input class="inp" placeholder="新增承诺：对方答应什么 / 我答应什么 / 截止日期">
+      <button class="btn" onclick="toast('演示：保存承诺')">+ 新增</button>
+    </div>`;}
+  if(id==='money'){ const m=p.money; const out=+m.out||0, inN=+m.in||0;
+    const tot=out+inN||1;
+    return `<div class="money-grid">
+      <div class="money"><span>我送出（元）</span><b style="color:var(--red)">¥${out}</b></div>
+      <div class="money"><span>我收到（元）</span><b style="color:var(--green)">¥${inN}</b></div>
+      <div class="money"><span>借出未还（元）</span><b style="color:var(--terra)">¥${m.lent}</b></div>
+    </div>
+    <div class="sec-t">人情平衡</div>
+    <div class="balance"><i style="width:${out/tot*100}%;background:var(--red)"></i><i style="width:${inN/tot*100}%;background:var(--green)"></i></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px">
+      <span>送出 ${out}（${Math.round(out/tot*100)}%）</span><span>收到 ${inN}（${Math.round(inN/tot*100)}%）</span></div>
+    <div class="sec-t">往来明细</div>
+    ${F('备注', m.note,'ta')}
+    <div class="add-row"><input class="inp" placeholder="新增一笔：送礼 / 收礼 / 借款 / AA 结算"><button class="btn" onclick="toast('演示：记录人情账')">+ 记一笔</button></div>`;}
+  if(id==='dates'){ const d=p.dates; return `<div class="grid">
+    ${F('生日', d.birth)}${F('纪念日', d.anniv)}${F('入职日', d.work)}${F('相识日', d.meet)}</div>
+    <div class="sec-t">提醒设置</div>
+    <div class="grid">${F('节日问候', d.greet)}${F('定期联系频率', d.cycle)}${F('最近联系', d.stale)}${F('重要节点', d.node,'ta')}</div>
+    <div class="sec-t">预警</div>
+    <div class="note ${d.stale.includes('2026-09')||d.stale.includes('2026-10')?'info':'privacy'}">
+      ${new Date(d.stale.replace(/-/g,'/')) > new Date('2026/08/01') ? '✓ 最近一个月内有联系，关系活跃' : '⚠ 已超过一个月未联系，建议主动问候'}</div>`;}
+  if(id==='files'){ return `<div class="files">${p.files.map(f=>`
+      <div class="file" onclick="toast('演示：预览 ${f.n}')">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        <b>${f.n}</b><small>${f.s}</small>
+      </div>`).join('')}
+      <div class="file" onclick="toast('演示：上传附件')"><b>＋ 上传</b><small>图片 / PDF</small></div>
+    </div>
+    <div class="sec-t">隐私提示</div>
+    <div class="note privacy">敏感信息（财务、隐私）建议单独加密存储。本演示中所有数据均为示例，未上传任何真实文件。</div>`;}
+  return '';
+}
+
+function mark(){ const t=document.getElementById('st'); if(t){t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1600);} }
+let tt;
+function toast(m){ alert(m+'（演示）'); }
+
+renderAll();
+</script>
+</body>
+</html>

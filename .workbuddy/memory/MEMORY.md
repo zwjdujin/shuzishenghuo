@@ -3,12 +3,12 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.9。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.0（全部页面已补齐，无留白页）。
 - **全局模块间距（重要，用户强调过多次）**：已用通用规则 `.view.active>*{margin-bottom:22px}` + `:last-child{margin-bottom:0}` 统一控制所有页面。**新增页面无需再单独设置间距**；若页面用了 `display:flex;gap`，须改为 `display:block` 以免与通用规则叠加。
 - **跨文件调用坑（重要）**：`<script src>` 加载的 js **不能用 export/import**（非 ES module，不会挂到 window），跨文件必须显式 `window.xxx = xxx`。曾因此导致 lunarLabel undefined 使日历整页空白。
 - **邮件通知（已放弃，勿重复尝试）**：Cloudflare Pages Functions 无 TCP 能力，**SMTP 无法直连发信**。唯一可行路径是 HTTP 邮件 API（Resend / SendGrid / Cloudflare Email binding），用 `fetch()` 调用。用户 v0.2.8 时已确认暂不做。
 - **待办优先级（v0.2.8）**：`todos` 除 `priority`(P0/P1/P2/P3) 外还有 `important`/`urgent` 两个独立维度，priority 由二者推导（P0=1+1,P1=1+0,P2=0+1,P3=0+0）。后端 `PRIORITY_META` + `priorityOf()`；GET 支持 `priority` 逗号分隔多选 + `list` 单选筛选，按 `CASE priority` 排序，响应含 `counts`。前端筛选栏 `#tfPriority`/`#tfList`，状态在 `todoFilter`。
-- **模块状态**：个人首页、成长打卡、个人中心、**日历中心(v0.2.7 周历/月历/农历)**、**待办提醒(v0.2.7 今日待办)**、**我的账本(v0.2.7 记账理财)** 均已补齐；仅剩家庭药箱、人际关系为留白页。
+- **模块状态**：个人首页、成长打卡、个人中心、**日历中心(v0.2.7 周历/月历/农历，v0.3.0 月历高度压缩)**、**待办提醒(v0.2.8 今日待办+P0-P3筛选)**、**我的账本(v0.2.7 记账理财)**、**人际关系(v0.3.0 联系人+生日+日历联动)** 均已补齐。
 - **个人中心（v0.2.5 当前）**：**子菜单是唯一入口**，页面顶部无标题、无页签，直接显示子页内容。
   - 侧栏：`#profileBtn`（在 `.local-card` 下方）→ 向上弹出 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security/sysinfo）。
   - 移动端：底部导航 `.mnav-profile > #profileBtnMobile`（文案「我的」）→ 向上弹出 `#profilePopoverMobile`，结构同上。

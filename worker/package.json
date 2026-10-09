@@ -1,0 +1,11 @@
+{
+  "name": "shuzishenghuo-push",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

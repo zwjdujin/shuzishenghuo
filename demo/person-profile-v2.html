@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>人物档案 · v2 演示（渐进式 + 三端联动）</title>
+<style>
+:root{
+  --paper:#f5f0e8;--card:#fffdfa;--ink:#29251f;--muted:#746d63;--line:#ded5c8;
+  --plum:#4d3045;--plum-soft:#e8dfe5;--terra:#b65f42;--terra-soft:#f3dfd6;
+  --sage:#627a67;--sage-soft:#dfe8df;--sand:#a57c45;--sand-soft:#eee2ce;--clay:#8f4f3b;
+  --red:#b44d43;--green:#477358;--shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px
+}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--paper);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+input,select,textarea{font:inherit;color:inherit}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+
+.shell{display:flex;min-height:100vh}
+.side{position:fixed;inset:0 auto 0 0;width:272px;padding:22px 16px;background:#ede6dc;border-right:1px solid rgba(104,87,68,.12);display:flex;flex-direction:column;overflow-y:auto}
+.main{margin-left:272px;flex:1;padding:24px 28px 60px;min-width:0}
+
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.brand .av{width:38px;height:38px;border-radius:12px;background:var(--plum);color:#fff;display:grid;place-items:center;font:700 16px/1 serif}
+.brand b{display:block;font:700 16px/1.3 "Songti SC",serif}
+.brand small{display:block;font-size:10.5px;color:var(--muted);margin-top:1px}
+.back{padding:7px 11px;border-radius:9px;background:rgba(255,255,255,.6);color:var(--muted);font-size:12px;font-weight:600;margin-bottom:14px;display:inline-flex;align-items:center;gap:5px}
+.back:hover{background:#fff;color:var(--ink)}
+
+.p-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.p-head span{font-size:11px;color:var(--muted);font-weight:700}
+.p-head button{font-size:11px;color:var(--plum);font-weight:700}
+.plist{display:flex;flex-direction:column;gap:6px}
+.pitem{display:flex;align-items:center;gap:9px;padding:9px 10px;border:1px solid transparent;border-radius:12px;background:rgba(255,255,255,.55);text-align:left;width:100%;transition:.15s}
+.pitem:hover{background:#fff}
+.pitem.on{background:var(--plum);border-color:var(--plum)}
+.pitem.on .nm,.pitem.on .mt,.pitem.on .go{color:#fff}
+.pitem.on .av{background:rgba(255,255,255,.22)}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:700 14px/1 serif;color:#fff;flex:0 0 auto}
+.pinfo{min-width:0;flex:1}
+.nm{display:block;font-size:13px;font-weight:700}
+.mt{display:block;font-size:10.5px;color:var(--muted);margin-top:1px}
+.go{font-size:11px;color:var(--muted)}
+
+.mods{margin-top:18px;padding-top:14px;border-top:1px solid rgba(104,87,68,.14)}
+.mods-h{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.mods-h button{font-size:10.5px;color:var(--terra);font-weight:700}
+.mod{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:9px;font-size:12.5px;color:#5e574e;width:100%;text-align:left;transition:.15s}
+.mod:hover{background:rgba(255,255,255,.7)}
+.mod.on{background:var(--plum);color:#fff}
+.mod .dot{width:5px;height:5px;border-radius:50%;flex:0 0 auto}
+.mod .num{margin-left:auto;font-size:9.5px;opacity:.6}
+
+.banner{background:var(--sand-soft);border-left:3px solid var(--sand);color:#6b5326;padding:10px 14px;border-radius:11px;font-size:12px;margin-bottom:18px;display:flex;gap:8px;align-items:flex-start}
+
+/* 卡片 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px}
+.card-h{display:flex;align-items:center;gap:10px;margin-bottom:15px;flex-wrap:wrap}
+.card-h .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px}
+.card-h b{font:700 16.5px/1.3 "Songti SC",serif}
+.card-h small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
+.card-act{margin-left:auto;display:flex;gap:7px;align-items:center}
+
+.btn{height:36px;padding:0 14px;border-radius:10px;background:var(--plum);color:#fff;font-weight:700;font-size:12.5px;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{opacity:.9}
+.btn.line{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.tint{background:var(--plum-soft);color:var(--plum)}
+.btn.terra{background:var(--terra)}
+.btn.sm{height:30px;padding:0 11px;font-size:11.5px}
+.btn.xs{height:26px;padding:0 9px;font-size:11px;border-radius:8px}
+
+/* 人物首页 */
+.hero{background:var(--plum);color:#fff;border-radius:var(--radius);padding:22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.hero .av{width:70px;height:70px;border-radius:20px;background:rgba(255,255,255,.18);font-size:28px}
+.hero h2{font:700 24px/1.2 "Songti SC",serif;margin:0 0 4px}
+.hero .sub{font-size:12px;opacity:.84;display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+.hero .sub i{font-style:normal;background:rgba(255,255,255,.16);padding:2px 8px;border-radius:999px}
+.hero-act{margin-left:auto;display:flex;gap:8px}
+.hero .btn{background:#fff;color:var(--plum)}
+.hero .btn.ghost{background:rgba(255,255,255,.16);color:#fff}
+
+/* 完整度 */
+.pf{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.ring{width:92px;height:92px;flex:0 0 auto;position:relative}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .rt{position:absolute;inset:0;display:grid;place-items:center;font:700 20px/1 "Songti SC",serif}
+.pf-txt{min-width:0;flex:1}
+.pf-txt b{font-size:14px}
+.pf-txt p{margin:5px 0 0;font-size:12px;color:var(--muted);line-height:1.55}
+.mods-done{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.mchip{font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--sage-soft);color:var(--sage);font-weight:600}
+.mchip.low{background:var(--sand-soft);color:var(--sand)}
+
+/* 画像标签云 */
+.cloud{display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-size:12px;padding:5px 11px;border-radius:999px;font-weight:600}
+.tag.p{background:var(--plum-soft);color:var(--plum)}
+.tag.t{background:var(--terra-soft);color:var(--terra)}
+.tag.s{background:var(--sage-soft);color:var(--sage)}
+.tag.d{background:var(--sand-soft);color:var(--sand)}
+.tag.m{background:#efebe3;color:var(--muted)}
+
+/* 关键节点 */
+.nodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:11px}
+.node{background:#fffdfa;border:1px solid var(--line);border-radius:13px;padding:12px}
+.node span{font-size:10.5px;color:var(--muted);display:block}
+.node b{font-size:14px;display:block;margin-top:4px}
+.node em{font-style:normal;font-size:10.5px;color:var(--terra);display:block;margin-top:2px}
+
+/* 进度条 */
+.bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden;display:flex;margin-top:7px}
+.bar i{display:block;height:100%}
+
+/* 字段 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
+.fld{display:flex;flex-direction:column;gap:5px}
+.fld>span{font-size:11px;color:var(--muted);font-weight:700}
+.inp{height:37px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:#fffdfa;font-size:13.5px;width:100%}
+textarea.inp{height:auto;padding:9px 11px;resize:vertical;min-height:64px;line-height:1.55}
+.inp:focus{outline:2px solid var(--plum-soft);border-color:var(--plum)}
+select.inp{cursor:pointer}
+
+/* 词库缓存 */
+.vocab-box{margin-top:6px}
+.vocab{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 10px;background:var(--sand-soft);border-radius:10px;border:1px dashed #d8c49a}
+.vocab-l{font-size:10.5px;color:#8a6d33;font-weight:700;flex:0 0 auto}
+.vc{font-size:11.5px;padding:3px 10px;border-radius:999px;background:#fffdfa;color:#6b5326;font-weight:600;border:1px solid #ddd0b4}
+.vc:hover{background:var(--sand);color:#fff;border-color:var(--sand)}
+.vc.add{background:transparent;border-style:dashed;color:#9c8250}
+.multi{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.mt-item{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 8px 4px 11px;border-radius:999px;background:var(--plum);color:#fff}
+.mt-item button{color:rgba(255,255,255,.7);font-size:14px;line-height:1;padding:0}
+.mt-item button:hover{color:#fff}
+.add-row{display:flex;gap:7px;margin-top:9px}
+.add-row .inp{flex:1}
+
+/* 核心/更多 */
+.core-h{display:flex;align-items:center;gap:8px;margin:16px 0 10px;padding-top:14px;border-top:1px dashed var(--line)}
+.core-h b{font-size:12.5px}
+.core-h .cnt{font-size:10.5px;color:var(--muted)}
+.more-btn{display:flex;align-items:center;gap:7px;width:100%;padding:11px;border-radius:12px;background:#fffdfa;border:1px dashed var(--line);color:var(--muted);font-size:12.5px;font-weight:700;margin-top:12px}
+.more-btn:hover{border-color:var(--plum);color:var(--plum)}
+.more-btn svg{transition:.2s}
+.more-btn.open svg{transform:rotate(180deg)}
+
+/* 重复条目 */
+.rep{border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:10px;background:#fffdfa}
+.rep-h{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.rep-h b{font-size:12.5px;flex:1}
+.rep-h button{color:var(--red);font-size:11px;font-weight:700;display:flex;align-items:center;gap:3px}
+
+/* 列表行 */
+.lrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;margin-bottom:8px}
+.lrow .m{flex:1;min-width:0}
+.lrow .m b{display:block;font-size:13px}
+.lrow .m small{font-size:11px;color:var(--muted)}
+.amt{font-weight:700;white-space:nowrap}
+.amt.out{color:var(--red)}.amt.in{color:var(--green)}
+.badge{font-size:10.5px;padding:2px 9px;border-radius:999px;font-weight:600;white-space:nowrap}
+.badge.s{background:var(--sage-soft);color:var(--sage)}
+.badge.d{background:var(--sand-soft);color:var(--sand)}
+.badge.t{background:var(--terra-soft);color:var(--terra)}
+.badge.p{background:var(--plum-soft);color:var(--plum)}
+.badge.r{background:#fbe3e0;color:var(--red)}
+.badge.g{background:var(--sage-soft);color:var(--green)}
+
+/* 时间轴 */
+.tl{display:flex;flex-direction:column}
+.tl-i{display:flex;gap:11px;padding-bottom:14px;position:relative}
+.tl-i::before{content:"";position:absolute;left:11px;top:23px;bottom:0;width:2px;background:var(--line)}
+.tl-i:last-child::before{display:none}
+.tl-dot{width:24px;height:24px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:11px;z-index:1}
+.tl-b{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fffdfa}
+.tl-b .t{font-size:13px;font-weight:700;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.tl-b .m{font-size:11px;color:var(--muted);margin-top:3px}
+.tl-b .s{font-size:12.5px;margin-top:6px;color:#4a443c}
+
+/* 提示条 */
+.note{border-radius:11px;padding:10px 12px;font-size:12px;line-height:1.6}
+.note.p{background:var(--sand-soft);color:#6b5326;border-left:3px solid var(--sand)}
+.note.i{background:var(--sage-soft);color:#41553f;border-left:3px solid var(--sage)}
+.note.pp{background:var(--plum-soft);color:var(--plum);border-left:3px solid var(--plum)}
+
+/* 弹窗 */
+.mask{position:fixed;inset:0;background:rgba(41,37,31,.5);display:grid;place-items:center;z-index:100;padding:20px;overflow-y:auto;backdrop-filter:blur(3px)}
+.modal{background:var(--card);border-radius:20px;padding:22px;width:100%;max-width:640px;box-shadow:0 24px 60px rgba(41,37,31,.3);max-height:90vh;overflow-y:auto;margin:auto}
+.modal-h{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.modal-h b{font:700 17px/1.3 "Songti SC",serif;flex:1}
+.x{width:30px;height:30px;border-radius:9px;background:#f3ede4;display:grid;place-items:center;color:var(--muted)}
+.x:hover{background:var(--red);color:#fff}
+.modal-f{display:flex;gap:9px;margin-top:18px;justify-content:flex-end}
+
+/* R2 文件 */
+.r2-path{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);background:#f5f1e9;padding:2px 7px;border-radius:6px;word-break:break-all}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.file{border:1px dashed var(--line);border-radius:13px;padding:14px;text-align:center;color:var(--muted);background:#fffdfa}
+.file:hover{border-color:var(--plum);color:var(--plum)}
+.file svg{width:25px;height:25px;margin:0 auto;display:block}
+.file b{display:block;font-size:12px;color:var(--ink);margin-top:6px;word-break:break-all}
+.file small{font-size:10px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:26px;text-align:center;color:var(--muted);font-size:13px;margin-top:11px;cursor:pointer}
+.drop:hover{border-color:var(--plum);color:var(--plum)}
+
+/* 日历条 */
+.calbar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:8px 11px;background:var(--plum-soft);border-radius:11px;margin-bottom:11px}
+.calbar b{font-size:11.5px;color:var(--plum)}
+.pill{font-size:11px;padding:3px 9px;border-radius:999px;background:#fff;color:var(--plum);font-weight:600}
+
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px;background:#fffdfa;border:1px dashed var(--line);border-radius:13px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:11px;font-size:13px;z-index:200;opacity:0;pointer-events:none;transition:.25s}
+.toast.show{opacity:1;bottom:36px}
+
+@media(max-width:900px){
+  .side{position:static;width:auto;border-right:0;border-bottom:1px solid rgba(104,87,68,.12)}
+  .main{margin-left:0;padding:16px 14px 50px}
+  .shell{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="av">数</span><div><b>数字生活</b><small>人物档案 v2 演示</small></div></div>
+    <button class="back" onclick="toast('演示：返回数字生活')">← 返回数字生活</button>
+    <div class="p-head"><span>联系人</span><button onclick="toast('演示：新增联系人')">+ 新增</button></div>
+    <div class="plist" id="plist"></div>
+    <div class="mods">
+      <div class="mods-h"><span>档案模块</span><button onclick="toast('演示：新增自定义模块')">+</button></div>
+      <div id="modlist"></div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="banner"><span>⚠</span><div><b>演示页面</b>：含渐进式录入、词库缓存、账本/待办/日历三端联动、R2 文件夹。数据为示例，不影响线上。</div></div>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="toast" id="ts"></div>
+<div id="modalBox"></div>
+
+<script>
+/* ===================== 词库缓存（常用词，添加一次永久备选） ===================== */
+const VOCAB = {
+  trait:  ['内向','外向','理性','感性','慢热','热情','守时','随和','严谨','幽默','务实','乐观','谨慎','果断'],
+  size:   ['XS','S','M','L','XL','XXL','38','39','40','41','42','43','44','均码'],
+  hobby:  ['跑步','健身','游泳','瑜伽','篮球','羽毛球','登山','徒步','摄影','钓鱼','唱歌','听播客','读书','看剧','电影','摄影','手工','种花','养猫','养狗','桌游','脱口秀','脱口秀'],
+  lang:   ['普通话','粤语','英语','日语','韩语','法语','德语','闽南话','四川话','上海话'],
+  food:   ['清淡','重辣','微辣','不辣','忌香菜','忌海鲜','海鲜过敏','素食','不吃牛','乳糖不耐','喜欢粤菜','喜欢川菜','喜欢淮扬菜','喜欢日料'],
+  drink:  ['美式','拿铁','手冲','龙井','普洱','茉莉','柠檬水','不喝咖啡','不喝酒','啤酒','红酒'],
+  topic:  ['工作','生活','求助','合作','闲聊','家庭','学习','旅行'],
+  kind:   ['见面','电话','微信','邮件','视频','聚餐','活动','会议','咖啡','生日','礼物'],
+  quality:['愉快','一般','紧张','有收获','轻松'],
+  status: ['未开始','进行中','已完成','已取消','已逾期'],
+  edu:    ['高中','大专','本科','硕士','博士','MBA','交换生','公开课'],
+  company:['互联网','金融','制造业','教育','医疗','政府','自由职业','创业公司'],
+  region: ['深圳','北京','上海','广州','杭州','成都','武汉','南京','西安','重庆']
+};
+
+/* ===================== 示例数据（张伟数据最全，李娜中等，妈妈较少） ===================== */
+let DB = {
+  people: [
+    { id:4, name:'张伟', color:'#4d3045', relation:'朋友', birthday:'1990-03-12', note:'大学同学', age:36,
+      core:{ alias:'小伟', gender:'男', phone:'13800002841', wechat:'zw_1990', city:'深圳', job:'高级工程师', company:'某科技公司' },
+      more:{
+        alias:'小伟', gender:'男', birthday:'1990-03-12', native:'湖南长沙', city:'深圳',
+        phones:['13800002841','13900005678'], emails:['zw@example.com','zhangwei@work.cn'], wechats:['zw_1990','zw_2012'],
+        langs:['普通话','粤语','英语'], page:'github.com/zw', card:'已存纸质名片'
+      },
+      rel:{ type:'朋友', level:'重要', via:'大学同学', intro:'—', since:'2008-09-01', scene:'大学迎新晚会', status:'活跃', score:'4' },
+      edus:[
+        { school:'华中科技大学', major:'计算机科学', degree:'本科', start:'2008', end:'2012', story:'大三交换到德国慕尼黑半年' },
+        { school:'深圳大学', major:'软件工程（继续教育）', degree:'本科', start:'2019', end:'2021', story:'在职攻读' }
+      ],
+      work:{ company:'某科技公司', dept:'基础架构部', title:'高级工程师', level:'P7', city:'深圳', field:'云原生 / 性能优化', give:'技术方案评审、内推资源', infl:'公司技术博客作者', bound:'可聊技术，不谈薪资' },
+      family:{ father:'张国强（已退休）', mother:'王秀兰', spouse:'—', child:'—', sib:'妹妹 张敏（广州）', live:'深圳市南山区', events:'2019年乔迁', pet:'猫「豆豆」· 英短 · 2021-04' },
+      pref:{ foods:['微辣','忌香菜','喜欢粤菜'], drinks:['美式','不喝酒'], size:'L', shoes:'42', hobbies:['跑步','摄影','读书'], life:'每周三晚跑步；23:30 前睡', social:'偏好小聚，超过 5 人会累' },
+      trait:{ tags:['理性','慢热','守时'], style:'直接，邮件优先', reply:'工作快回，晚上回', taboo:'不谈政治、不问收入', value:'成长 > 金钱', comfort:'4' },
+      interacts:[
+        { id:1, date:'2026-09-28', kind:'聚餐', place:'深圳 · 云南菜', who:'我、张伟、老陈', topic:'生活', quality:'有收获', summary:'聊了老同学近况，他准备明年跳去一家 AI 创业公司。' },
+        { id:2, date:'2026-07-12', kind:'电话', place:'—', who:'张伟', topic:'工作', quality:'愉快', summary:'请教了数据库选型，他推荐了 TiDB。' },
+        { id:3, date:'2026-03-12', kind:'生日', place:'—', who:'我等 6 人', topic:'生活', quality:'愉快', summary:'生日饭，他送了一本《数据密集型应用系统设计》。' }
+      ],
+      promises:[
+        { id:1, side:'对方', what:'帮我内推其公司后端岗', due:'2026-11-30', status:'进行中', note:'已发简历，等待面试安排' },
+        { id:2, side:'我', what:'请他吃饭', due:'2026-11-15', status:'未开始', note:'等他面试完' }
+      ],
+      money:[
+        { id:1, date:'2026-03-12', type:'gift_out', amount:568, note:'生日礼物《数据密集型应用系统设计》' },
+        { id:2, date:'2026-03-12', type:'gift_in', amount:800, note:'他回赠的礼物' },
+        { id:3, date:'2025-12-20', type:'lend', amount:500, note:'借出，未还' }
+      ],
+      dates:{ birth:'03-12', anniv:'—', work:'2015-07-01', meet:'2008-09-01', greet:'生日当天', cycle:'每月一次', stale:'2026-09-28', node:'2026-11 面试节点' },
+      files:[
+        { name:'合照_2026春节.jpg', size:'1.2 MB', path:'contacts/4/2026-02-17_a1b2c3.jpg' },
+        { name:'名片.png', size:'240 KB', path:'contacts/4/2026-03-12_d4e5f6.png' },
+        { name:'推荐信.pdf', size:'180 KB', path:'contacts/4/2026-06-02_g7h8i9.pdf' },
+        { name:'聊天截图_技术讨论.png', size:'860 KB', path:'contacts/4/2026-07-12_j1k2l3.png' }
+      ]
+    },
+    { id:5, name:'李娜', color:'#627a67', relation:'同事', birthday:'1988-07-25', note:'项目组', age:38,
+      core:{ alias:'娜姐', gender:'女', phone:'13900005522', wechat:'lina_pm', city:'深圳', job:'产品总监', company:'某科技公司' },
+      more:{ alias:'娜姐', native:'安徽合肥', city:'深圳', phones:['13900005522'], emails:['ln@example.com'], wechats:['lina_pm'], langs:['普通话','英语','日语'] },
+      rel:{ type:'同事', level:'核心', via:'工作', intro:'前领导引荐', since:'2022-03-01', scene:'入职培训', status:'合作中', score:'5' },
+      edus:[ { school:'北京理工大学', major:'工业设计', degree:'硕士', start:'2010', end:'2013', story:'曾负责两条产品线从 0 到 1' } ],
+      work:{ company:'某科技公司', dept:'产品部', title:'产品总监', level:'M2', city:'深圳', field:'B 端产品设计', give:'产品方法论、跨部门协调', infl:'行业文章 2 篇', bound:'合作紧密' },
+      family:{ father:'李国强', mother:'刘芳', spouse:'王磊', child:'王子轩（6岁）', sib:'—', live:'深圳市福田区', events:'2024年孩子入学', pet:'—' },
+      pref:{ foods:['海鲜过敏','喜欢川菜'], drinks:['龙井'], size:'M', shoes:'38', hobbies:['瑜伽','听播客','看剧'], life:'每周二四晚瑜伽', social:'喜欢有质量的深聊' },
+      trait:{ tags:['果断','务实','乐观'], style:'委婉但清晰', reply:'工作即时回', taboo:'忌迟到', value:'家庭 ≈ 事业', comfort:'5' },
+      interacts:[
+        { id:4, date:'2026-10-06', kind:'会议', place:'线上 · 飞书', who:'项目组 8 人', topic:'工作', quality:'有收获', summary:'定了 Q4 迭代范围，下周出PRD。' },
+        { id:5, date:'2026-08-21', kind:'咖啡', place:'深圳 · 咖啡厅', who:'我、李娜', topic:'工作', quality:'愉快', summary:'聊了职业规划，她想再升一级后转管理。' }
+      ],
+      promises:[ { id:3, side:'对方', what:'帮我 review 年度 OKR', due:'2026-10-20', status:'进行中', note:'约了下周三' } ],
+      money:[ { id:4, date:'2026-06-15', type:'gift_out', amount:200, note:'生日礼物' } ],
+      dates:{ birth:'07-25', anniv:'—', work:'2022-03-01', meet:'2022-03-01', greet:'生日当天', cycle:'每周', stale:'2026-10-06', node:'Q4 迭代' },
+      files:[ { name:'合照_团建.jpg', size:'980 KB', path:'contacts/5/2026-06-15_m4n5o6.jpg' }, { name:'名片.png', size:'210 KB', path:'contacts/5/2026-06-15_p7q8r9.png' } ]
+    },
+    { id:6, name:'妈妈', color:'#b65f42', relation:'家人', birthday:'1965-11-03', note:'下月生日', age:61,
+      core:{ alias:'妈', gender:'女', phone:'13700008890', wechat:'mama_nj', city:'南京', job:'已退休', company:'—' },
+      more:{ alias:'妈', native:'江苏南京', city:'南京', phones:['13700008890'], emails:[], wechats:['mama_nj'], langs:['普通话'] },
+      rel:{ type:'家人', level:'核心', via:'血缘', intro:'—', since:'—', scene:'—', status:'活跃', score:'5' },
+      edus:[ { school:'—', major:'—', degree:'高中', start:'—', end:'—', story:'—' } ],
+      work:{ company:'已退休', dept:'—', title:'—', level:'—', city:'南京', field:'—', give:'家人支持', infl:'—', bound:'—' },
+      family:{ father:'已故（2019）', mother:'—', spouse:'已故（2019）', child:'我', sib:'姐姐（杭州）', live:'南京市秦淮区', events:'2019 老伴离世', pet:'—' },
+      pref:{ foods:['清淡','忌甜食','喜欢淮扬菜'], drinks:['不喝咖啡'], size:'—', shoes:'—', hobbies:['听戏曲','广场舞','种花'], life:'每日晨练；早睡早起', social:'喜欢邻里串门' },
+      trait:{ tags:['温和','节俭'], style:'电话直接说', reply:'即时回', taboo:'—', value:'家庭第一', comfort:'5' },
+      interacts:[
+        { id:6, date:'2026-10-08', kind:'电话', place:'—', who:'妈妈', topic:'生活', quality:'愉快', summary:'聊了体检结果一切正常，叮嘱少熬夜。' },
+        { id:7, date:'2026-09-20', kind:'视频', place:'—', who:'妈妈、姐姐', topic:'生活', quality:'愉快', summary:'三人商量国庆回家安排。' }
+      ],
+      promises:[ { id:4, side:'我', what:'国庆回家看她', due:'2026-10-05', status:'未开始', note:'已订高铁票' } ],
+      money:[ { id:5, date:'2026-10-01', type:'gift_out', amount:2000, note:'本月生活费' } ],
+      dates:{ birth:'11-03', anniv:'—', work:'—', meet:'—', greet:'生日 + 母亲节', cycle:'每周', stale:'2026-10-08', node:'11-03 生日' },
+      files:[ { name:'合照_母亲节.jpg', size:'1.1 MB', path:'contacts/6/2026-05-10_s1t2u3.jpg' } ]
+    }
+  ],
+  todos: [],   // 承诺同步过来的待办
+  txns: [],    // 人情同步过来的账本
+  r2Prefix: 'contacts/'
+};
+
+/* ===================== 模块定义（14项，首项为人物首页） ===================== */
+const MODULES = [
+  { id:'home',    n:'人物首页',   ic:'🏠', layer:'画像' },
+  { id:'base',    n:'基础身份',   ic:'👤', layer:'静态档案' },
+  { id:'rel',     n:'关系属性',   ic:'🔗', layer:'静态档案' },
+  { id:'edu',     n:'教育与成长', ic:'🎓', layer:'静态档案' },
+  { id:'work',    n:'职业与资源', ic:'💼', layer:'静态档案' },
+  { id:'family',  n:'家庭与亲密', ic:'🏠', layer:'静态档案' },
+  { id:'pref',    n:'偏好与习惯', ic:'☕', layer:'静态档案' },
+  { id:'trait',   n:'性格与沟通', ic:'🧭', layer:'静态档案' },
+  { id:'interact',n:'互动时间轴', ic:'📅', layer:'动态记录' },
+  { id:'promise', n:'承诺与待办', ic:'✓',  layer:'动态记录' },
+  { id:'money',   n:'财务人情账', ic:'¥',  layer:'价值交换' },
+  { id:'dates',   n:'重要日期',   ic:'🔔', layer:'动态记录' },
+  { id:'files',   n:'附件(R2)',   ic:'📎', layer:'安全隐私' }
+];
+const MC = { plum:'#4d3045', terra:'#b65f42', sage:'#627a67', sand:'#a57c45', clay:'#8f4f3b' };
+const MCS = { plum:'var(--plum-soft)', terra:'var(--terra-soft)', sage:'var(--sage-soft)', sand:'var(--sand-soft)', clay:'var(--terra-soft)' };
+
+let cur = 0, mod = 'home';
+let openMore = {};      // 各模块「展开更多」状态
+let vCache = {};        // 词库已选项
+let curModal = null;
+
+const P = () => DB.people[cur];
+const modColor = (id) => MC[['base','trait','files'].includes(id)?'plum':['rel','pref','money'].includes(id)?'terra':['edu','interact'].includes(id)?'sage':['work','dates'].includes(id)?'sand':'plum'];
+
+/* ===================== 侧栏 ===================== */
+function renderSide(){
+  document.getElementById('plist').innerHTML = DB.people.map((p,i)=>
+    `<button class="pitem${i===cur?' on':''}" onclick="pick(${i})">
+      <span class="av" style="background:${p.color}">${p.name[0]}</span>
+      <span class="pinfo"><span class="nm">${p.name}</span><span class="mt">${p.relation} · 档案 ${scoreOf(p)}%</span></span>
+      <span class="go">›</span>
+    </button>`).join('');
+  document.getElementById('modlist').innerHTML = MODULES.map(m=>
+    `<button class="mod${m.id===mod?' on':''}" onclick="pickMod('${m.id}')">
+      <span class="dot" style="background:${m.id===mod?'#fff':modColor(m.id)}"></span>${m.n}
+      <span class="num">${m.id==='home'?scoreOf(P())+'%':fillCount(m.id)}</span>
+    </button>`).join('');
+}
+function pick(i){ cur=i; mod='home'; render(); }
+function pickMod(m){ mod=m; render(); }
+
+/* 档案完整度：各模块已填字段占比 */
+function fillCount(id){
+  const p = P(); let f=0,t=0;
+  const cnt=(o)=>{ if(!o||typeof o!=='object') return [0,1];
+    const vals=Object.values(o).filter(v=>v&&v!=='—');
+    return [vals.length, Object.keys(o).length]; };
+  if(id==='base'){ const [a,b]=cnt(p.core); return a+'/'+b; }
+  if(id==='rel'){ const [a,b]=cnt(p.rel); return a+'/'+b; }
+  if(id==='edu') return p.edus.length+'段';
+  if(id==='work'){ const [a,b]=cnt(p.work); return a+'/'+b; }
+  if(id==='family'){ const [a,b]=cnt(p.family); return a+'/'+b; }
+  if(id==='pref'){ const [a,b]=cnt(p.pref); return a+'/'+b; }
+  if(id==='trait'){ const [a,b]=cnt(p.trait); return a+'/'+b; }
+  if(id==='interact') return p.interacts.length+'条';
+  if(id==='promise') return p.promises.length+'条';
+  if(id==='money') return p.money.length+'笔';
+  if(id==='dates'){ const [a,b]=cnt(p.dates); return a+'/'+b; }
+  if(id==='files') return p.files.length+'件';
+  return '—';
+}
+function scoreOf(p){
+  let got=0, all=0;
+  const add=(o,keys)=>{ if(!o) return; keys.forEach(k=>{all++; if(o[k]&&o[k]!=='—'&&o[k]!=='') got++;}); };
+  add(p.core,['alias','gender','phone','wechat','city','job']);
+  add(p.rel,['type','level','via','since','scene','status']);
+  add(p.work,['company','dept','title','field','give']);
+  add(p.family,['father','mother','spouse','child','live']);
+  add(p.pref,['life','social','size']);
+  add(p.trait,['style','reply','value','taboo']);
+  add(p.dates,['birth','greet','cycle','stale']);
+  const dyn = p.edus.length + p.interacts.length + p.promises.length + p.money.length + p.files.length;
+  all += 25; got += Math.min(25, dyn*2);
+  return Math.round(got/all*100);
+}
+
+/* ===================== 主渲染 ===================== */
+function render(){
+  renderSide();
+  const p = P(), m = MODULES.find(x=>x.id===mod);
+  let h = '';
+  if(mod==='home') h = viewHome(p);
+  else h = `<div class="card">
+    <div class="card-h">
+      <span class="ic" style="background:${MCS[modColor(mod)]};color:${modColor(mod)}">${m.ic}</span>
+      <div><b>${p.name} · ${m.n}</b><small>${hint(mod)}</small></div>
+      <span class="badge" style="background:${MCS[modColor(mod)]};color:${modColor(mod)};margin-left:auto">${m.layer}</span>
+    </div>
+    ${body(mod,p)}
+  </div>`;
+  document.getElementById('view').innerHTML = h;
+}
+function hint(id){
+  return ({base:'核心字段速填，更多信息可展开', rel:'关系深浅、怎么认识的、现在状态', edu:'可添加多段教育与经历', work:'公司职位、可提供的资源与合作边界',
+    family:'父母配偶子女、宠物、家庭大事', pref:'可多选，预置常用词库', trait:'性格标签多选 + 禁忌话题',
+    interact:'每次互动持续追加', promise:'与「待办提醒」双向同步', money:'与「我的账本」双向同步',
+    dates:'生日纪念日、联系周期、节点提醒', files:'按人物文件夹存于 R2'})[id];
+}
+
+/* ===================== 人物首页 ===================== */
+function viewHome(p){
+  const sc = scoreOf(p);
+  const out = p.money.filter(m=>m.type==='gift_out').reduce((s,m)=>s+m.amount,0);
+  const inc = p.money.filter(m=>m.type==='gift_in').reduce((s,m)=>s+m.amount,0);
+  const tot = out+inc||1;
+  const doneMods = MODULES.filter(m=>m.id!=='home' && fillCount(m.id)!=='0/0' && fillCount(m.id)!=='—');
+  const recent = p.interacts.slice(0,3);
+  const nextBday = daysTo(p.birthday);
+  const staleDays = daysSince(p.dates.stale);
+
+  return `
+  <div class="hero">
+    <span class="av" style="background:rgba(255,255,255,.18)">${p.name[0]}</span>
+    <div style="min-width:0">
+      <h2>${p.name} <small style="font-size:13px;opacity:.7;font-weight:400">${p.core.alias||''}</small></h2>
+      <div class="sub"><i>${p.relation}</i><i>${p.age} 岁</i><i>${p.birthday}</i><i>${p.core.city||'—'}</i><i>${p.core.job||'—'}</i></div>
+    </div>
+    <div class="hero-act">
+      <button class="btn" onclick="pickMod('base')">完善档案</button>
+      <button class="btn ghost" onclick="openInteract()">+ 记一次互动</button>
+    </div>
+  </div>
+
+  <!-- 画像完整度 -->
+  <div class="card">
+    <div class="card-h"><span class="ic" style="background:var(--plum-soft);color:var(--plum)">📊</span>
+      <div><b>档案画像完整度 ${sc}%</b><small>数据越多，人物画像越立体</small></div></div>
+    <div class="pf">
+      <div class="ring">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#e8dfe5" stroke-width="11"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="${sc>70?'var(--sage)':sc>40?'var(--sand)':'var(--terra)'}" stroke-width="11"
+            stroke-dasharray="${sc*2.638} 264" stroke-linecap="round"/>
+        </svg>
+        <div class="rt">${sc}%</div>
+      </div>
+      <div class="pf-txt">
+        <b>已点亮 ${doneMods.length}/${MODULES.length-1} 个模块</b>
+        <p>${sc>=80?'画像已经很立体了，继续补充互动与近况会让它更鲜活。':sc>=50?'基础信息较全，建议补充互动时间轴与承诺事项。':'基础信息还比较少，先把核心字段填上吧。'}</p>
+        <div class="mods-done">${doneMods.map(m=>`<span class="mchip${fillCount(m.id).startsWith('0')?' low':''}">${m.ic} ${m.n} ${fillCount(m.id)}</span>`).join('')}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 画像标签云 -->
+  <div class="card">
+    <div class="card-h"><span class="ic" style="background:var(--terra-soft);color:var(--terra)">🏷️</span>
+      <div><b>人物画像速览</b><small>数据聚合生成，数据越多画像越丰富</small></div></div>
+    <div style="display:grid;gap:12px">
+      <div><div class="core-h" style="margin:0;padding:0;border:0"><b style="font-size:11.5px;color:var(--muted)">性格</b></div>
+        <div class="cloud">${(p.trait.tags||[]).map(t=>`<span class="tag p">${t}</span>`).join('')||'<span class="tag m">未填写</span>'}</div></div>
+      <div><div class="core-h" style="margin:0;padding:0;border:0"><b style="font-size:11.5px;color:var(--muted)">兴趣爱好</b></div>
+        <div class="cloud">${(p.pref.hobbies||[]).map(t=>`<span class="tag s">${t}</span>`).join('')||'<span class="tag m">未填写</span>'}</div></div>
+      <div><div class="core-h" style="margin:0;padding:0;border:0"><b style="font-size:11.5px;color:var(--muted)">饮食</b></div>
+        <div class="cloud">${(p.pref.foods||[]).map(t=>`<span class="tag t">${t}</span>`).join('')||'<span class="tag m">未填写</span>'}</div></div>
+      <div><div class="core-h" style="margin:0;padding:0;border:0"><b style="font-size:11.5px;color:var(--muted)">沟通与关系</b></div>
+        <div class="cloud"><span class="tag d">${p.trait.style||'—'}</span><span class="tag d">${p.rel.level||'—'}</span><span class="tag d">${p.rel.status||'—'}</span></div></div>
+    </div>
+  </div>
+
+  <!-- 关键节点 + 生日倒计时 -->
+  <div class="card">
+    <div class="card-h"><span class="ic" style="background:var(--sage-soft);color:var(--sage)">📌</span>
+      <div><b>关键节点与提醒</b><small>来自生日、重要日期与最近联系</small></div>
+      <div class="card-act"><button class="btn sm line" onclick="pickMod('dates')">管理日期</button></div></div>
+    <div class="nodes">
+      ${nextBday!==null?`<div class="node"><span>距离生日</span><b style="color:${nextBday<=30?'var(--terra)':'inherit'}">${nextBday===0?'就是今天':nextBday+' 天'}</b><em>${p.birthday.slice(5)} · ${p.age+1} 岁</em></div>`:''}
+      <div class="node"><span>最近联系</span><b>${p.dates.stale||'—'}</b><em style="color:${staleDays>30?'var(--red)':'var(--sage)'}">${staleDays===null?'':(staleDays>30?`已 ${staleDays} 天未联系`:'关系活跃')}</em></div>
+      <div class="node"><span>联系频率</span><b>${p.dates.cycle||'—'}</b><em>建议保持</em></div>
+      <div class="node"><span>纪念日/相识日</span><b>${p.dates.anniv!=='—'?p.dates.anniv:'—'}</b><em>${p.dates.meet!=='—'?'相识 '+p.dates.meet:''}</em></div>
+    </div>
+  </div>
+
+  <!-- 待办 + 人情 两栏 -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
+    <div class="card" style="margin:0">
+      <div class="card-h"><span class="ic" style="background:var(--plum-soft);color:var(--plum)">✓</span>
+        <div><b>承诺与待办</b><small>与「待办提醒」同步</small></div>
+        <div class="card-act"><span class="badge p">${p.promises.length} 条</span></div></div>
+      ${p.promises.map(x=>`<div class="lrow">
+        <span class="badge ${x.side==='我'?'s':'t'}">${x.side}</span>
+        <span class="m"><b>${x.what}</b><small>截止 ${x.due} · ${x.note}</small></span>
+        <span class="badge ${x.status==='已完成'?'g':x.status==='已逾期'?'r':'d'}">${x.status}</span>
+      </div>`).join('')||'<div class="empty">暂无承诺事项</div>'}
+      <div class="add-row"><button class="btn sm line" onclick="openPromise()" style="flex:1">+ 新增承诺</button>
+        <button class="btn sm" onclick="pickMod('promise')">去待办中查看</button></div>
+    </div>
+    <div class="card" style="margin:0">
+      <div class="card-h"><span class="ic" style="background:var(--terra-soft);color:var(--terra)">¥</span>
+        <div><b>人情往来</b><small>与「我的账本」同步</small></div>
+        <div class="card-act"><span class="badge t">${p.money.length} 笔</span></div></div>
+      <div class="nodes" style="grid-template-columns:repeat(2,1fr);margin-bottom:12px">
+        <div class="node"><span>我送出</span><b style="color:var(--red)">¥${out}</b></div>
+        <div class="node"><span>我收到</span><b style="color:var(--green)">¥${inc}</b></div>
+      </div>
+      <div class="bar"><i style="width:${out/tot*100}%;background:var(--red)"></i><i style="width:${inc/tot*100}%;background:var(--green)"></i></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:5px">
+        <span>送出 ${Math.round(out/tot*100)}%</span><span>收到 ${Math.round(inc/tot*100)}%</span></div>
+      <div class="add-row"><button class="btn sm line" onclick="openMoney()" style="flex:1">+ 记一笔</button>
+        <button class="btn sm" onclick="pickMod('money')">去账本中查看</button></div>
+    </div>
+  </div>
+
+  <!-- 最近互动 -->
+  <div class="card">
+    <div class="card-h"><span class="ic" style="background:var(--sage-soft);color:var(--sage)">📅</span>
+      <div><b>最近互动</b><small>共 ${p.interacts.length} 条记录</small></div>
+      <div class="card-act"><button class="btn sm" onclick="openInteract()">+ 记一次</button></div></div>
+    ${recent.length? `<div class="tl">${recent.map(i=>tlItem(i)).join('')}</div>`
+      : '<div class="empty">还没有互动记录</div>'}
+    ${p.interacts.length>3?`<button class="more-btn" onclick="pickMod('interact')">查看全部 ${p.interacts.length} 条互动记录 ›</button>`:''}
+  </div>`;
+}
+
+function tlItem(i){
+  return `<div class="tl-i">
+    <span class="tl-dot" style="background:var(--sage-soft);color:var(--sage)">◷</span>
+    <div class="tl-b">
+      <div class="t">${i.kind}<span style="font-weight:400;color:var(--muted);font-size:11px">${i.date} · ${i.place}</span></div>
+      <div class="m">参与人：${i.who} · 主题：${i.topic} · 质量：<b style="color:var(--green)">${i.quality}</b></div>
+      <div class="s">${i.summary}</div>
+    </div>
+  </div>`;
+}
+function daysTo(bd){
+  if(!bd) return null;
+  const [m,d] = bd.split('-').map(Number);
+  const now = new Date(2026,9,9);
+  let n = new Date(2026, m-1, d);
+  if(n < new Date(2026,9,9)) n = new Date(2027, m-1, d);
+  return Math.round((n - new Date(2026,9,9))/86400000);
+}
+function daysSince(s){
+  if(!s||s==='—') return null;
+  const n = new Date(s.replace(/-/g,'/'));
+  return Math.round((new Date(2026,9,9) - n)/86400000);
+}
+/* ===================== 词库缓存组件 ===================== */
+// 已选项标签 + 可点击的缓存候选词
+// 缓存候选词按字段分组（size/shoe 共用尺码词库）
+const VOCAB_GROUP = { size:'size', shoe:'size' };
+function vocabBox(key, selected, placeholder){
+  vCache[key] = selected || vCache[key] || [];
+  const g = VOCAB_GROUP[key] || key;
+  return `<div class="fld" style="grid-column:1/-1">
+    <span>${placeholder}</span>
+    <div class="multi">${vCache[key].map((w,i)=>
+      `<span class="mt-item">${w}<button onclick="rmVocab('${key}',${i})">×</button></span>`).join('')}</div>
+    <div class="add-row"><input class="inp" id="in_${key}" placeholder="输入新词，回车添加">
+      <button class="btn sm line" onclick="addVocab('${key}')">添加</button></div>
+    <div class="vocab">
+      <span class="vocab-l">📌 常用词（点击即用）</span>
+      ${VOCAB[g].map(w=>`<button class="vc" onclick="quickAdd('${key}','${w}')">${w}</button>`).join('')}
+    </div>
+  </div>`;
+}
+function quickAdd(k,w){ if(!vCache[k].includes(w)){ vCache[k].push(w); render(); } }
+function addVocab(k){ const el=document.getElementById('in_'+k); const v=(el.value||'').trim();
+  if(v && !vCache[k].includes(v)) vCache[k].push(v); render(); }
+function rmVocab(k,i){ vCache[k].splice(i,1); render(); }
+
+// 核心字段 + 展开更多 容器
+function coreMore(id, coreHtml, moreHtml){
+  const open = openMore[id];
+  return `${coreHtml}
+    <div class="more-btn${open?' open':''}" onclick="toggleMore('${id}')">
+      <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      ${open?'收起更多字段':'展开更多字段（完整档案）'}
+    </div>
+    ${open?`<div class="core-h"><b>更多字段</b><span class="cnt">可多选/多次填写，词库会记住你的输入</span></div>${moreHtml}`:''}`;
+}
+function toggleMore(id){ openMore[id]=!openMore[id]; render(); }
+
+// 重复条目（教育经历等）
+function repList(key, title, rows, fields){
+  return rows.map((r,i)=>`<div class="rep">
+    <div class="rep-h"><b>${title} ${i+1}</b><button onclick="rmRep('${key}',${i})">删除</button></div>
+    <div class="grid">${fields(r,i)}</div>
+  </div>`).join('') + `<button class="btn sm line" onclick="addRep('${key}')">+ 添加${title}</button>`;
+}
+function addRep(k){
+  const p=P();
+  if(k==='edu') p.edus.push({ school:'', major:'', degree:'', start:'', end:'', story:'' });
+  render();
+}
+function rmRep(k,i){ P()[k].splice(i,1); render(); }
+
+// 字段助手
+const F=(label,val,key,ta)=>`<label class="fld"><span>${label}</span>${ta
+  ?`<textarea class="inp" placeholder="${ta}">${val||''}</textarea>`
+  :`<input class="inp" value="${val||''}">`}</label>`;
+const S=(label,val,opts)=>`<label class="fld"><span>${label}</span><select class="inp">${
+  opts.map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select></label>`;
+// 弹窗用：显式指定 id，避免字符串替换
+const SID=(id,val,opts)=>`<select id="${id}" class="inp">${opts.map(o=>`<option${o===val?' selected':''}>${o}</option>`).join('')}</select>`;
+const FID=(id,val,ph,type)=>`<input id="${id}" class="inp" ${type?`type="${type}"`:''} value="${val||''}" placeholder="${ph||''}">`;
+const AID=(id,ph)=>`<textarea id="${id}" class="inp" placeholder="${ph||''}"></textarea>`;
+const FL=(label,inner)=>`<label class="fld"><span>${label}</span>${inner}</label>`;
+
+/* ===================== 各模块内容 ===================== */
+function body(id,p){
+  if(id==='base'){
+    const c=p.core,m=p.more;
+    return `<div class="note pp" style="margin-bottom:14px">💡 核心字段 6 项速填即可；展开更多可填多个手机号 / 邮箱 / 微信号、语言、主页链接等。</div>
+    <div class="grid">
+      ${F('姓名',p.name)}${F('别名 / 昵称',c.alias)}
+      ${S('性别',c.gender,['男','女','其他'])}${F('生日',p.birthday)}
+      ${F('手机号',c.phone)}${F('微信号',c.wechat)}
+      ${F('现居城市',c.city)}${F('职业',c.job)}
+    </div>
+    ${coreMore('base','',`<div class="grid">
+      ${F('曾用名',m.alias)}${F('籍贯',m.native)}${F('出生地',m.native)}
+      ${F('名片 / 主页链接',m.page,'例：github.com/zw、linkedin.com/in/...')}
+    </div>
+    <div class="core-h"><b>联系方式（可多个）</b><span class="cnt">每个类型可存多条</span></div>
+    ${['phones:手机号','emails:邮箱','wechats:微信号'].map(x=>{
+      const [k,lb]=x.split(':'); return `<div class="fld" style="margin-bottom:10px">
+        <span>${lb}（${(m[k]||[]).length}）</span>
+        <div class="multi">${(m[k]||[]).map((v,i)=>`<span class="mt-item">${v}<button onclick="rmContact('${k}',${i})">×</button></span>`).join('')}</div>
+        <div class="add-row"><input class="inp" id="ct_${k}" placeholder="输入${lb}"><button class="btn sm line" onclick="addContact('${k}','ct_${k}')">添加</button></div>
+      </div>`;}).join('')}
+    <div class="core-h"><b>语言能力</b></div>
+    ${vocabBox('lang', m.langs, '语言（点击下方常用词快速添加）')}`)}`;
+  }
+  if(id==='rel'){ const r=p.rel; return `<div class="grid">
+    ${S('关系类型',r.type,['家人','亲戚','朋友','同学','同事','客户','导师','邻居','合作伙伴'])}
+    ${S('亲疏层级',r.level,['核心','重要','普通','弱连接'])}
+    ${S('认识渠道',r.via,['活动','朋友介绍','工作','学校','线上社群','血缘'])}
+    ${F('介绍人 / 共同联系人',r.intro)}${F('相识时间',r.since)}${F('相识场景',r.scene)}
+    ${S('当前状态',r.status,['活跃','疏远','失联','合作中','已终止'])}
+    ${S('相处舒适度',r.score,['5','4','3','2','1'])}</div>`; }
+  if(id==='edu'){ return `<div class="note pp" style="margin-bottom:14px">💡 除最高学历外，可添加多段教育与经历（如在职攻读、进修、培训）。</div>
+    ${repList('edu','教育经历', p.edus, (r)=>`
+      ${F('学校',r.school)}${F('专业',r.major)}
+      ${S('学历',r.degree,VOCAB.edu)}${F('入学年份',r.start)}${F('毕业年份',r.end)}
+      ${F('重要经历（交换/留学/培训）',r.story,'','例：大三交换到德国慕尼黑半年')}`)}`; }
+  if(id==='work'){ const w=p.work; return `<div class="grid">
+    ${F('公司',w.company)}${F('部门',w.dept)}${F('职位',w.title)}${F('职级',w.level)}${F('工作城市',w.city)}
+    ${F('擅长领域',w.field)}</div>
+    <div class="core-h"><b>可提供的资源</b><span class="cnt">价值交换</span></div>
+    <div class="grid">${F('资源清单',w.give,'','例：技术方案评审、内推资源、行业人脉')}</div>
+    <div class="core-h"><b>行业影响力</b></div>
+    <div class="grid">${F('公众号 / 作品 / 演讲 / 专利',w.infl,'','例：公司技术博客作者，2 篇行业文章')}</div>
+    <div class="core-h"><b>合作边界</b></div>
+    <div class="note p">${w.bound}</div>`; }
+  if(id==='family'){ const f=p.family; return `<div class="grid">
+    ${F('父亲',f.father)}${F('母亲',f.mother)}${F('配偶',f.spouse)}${F('子女',f.child)}${F('兄弟姐妹',f.sib)}
+    ${F('家庭居住地',f.live)}</div>
+    <div class="core-h"><b>家庭重要事件</b></div>
+    <div class="grid">${F('结婚/生子/乔迁/生病/离世',f.events,'','例：2019年乔迁、2024年孩子入学')}</div>
+    <div class="core-h"><b>宠物</b></div>
+    <div class="grid">${F('名字·品种·生日·喜好',f.pet,'','例：猫「豆豆」· 英短 · 2021-04')}</div>`; }
+  if(id==='pref'){ const x=p.pref; return `
+    ${vocabBox('food', x.foods, '饮食偏好 / 忌口 / 过敏（多选）')}
+    ${vocabBox('drink', x.drinks, '饮品偏好（多选）')}
+    ${vocabBox('size', [x.size].filter(v=>v&&v!=='—'), '穿衣尺码（与鞋码共用词库）')}
+    ${vocabBox('shoe', [x.shoes].filter(v=>v&&v!=='—'), '鞋子尺码')}
+    ${vocabBox('hobby', x.hobbies, '兴趣爱好（多选）')}
+    <div class="core-h"><b>生活方式与社交</b></div>
+    <div class="grid">
+      ${F('作息与健康注意事项',x.life,'','例：每周三晚跑步；23:30 前睡')}
+      ${F('社交偏好',x.social,'','例：偏好小聚，超过 5 人会累')}
+    </div>`; }
+  if(id==='trait'){ const t=p.trait; return `
+    ${vocabBox('trait', t.tags, '性格标签（多选）')}
+    <div class="core-h"><b>沟通方式</b></div>
+    <div class="grid">
+      ${F('沟通风格',t.style,'','例：直接，邮件优先')}${F('回复习惯',t.reply)}
+      ${F('价值观倾向',t.value)}${S('相处舒适度',t.comfort,['5','4','3','2','1'])}
+    </div>
+    <div class="core-h"><b>敏感话题或禁忌</b></div>
+    <div class="note p">${t.taboo}</div>`; }
+  if(id==='interact'){ return `<div class="note pp" style="margin-bottom:14px">💡 点击右上角按钮用<b>弹窗</b>追加记录，便于填写多项内容。</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn" onclick="openInteract()">+ 记一次互动</button></div>
+    ${p.interacts.length?`<div class="tl">${p.interacts.map(i=>tlItem(i)).join('')}</div>`
+      :'<div class="empty">还没有互动记录，点上方按钮添加</div>'}`; }
+  if(id==='promise'){ return `
+    <div class="calbar"><b>🔗 已与「待办提醒」双向同步</b>
+      <span class="pill">在待办页按人物筛选可查</span><span class="pill">日历中也可查看</span></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button class="btn" onclick="openPromise()">+ 新增承诺</button></div>
+    ${p.promises.map(x=>`<div class="lrow">
+      <span class="badge ${x.side==='我'?'s':'t'}">${x.side}方</span>
+      <span class="m"><b>${x.what}</b><small>截止 ${x.due} · ${x.note} · 绑定人物「${p.name}」</small></span>
+      <span class="badge ${x.status==='已完成'?'g':x.status==='已逾期'?'r':'d'}">${x.status}</span>
+      <button class="btn xs line" onclick="toPushTodo(${x.id})">加入待办</button>
+    </div>`).join('')||'<div class="empty">暂无承诺事项</div>'}
+    ${DB.todos.length?`<div class="core-h"><b>已同步到待办</b></div>
+      ${DB.todos.filter(t=>t.pid===p.id).map(t=>`<div class="lrow">
+        <span class="badge p">待办</span><span class="m"><b>${t.what}</b><small>${t.due} · 日历可见</small></span>
+        <span class="badge ${t.status==='已完成'?'g':'d'}">${t.status}</span>
+        <button class="btn xs line" onclick="toast('演示：在待办页完成')">去待办</button></div>`).join('')}`:''}`; }
+  if(id==='money'){
+    const out=p.money.filter(m=>m.type==='gift_out'||m.type==='lend').reduce((s,m)=>s+m.amount,0);
+    const inc=p.money.filter(m=>m.type==='gift_in').reduce((s,m)=>s+m.amount,0);
+    const tot=out+inc||1;
+    const TN={gift_out:'送出',gift_in:'收到',lend:'借出',repay:'还款',aa:'AA结算'};
+    return `<div class="calbar"><b>🔗 已与「我的账本」双向同步</b><span class="pill">记一笔 = 写一条账本流水</span><span class="pill">账本中按备注「@某人」归集</span></div>
+    <div class="nodes" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+      <div class="node"><span>我送出/借出</span><b style="color:var(--red)">¥${out}</b></div>
+      <div class="node"><span>我收到</span><b style="color:var(--green)">¥${inc}</b></div>
+      <div class="node"><span>人情平衡</span><b style="color:${out>inc?'var(--terra)':'var(--green)'}">${out>inc?'付出多':'回报多'}</b></div>
+    </div>
+    <div class="bar"><i style="width:${out/tot*100}%;background:var(--red)"></i><i style="width:${inc/tot*100}%;background:var(--green)"></i></div>
+    <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin:5px 0 16px">
+      <span>支出侧 ¥${out}（${Math.round(out/tot*100)}%）</span><span>收入侧 ¥${inc}（${Math.round(inc/tot*100)}%）</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <b style="font-size:13px">往来明细</b>
+      <button class="btn sm" onclick="openMoney()">+ 记一笔（写进账本）</button></div>
+    ${p.money.map(m=>`<div class="lrow">
+      <span class="badge ${m.type==='gift_in'?'g':'t'}">${TN[m.type]||m.type}</span>
+      <span class="m"><b>${m.note}</b><small>${m.date} · 同步至账本</small></span>
+      <span class="amt ${m.type==='gift_in'?'in':'out'}">${m.type==='gift_in'?'+':'-'}¥${m.amount}</span>
+    </div>`).join('')||'<div class="empty">还没有人情往来记录</div>'}`; }
+  if(id==='dates'){ const d=p.dates; return `<div class="grid">
+    ${F('生日',d.birth)}${F('纪念日',d.anniv)}${F('入职日',d.work)}${F('相识日',d.meet)}</div>
+    <div class="core-h"><b>提醒设置</b></div>
+    <div class="grid">${F('节日问候',d.greet)}${F('定期联系频率',d.cycle)}${F('最近联系',d.stale)}${F('重要节点',d.node,'','例：2026-11 面试节点')}</div>
+    <div class="core-h"><b>预警</b></div>
+    ${(()=>{const s=daysSince(d.stale);return `<div class="note ${s>30?'':'i'}">${s>30?`⚠ 已超过 ${s} 天未联系，建议主动问候`:'✓ 最近一个月内有联系，关系活跃'}</div>`})()}`; }
+  if(id==='files'){ return `<div class="note pp" style="margin-bottom:14px">💡 文件按人物文件夹归档于 R2：<span class="r2-path">${DB.r2Prefix}${p.id}/&lt;日期&gt;_&lt;随机&gt;_&lt;文件名&gt;</span></div>
+    <div class="calbar"><b>R2 路径前缀</b><span class="pill">${DB.r2Prefix}${p.id}/</span><span class="pill">共 ${p.files.length} 个文件</span>
+      <button class="btn xs line" onclick="toast('演示：复制路径')">复制</button></div>
+    <div class="drop" onclick="toast('演示：选择文件上传到 R2')">
+      <svg viewBox="0 0 24 24" style="width:30px;height:30px;margin:0 auto 8px;display:block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v13"/></svg>
+      点击选择文件上传（按人物文件夹自动归档）
+    </div>
+    <div class="core-h"><b>已上传文件</b></div>
+    <div class="files">${p.files.map(f=>`<div class="file" onclick="toast('演示：预览 ${f.name}')">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <b>${f.name}</b><small>${f.size}</small>
+      <div class="r2-path" style="margin-top:6px;font-size:9.5px">${f.path}</div>
+    </div>`).join('')}</div>`; }
+  return '';
+}
+
+function addContact(k, inputId){
+  const p=P(), el=document.getElementById(inputId);
+  const v=(el.value||'').trim();
+  if(v){ p.more[k]=p.more[k]||[]; p.more[k].push(v); }
+  render();
+}
+function rmContact(k,i){ P().more[k].splice(i,1); render(); }
+
+/* ===================== 弹窗：互动 / 承诺 / 记账 ===================== */
+function closeModal(){ document.getElementById('modalBox').innerHTML=''; curModal=null; }
+function modal(title, inner, onOk){
+  curModal = onOk;
+  document.getElementById('modalBox').innerHTML = `
+    <div class="mask" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div class="modal-h"><b>${title}</b><button class="x" onclick="closeModal()">×</button></div>
+        ${inner}
+        <div class="modal-f">
+          <button class="btn line" onclick="closeModal()">取消</button>
+          <button class="btn" onclick="${onOk}">保存</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openInteract(){
+  modal('记一次互动', `
+    <div class="grid">
+      ${FL('日期', FID('i_date','2026-10-09','','date'))}
+      ${FL('方式', SID('i_kind','见面',VOCAB.kind))}
+      ${FL('地点', FID('i_place','','例：深圳 · 云南菜'))}
+      ${FL('参与人', FID('i_who','','例：我、张伟、老陈'))}
+      ${FL('主题', SID('i_topic','生活',VOCAB.topic))}
+      ${FL('互动质量', SID('i_q','愉快',VOCAB.quality))}
+    </div>
+    <div style="margin-top:12px">${FL('谈话摘要与关键信息', AID('i_sum','例：聊了老同学近况，他准备明年跳去一家 AI 创业公司。'))}</div>
+    <div class="note i" style="margin-top:12px">💡 弹窗内一次填完所有字段，比一行输入更从容。保存后进入时间轴，并计入画像完整度。</div>
+  `, 'saveInteract()');
+}
+function saveInteract(){
+  const p=P();
+  const q = (id)=>document.getElementById(id).value;
+  p.interacts.unshift({ id:Date.now(), date:q('i_date'), kind:document.getElementById('i_kind').value,
+    place:q('i_place')||'—', who:q('i_who')||'—', topic:document.getElementById('i_topic').value,
+    quality:document.getElementById('i_q').value, summary:q('i_sum') });
+  closeModal(); mod='home'; render(); toast('已记录，画像更立体了');
+}
+
+function openPromise(){
+  modal('新增承诺 / 待办', `
+    <div class="note pp" style="margin-bottom:12px">💡 保存后可在「待办提醒」中查看，日历中也能看到，并绑定当前人物。</div>
+    <div class="grid">
+      ${FL('谁答应', SID('pr_side','对方',['对方','我']))}
+      ${FL('截止日期', FID('pr_due','2026-11-30','','date'))}
+      ${FL('优先级', SID('pr_pri','P1',['P0','P1','P2','P3']))}
+      ${FL('状态', SID('pr_st','未开始',VOCAB.status))}
+    </div>
+    <div style="margin-top:12px">${FL('承诺事项', FID('pr_what','','例：帮我内推其公司后端岗'))}</div>
+    <div style="margin-top:10px">${FL('跟进记录', AID('pr_note','例：已发简历，等待面试安排'))}</div>
+  `, 'savePromise()');
+}
+function savePromise(){
+  const p=P(), q=(id)=>document.getElementById(id).value;
+  p.promises.push({ id:Date.now(), side:q('pr_side'), what:q('pr_what')||'未填写', due:q('pr_due'),
+    status:q('pr_st'), note:q('pr_note'), priority:q('pr_pri') });
+  closeModal(); render(); toast('已保存，勾选「加入待办」可同步');
+}
+function toPushTodo(id){
+  const p=P(), x=p.promises.find(v=>v.id===id); if(!x) return;
+  if(DB.todos.some(t=>t.pid===p.id && t.what===x.what)) return toast('已在待办中');
+  DB.todos.push({ id:Date.now(), pid:p.id, pname:p.name, what:x.what, due:x.due, status:x.status, priority:x.priority||'P1' });
+  render(); toast(`已加入待办，可在待办页按「${p.name}」筛选`);
+}
+
+function openMoney(){
+  modal('记一笔人情账', `
+    <div class="note pp" style="margin-bottom:12px">💡 保存后会写入「我的账本」作为一条流水（备注自动 @ 当前人物），账本里也能反查。</div>
+    <div class="grid">
+      ${FL('类型', SID('m_type','送出',['送出','收到','借出','还款','AA结算']))}
+      ${FL('金额', FID('m_amt','500','','number'))}
+      ${FL('日期', FID('m_date','2026-10-09','','date'))}
+    </div>
+    <div style="margin-top:12px">${FL('备注', FID('m_note','','例：生日礼物 / 借出未还'))}</div>
+    <div class="note i" style="margin-top:12px">🔗 账本分类建议：送礼 →「人情」类；金额与备注一并同步，便于在账本页按人物查询。</div>
+  `, 'saveMoney()');
+}
+function saveMoney(){
+  const p=P(), q=(id)=>document.getElementById(id).value;
+  const type={ '送出':'gift_out','收到':'gift_in','借出':'lend','还款':'repay','AA结算':'aa' }[q('m_type')];
+  const amt=Number(q('m_amt'))||0;
+  p.money.unshift({ id:Date.now(), date:q('m_date'), type, amount:amt, note:q('m_note')||q('m_type') });
+  DB.txns.unshift({ id:Date.now(), pid:p.id, pname:p.name, type, amount:amt, note:q('m_note'), date:q('m_date') });
+  closeModal(); render(); toast('已记账，并同步到我的账本');
+}
+
+/* ===================== 提示 ===================== */
+let tmr;
+function toast(m){ const el=document.getElementById('ts'); el.textContent=m; el.classList.add('show');
+  clearTimeout(tmr); tmr=setTimeout(()=>el.classList.remove('show'),2200); }
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeModal();
+  // 词库输入框回车即添加
+  if(e.key==='Enter' && e.target.id && e.target.id.startsWith('in_')){
+    e.preventDefault();
+    addVocab(e.target.id.slice(3));
+  }
+  // 联系方式输入框回车
+  if(e.key==='Enter' && e.target.id && e.target.id.startsWith('ct_')){
+    e.preventDefault();
+    addContact(e.target.id.slice(3), e.target.id);
+  }
+});
+render();
+</script>
+</body>
+</html>

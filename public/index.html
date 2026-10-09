@@ -195,6 +195,10 @@
             <span class="tf-label">类别</span>
             <div class="tf-chips" id="tfList"></div>
           </div>
+          <div class="tf-row">
+            <span class="tf-label">提醒</span>
+            <button class="btn ghost" id="enableNotifyBtn" type="button"><svg><use href="#i-bell"/></svg>开启待办通知</button>
+          </div>
         </article>
         <article class="panel">
           <div class="panel-head"><div><p class="eyebrow">今日待办</p><h2>专注完成今天的安排</h2></div><span class="muted" id="todoCount"></span></div>
@@ -256,20 +260,83 @@
           <div id="calViewBox"></div>
         </article>
       </section>
-      <!-- 人际关系（v0.3.0 联系人与生日） -->
+      <!-- 人际关系（v0.3.1 人物档案） -->
       <section class="view" id="view-relations" data-title="人际关系">
-        <div class="growth-head">
-          <div><p class="eyebrow">人际关系</p><h2>值得记住的人</h2></div>
-          <button class="btn primary" id="addContactBtn" type="button"><svg><use href="#i-plus"/></svg>添加联系人</button>
+        <!-- 列表视图 -->
+        <div id="relListView">
+          <div class="growth-head">
+            <div><p class="eyebrow">人际关系</p><h2>值得记住的人</h2></div>
+            <button class="btn primary" id="addContactBtn" type="button"><svg><use href="#i-plus"/></svg>添加联系人</button>
+          </div>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">生日提醒</p><h2>即将到来</h2></div></div>
+            <div id="bdayList" class="bday-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">筛选与查找</p><h2>全部联系人</h2></div><span class="muted" id="contactCount"></span></div>
+            <div class="rel-search">
+              <input class="inp" id="relSearch" placeholder="🔍 搜索姓名 / 昵称 / 备注 / 城市…">
+              <button class="btn ghost" id="relFilterToggle" type="button">筛选</button>
+            </div>
+            <div class="rel-filters" id="relFilters" hidden></div>
+            <div id="filterChips" class="filter-chips"></div>
+            <div id="contactList" class="contact-stack"></div>
+          </article>
         </div>
-        <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">生日提醒</p><h2>即将到来</h2></div></div>
-          <div id="bdayList" class="bday-grid"></div>
-        </article>
-        <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">联系人</p><h2>全部联系人</h2></div><span class="muted" id="contactCount"></span></div>
-          <div id="contactList" class="contact-stack"></div>
-        </article>
+
+        <!-- 档案视图（点击某人进入） -->
+        <div id="relProfileView" hidden>
+          <div class="growth-head">
+            <div><p class="eyebrow">人物档案</p><h2 id="pfName">—</h2></div>
+            <div class="cal-actions">
+              <button class="btn ghost" id="pfBack" type="button">← 返回列表</button>
+              <button class="btn primary" id="pfEditBtn" type="button"><svg><use href="#i-edit"/></svg>编辑档案</button>
+            </div>
+          </div>
+          <div id="pfHero"></div>
+          <article class="panel" id="pfScorePanel">
+            <div class="panel-head"><div><p class="eyebrow">档案画像</p><h2>完整度与速览</h2></div></div>
+            <div class="pf-wrap">
+              <div class="pf-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#e8dfe5" stroke-width="11"/><circle id="pfRing" cx="50" cy="50" r="42" fill="none" stroke="#627a67" stroke-width="11" stroke-dasharray="0 264" stroke-linecap="round" transform="rotate(-90 50 50)"/></svg><span id="pfScore">0%</span></div>
+              <div class="pf-info"><b id="pfScoreTip">数据越多，画像越立体</b><div class="tf-chips" id="pfMods"></div></div>
+            </div>
+            <div class="cloud" id="pfCloud"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">提醒</p><h2>关键节点</h2></div></div>
+            <div class="bday-grid" id="pfNodes"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">关系网络</p><h2>人物关联</h2></div>
+              <button class="btn sm" id="pfAddRel" type="button">+ 添加关联</button></div>
+            <div id="pfRelatives" class="rel-grid"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">模块</p><h2>档案内容</h2></div></div>
+            <div class="tf-chips" id="pfModNav"></div>
+          </article>
+          <article class="panel" id="pfModulePanel" hidden>
+            <div class="panel-head"><div><p class="eyebrow" id="pfModLayer">—</p><h2 id="pfModTitle">—</h2></div></div>
+            <div id="pfModBody"></div>
+          </article>
+          <div class="rel-two">
+            <article class="panel">
+              <div class="panel-head"><div><p class="eyebrow">承诺与待办</p><h2>待办事项</h2></div>
+                <button class="btn sm" id="pfAddPromise" type="button">+ 新增</button></div>
+              <div id="pfPromises" class="contact-stack"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-head"><div><p class="eyebrow">财务人情账</p><h2>往来记录</h2></div>
+                <button class="btn sm" id="pfAddMoney" type="button">+ 记一笔</button></div>
+              <div id="pfMoney" class="contact-stack"></div>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">动态记录</p><h2>最近互动</h2></div>
+              <button class="btn sm" id="pfAddInteract" type="button">+ 记一次互动</button></div>
+            <div id="pfInteracts" class="tl-box"></div>
+          </article>
+        </div>
       </section>
 
   <!-- 联系人弹窗 -->
@@ -443,6 +510,103 @@
     </div>
   </div>
 
+  <!-- 互动记录弹窗（v0.3.1 追加互动） -->
+  <div class="modal-overlay" id="interactModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3>记一次互动</h3><button class="icon-btn" id="interactClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button></div>
+      <form id="interactForm">
+        <div class="field-row">
+          <label class="field"><span>日期</span><input name="date" type="date" required></label>
+          <label class="field"><span>方式</span><select name="kind" id="interactKindSel"></select></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>地点</span><input name="place" maxlength="30" placeholder="选填，例：深圳 · 云南菜"></label>
+          <label class="field"><span>参与人</span><input name="who" maxlength="30" placeholder="选填，例：我、张伟、老陈"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>主题</span><select name="topic" id="interactTopicSel"></select></label>
+          <label class="field"><span>互动质量</span><select name="quality" id="interactQualitySel"></select></label>
+        </div>
+        <label class="field"><span>谈话摘要与关键信息</span><textarea name="summary" rows="3" maxlength="300" placeholder="例：聊了老同学近况，他准备明年跳去一家 AI 创业公司。" required></textarea></label>
+        <label class="check-line"><input type="checkbox" name="remind"><span>同时在日历中创建提醒</span></label>
+        <button class="btn primary full" type="submit">保存记录</button>
+        <p class="login-error" id="interactError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 承诺弹窗 -->
+  <div class="modal-overlay" id="promiseModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3>新增承诺 / 待办</h3><button class="icon-btn" id="promiseClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button></div>
+      <form id="promiseForm">
+        <div class="field-row">
+          <label class="field"><span>谁答应</span><select name="side"><option>对方</option><option>我</option></select></label>
+          <label class="field"><span>截止日期</span><input name="due" type="date"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>优先级</span><select name="priority"><option>P0</option><option selected>P1</option><option>P2</option><option>P3</option></select></label>
+          <label class="field"><span>状态</span><select name="status"><option>未开始</option><option>进行中</option><option>已完成</option><option>已取消</option></select></label>
+        </div>
+        <label class="field"><span>承诺事项</span><input name="what" maxlength="40" placeholder="例：帮我内推其公司后端岗" required></label>
+        <label class="field"><span>跟进记录</span><input name="note" maxlength="40" placeholder="选填"></label>
+        <label class="check-line"><input type="checkbox" name="pushTodo" checked><span>同时加入「待办提醒」（可按人物筛选、日历可见）</span></label>
+        <button class="btn primary full" type="submit">保存</button>
+        <p class="login-error" id="promiseError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 人情记账弹窗 -->
+  <div class="modal-overlay" id="moneyModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3>记一笔人情账</h3><button class="icon-btn" id="moneyClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button></div>
+      <form id="moneyForm">
+        <div class="field-row">
+          <label class="field"><span>类型</span><select name="type"><option value="gift_out">送出</option><option value="gift_in">收到</option><option value="lend">借出</option><option value="repay">还款</option><option value="aa">AA 结算</option></select></label>
+          <label class="field"><span>金额</span><input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></label>
+        </div>
+        <label class="field"><span>日期</span><input name="date" type="date" required></label>
+        <label class="field"><span>备注</span><input name="note" maxlength="30" placeholder="选填，例：生日礼物"></label>
+        <div class="note info">🔗 保存后会写入「我的账本」（分类：人情 / 借还款），账本中可按 <b>@姓名</b> 反查。</div>
+        <button class="btn primary full" type="submit">保存</button>
+        <p class="login-error" id="moneyError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 人物关联弹窗 -->
+  <div class="modal-overlay" id="relModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="relModalTitle">添加人物关联</h3><button class="icon-btn" id="relClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button></div>
+      <form id="relForm">
+        <label class="field"><span>姓名</span><input name="name" maxlength="20" placeholder="例：陈小雨" required></label>
+        <div class="field-row">
+          <label class="field"><span>称谓 / 关系</span><select name="kin" id="relKinSel"></select></label>
+          <label class="field"><span>关联到联系人</span><select name="refId" id="relRefSel"></select></label>
+        </div>
+        <label class="field"><span>备注说明</span><input name="note" maxlength="30" placeholder="选填，例：退休在家，每天晨练"></label>
+        <div class="note info">💡 选择「已在联系人中」的人物后，卡片姓名前会显示 <b>🔗</b>，点击即可跳转查看其完整档案。</div>
+        <div class="settings-actions" style="gap:10px">
+          <button class="btn ghost danger" id="relDelete" type="button" hidden>删除</button>
+          <button class="btn primary" type="submit" style="flex:0 0 auto">保存</button>
+        </div>
+        <p class="login-error" id="relError" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 通用处理弹窗（删除/弃用/取消 三选一） -->
+  <div class="modal-overlay" id="handleModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="handleTitle">处理</h3><button class="icon-btn" id="handleClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button></div>
+      <div id="handleBody"></div>
+      <div class="settings-actions" style="margin-top:16px;gap:10px">
+        <button class="btn ghost" id="handleCancel" type="button">放弃操作</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <!-- 新增/编辑日程弹窗 -->
@@ -488,7 +652,7 @@
         </div>
         <div class="field-row">
           <label class="field"><span>清单</span><select name="list" id="todoListSel"></select></label>
-          <label class="field"><span>提醒</span><label class="check-line" style="margin:0"><input type="checkbox" name="remind"><span>需要邮件提醒</span></label></label>
+          <label class="field"><span>提醒</span><label class="check-line" style="margin:0"><input type="checkbox" name="remind"><span>到点提醒（通知）</span></label></label>
         </div>
         <label class="field"><span>优先级</span>
           <div class="prio-picker" id="prioPicker">
@@ -530,6 +694,7 @@
   </div>
 
   <script src="./js/lunar.js"></script>
+  <script src="./js/profile.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>

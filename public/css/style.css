@@ -181,6 +181,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .icon-btn{width:32px;height:32px;flex:0 0 auto;border:0;border-radius:9px;background:transparent;color:var(--muted);display:grid;place-items:center}
 .icon-btn:hover{background:rgba(0,0,0,.05);color:var(--ink)}
 .icon-btn.del:hover{background:#fbe9e6;color:var(--red)}
+.icon-btn.alarm:hover{background:#fff4e0;color:#b65f42}
 .icon-btn svg{width:18px;height:18px}
 
 /* 热力图 */
@@ -349,6 +350,110 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .contact-badge{padding:1px 7px;border-radius:999px;background:var(--sage-soft);color:var(--sage);font-weight:600}
 .contact-badge.cal{background:var(--terra-soft);color:var(--terra)}
 .contact-phone{font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* ===== 人物档案（v0.3.1） ===== */
+.rel-search{display:flex;gap:9px;margin-bottom:12px}
+.rel-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:14px;background:#fffdfa;border:1px solid var(--line);border-radius:13px;margin-bottom:12px}
+.filter-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.filter-chips:empty{display:none}
+.tf-chip.deprecated{background:#b9b0a4;text-decoration:line-through}
+
+/* 档案头部 */
+.pf-hero{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--plum);color:#fff;border-radius:var(--radius);padding:22px;margin-bottom:20px}
+.pf-hero-av{width:68px;height:68px;border-radius:20px;background:rgba(255,255,255,.18);display:grid;place-items:center;font:700 27px/1 serif;flex:0 0 auto}
+.pf-hero h2{font:700 24px/1.2 "Songti SC",serif;margin:0 0 8px}
+.pf-hero h2 small{font-size:13px;opacity:.72;font-weight:400}
+.pf-hero-tags{display:flex;gap:6px;flex-wrap:wrap}
+.pf-hero-tags .contact-badge{background:rgba(255,255,255,.17);color:#fff}
+
+/* 完整度环 */
+.pf-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+.pf-ring{width:96px;height:96px;flex:0 0 auto;position:relative}
+.pf-ring svg{width:100%;height:100%}
+.pf-ring span{position:absolute;inset:0;display:grid;place-items:center;font:700 20px/1 "Songti SC",serif}
+.pf-info{min-width:0;flex:1}
+.pf-info b{font-size:14px}
+.cloud{display:flex;gap:7px;flex-wrap:wrap}
+.cloud:empty{display:none}
+.rel-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px}
+.rel-two .panel{margin-bottom:0}
+
+/* 可跳转标记：姓名前的小链环 */
+.link-mark{display:inline-block;font-style:normal;font-size:11px;margin-right:4px;vertical-align:1px;opacity:.8;cursor:pointer}
+.link-mark:hover{opacity:1}
+
+/* 模块导航 */
+.tf-chips .tf-chip{white-space:nowrap}
+
+/* 表单 */
+.field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:13px}
+.field-divider{display:flex;align-items:baseline;gap:10px;margin:20px 0 12px;padding-top:15px;border-top:1px dashed var(--line)}
+.field-divider b{font-size:13px;white-space:nowrap}
+.field-divider span{font-size:11px;color:var(--muted)}
+.form-actions{display:flex;gap:10px;margin-top:18px}
+.more-btn{display:flex;align-items:center;gap:7px;width:100%;padding:11px;border-radius:12px;background:#fffdfa;border:1px dashed var(--line);color:var(--muted);font-size:12.5px;font-weight:700;margin-top:14px}
+.more-btn:hover{border-color:var(--plum);color:var(--plum)}
+.more-btn svg{transition:.2s}
+.more-btn.open svg{transform:rotate(180deg)}
+.rep-box{border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:13px;background:#fffdfa}
+.rep-h{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.rep-h b{font-size:13px;flex:1}
+
+/* 词库 */
+.pf-vocab{margin-bottom:16px}
+.pf-vocab-l{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:7px}
+.vocab{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:9px 11px;background:var(--sand-soft);border-radius:11px;border:1px dashed #d8c49a;margin-top:9px}
+.vocab-l{font-size:10.5px;color:#8a6d33;font-weight:700;flex:0 0 auto}
+.vc{font-size:11.5px;padding:3px 11px;border-radius:999px;background:#fffdfa;color:#6b5326;font-weight:600;border:1px solid #ddd0b4}
+.vc:hover{background:var(--sand);color:#fff;border-color:var(--sand)}
+.tf-chip .x{color:rgba(255,255,255,.72);font-size:14px;line-height:1;padding:0 0 0 5px}
+.tf-chip .x:hover{color:#fff}
+
+/* 公历↔农历生日 */
+.bday-box{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--sage-soft);border-radius:14px;padding:14px 16px;margin:14px 0}
+.bday-box>div{display:flex;flex-direction:column;gap:2px}
+.bday-box b{font-size:17px}
+.bday-box>div:nth-child(3) b{color:var(--terra)}
+.bday-box .off b,.bday-box .off small{color:#a9a196}
+.bb-l{font-size:10.5px;color:var(--muted);font-weight:700}
+.bday-box small{font-size:10.5px;color:var(--muted)}
+.bb-arrow{font-size:17px;color:var(--muted)}
+
+/* 互动记录 */
+.tl-box{display:flex;flex-direction:column;gap:11px}
+.tl-row{border:1px solid var(--line);border-radius:13px;padding:12px 14px;background:#fffdfa}
+.tl-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.tl-h b{font-size:13.5px}
+.tl-h span{font-size:11px;color:var(--muted)}
+.tl-m{font-size:11px;color:var(--muted);margin-top:4px}
+.tl-s{font-size:12.5px;margin-top:7px;color:#4a443c}
+
+/* 人情余额条 */
+.money-bar{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;margin-bottom:12px}
+.money-bar .money{padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:#fffdfa}
+.money-bar span{font-size:11px;color:var(--muted);display:block}
+.money-bar b{font:700 20px/1.2 inherit;display:block;margin-top:4px}
+
+/* 附件 */
+.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:11px;margin-bottom:13px}
+.file-box{position:relative;border:1px dashed var(--line);border-radius:13px;padding:14px;text-align:center;color:var(--muted);background:#fffdfa;cursor:pointer}
+.file-box:hover{border-color:var(--plum);color:var(--plum)}
+.file-box svg{width:25px;height:25px;margin:0 auto;display:block}
+.file-box b{display:block;font-size:12px;color:var(--ink);margin-top:6px;word-break:break-all}
+.file-box small{font-size:10px}
+.file-box .r2-path{font-size:9px;margin-top:5px;word-break:break-all}
+.file-box .icon-btn{position:absolute;top:6px;right:6px;width:24px;height:24px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:26px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
+.drop:hover{border-color:var(--plum);color:var(--plum)}
+.r2-path{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);background:#f5f1e9;padding:2px 7px;border-radius:6px;word-break:break-all}
+
+/* 三选项处理 */
+.handle-opts{display:flex;flex-direction:column;gap:9px}
+.handle-opt{display:flex;flex-direction:column;gap:3px;width:100%;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fffdfa;text-align:left}
+.handle-opt:hover{border-color:var(--plum);background:var(--plum-soft)}
+.handle-opt b{font-size:13.5px}
+.handle-opt small{font-size:11.5px;color:var(--muted);line-height:1.5}
+.handle-opt.cancel:hover{background:#f5f1e9}
 
 /* 个人中心子页（入口为侧栏/移动端子菜单，无顶部页签） */
 .profile-page{display:none}

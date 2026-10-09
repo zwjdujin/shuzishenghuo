@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.3.0
-const VERSION = '0.3.0';
+// 数字生活 · 前端逻辑 v0.3.1
+const VERSION = '0.3.1';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = '待更新 · 提交 71a49ac';
 const __BUILD_TIME__ = '2026-10-09 14:15';
@@ -137,6 +137,8 @@ async function boot() {
       $('#loginOverlay').hidden = true;
       $('#appShell').hidden = false;
       await loadHome();
+      maybeNotifyTodos();
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeNotifyTodos(); });
     } else {
       showLogin();
     }
@@ -706,6 +708,14 @@ async function renderTodos() {
       }
       row.querySelector('.todo-check').addEventListener('click', () => finishTodo(t.id));
       row.querySelector('.del').addEventListener('click', () => removeTodo(t.id, t.title));
+      if (t.time) {
+        const al = document.createElement('button');
+        al.className = 'icon-btn alarm';
+        al.title = '设为系统闹钟';
+        al.innerHTML = '<svg><use href="#i-clock"/></svg>';
+        al.addEventListener('click', () => setSystemAlarm(t));
+        row.querySelector('.del').before(al);
+      }
       box.appendChild(row);
     });
     markSynced();
@@ -758,6 +768,80 @@ async function removeTodo(id, title) {
     const res = await api(`/api/todos/${id}/delete`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); await renderTodos(); }
   } catch { /* 401 已处理 */ }
+}
+
+// ===== 通知与提醒 =====
+// A 打开即提醒：本地通知汇总今日/逾期待办
+// B Web Push：订阅 + 后台到点推送
+// C 系统闹钟：Android intent 深链拉起系统时钟（best-effort）
+const NOTIFY_KEY = 'szsh_todo_notify';
+function nowHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+// A：打开 APP 时若有到期/逾期待办，弹一条本地通知
+async function maybeNotifyTodos() {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (localStorage.getItem(NOTIFY_KEY) !== '1') return;
+    const res = await api('/api/todos?scope=today');
+    const data = await res.json();
+    const list = (data.todos || []).filter((t) => !t.done);
+    if (!list.length) return;
+    const due = list.filter((t) => t.overdue || (t.time && t.time <= nowHHMM()));
+    if (!due.length) return;
+    const body = due.slice(0, 6).map((t) => (t.time ? t.time + ' ' : '') + t.title).join('\n') +
+      (due.length > 6 ? `\n…等 ${due.length} 项` : '');
+    const title = `待办 ${due.length} 项${list.some((t) => t.overdue) ? '（含逾期）' : ''}`;
+    const opts = { body, icon: './icons/icon-512.png', tag: 'szsh-daily', renotify: true };
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg && reg.showNotification) reg.showNotification(title, opts);
+    else new Notification(title, opts);
+  } catch (_) { /* 通知失败不影响主流程 */ }
+}
+// A：开启通知（请求权限 + 记住偏好 + 尝试订阅 Push）
+async function enableTodoNotify() {
+  if (!('Notification' in window)) { toast('当前环境不支持通知'); return; }
+  let p = Notification.permission;
+  if (p === 'default') p = await Notification.requestPermission();
+  if (p === 'granted') {
+    localStorage.setItem(NOTIFY_KEY, '1');
+    toast('已开启待办通知');
+    await subscribePush();
+    maybeNotifyTodos();
+  } else {
+    toast('通知权限被拒绝，请在浏览器/系统设置中开启');
+  }
+}
+// B：订阅 Web Push（VAPID 由后端 /api/push/vapid 提供；失败静默）
+async function subscribePush() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    if (Notification.permission !== 'granted') return false;
+    const vres = await fetch('/api/push/vapid');
+    if (!vres.ok) return false;
+    const { publicKey } = await vres.json();
+    if (!publicKey) return false;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: publicKey });
+    await api('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    });
+    return true;
+  } catch (_) { return false; }
+}
+// C：系统闹钟深链（拉起系统时钟 App 预填闹钟；机型差异大，属 best-effort）
+function setSystemAlarm(t) {
+  if (!t.time) { toast('该待办没有设定时间'); return; }
+  const [h, m] = t.time.split(':').map(Number);
+  const msg = encodeURIComponent(t.title || '数字生活待办');
+  const uri = 'intent://#Intent;action=android.intent.action.SET_ALARM;package=com.android.deskclock;' +
+    `S.android.intent.extra.alarm.MESSAGE=${msg};` +
+    `i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};end`;
+  toast('正在拉起系统时钟…');
+  window.location.href = uri;
 }
 
 // ===== 我的账本 =====
@@ -984,7 +1068,7 @@ function switchView(name, opts = {}) {
   if (name === 'calendar') loadCalEvents();
   if (name === 'todos') renderTodos();
   if (name === 'ledger') renderLedger();
-  if (name === 'relations') renderContacts();
+  if (name === 'relations') { if (window.pfLoadList) pfLoadList(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
@@ -1742,6 +1826,7 @@ $('#addTodoBtn').addEventListener('click', () => {
   $('#todoFormError').hidden = true;
   $('#todoModal').hidden = false;
 });
+$('#enableNotifyBtn').addEventListener('click', enableTodoNotify);
 $('#todoModalClose').addEventListener('click', () => { $('#todoModal').hidden = true; });
 $('#todoModal').addEventListener('click', (e) => { if (e.target === $('#todoModal')) $('#todoModal').hidden = true; });
 $('#todoForm').addEventListener('submit', async (e) => {
@@ -1813,7 +1898,7 @@ $('#contactDeleteBtn').addEventListener('click', async () => {
   if (!editingContactId) return;
   if (!confirm('确定删除该联系人？')) return;
   const res = await api(`/api/contacts/${editingContactId}`, { method: 'DELETE' }).catch(() => null);
-  if (res && res.ok) { closeContactModal(); toast('已删除'); markSynced(); renderContacts(); }
+  if (res && res.ok) { closeContactModal(); toast('已删除'); markSynced(); pfLoadList(); }
 });
 $('#contactForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1837,7 +1922,7 @@ $('#contactForm').addEventListener('submit', async (e) => {
       closeContactModal();
       toast(editingContactId ? '已更新' : '已添加联系人');
       markSynced();
-      renderContacts();
+      pfLoadList();
     }
   } catch { /* 401 已处理 */ }
 });
@@ -1846,5 +1931,8 @@ $('#contactForm').addEventListener('submit', async (e) => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./js/sw.js').catch(() => {}));
 }
+
+// 人物档案模块（v0.3.1）事件绑定
+if (window.pfBindEvents) window.pfBindEvents();
 
 boot();
