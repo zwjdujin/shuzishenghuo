@@ -6,7 +6,7 @@ const DEFAULTS = {
   brand_name: '数字生活',
   brand_avatar: '数',
   brand_tagline: '把日子过成自己喜欢的样子',
-  theme: 'plum',
+  theme: 'zhiyin',
 };
 
 // GET /api/settings —— 读取当前设置

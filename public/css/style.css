@@ -5,9 +5,9 @@
   --t-day-paper:#f8f3f2;--t-day-side:#f1e5e6;--t-day-ink:#33141a;--t-day-muted:#6f575c;
   --t-day-line:#ecdcdd;--t-day-deep:#7b2330;
   /* 夜间色板 */
-  --t-night-plum:#dd93a2;--t-night-accent:#e5a8b5;--t-night-soft:#281418;--t-night-card:#1b0f12;
+  --t-night-plum:#ce5463;--t-night-accent:#d4667a;--t-night-soft:#281418;--t-night-card:#1b0f12;
   --t-night-paper:#130b0d;--t-night-side:#0c0709;--t-night-ink:#f2e8ea;--t-night-muted:#a8949a;
-  --t-night-line:#3a2428;--t-night-deep:#e5a8b5;
+  --t-night-line:#3a2428;--t-night-deep:#d4667a;
   /* 实际生效变量：日间为默认，夜间由 html[data-mode="night"] 覆盖 */
   --paper:var(--t-day-paper);--card:var(--t-day-card);--ink:var(--t-day-ink);
   --muted:var(--t-day-muted);--line:var(--t-day-line);--side:var(--t-day-side);
@@ -288,10 +288,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .hm-tip{margin:12px 0 0;font-size:11px;color:var(--muted)}
 
 /* 侧栏底部「个人中心」 */
-.side-bottom-wrap{position:relative;margin-top:14px;padding-top:14px;border-top:1px solid rgba(104,87,68,.12)}
+.side-bottom-wrap{position:relative;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 /* 用 box-sizing 保持 44px 高度不因 border/padding 被撑变，文字才能真正垂直居中 */
-.side-bottom{margin-top:0;border-top:0;padding-top:0;color:#5e574e;display:flex;align-items:center;justify-content:flex-start;gap:12px;height:44px;padding:0 13px;box-sizing:border-box}
-.side-bottom:hover{background:rgba(255,255,255,.48);color:var(--ink)}
+.side-bottom{margin-top:0;border-top:0;padding-top:0;color:var(--muted);display:flex;align-items:center;justify-content:flex-start;gap:12px;height:44px;padding:0 13px;box-sizing:border-box}
+.side-bottom:hover{background:var(--plum-soft);color:var(--ink)}
 
 /* 个人中心弹子菜单 */
 .profile-popover{position:absolute;left:0;right:0;bottom:calc(100% - 8px);z-index:30;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
@@ -698,38 +698,58 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .handle-opt small{font-size:11.5px;color:var(--muted);line-height:1.5}
 .handle-opt.cancel:hover{background:#f5f1e9}
 
-/* ===== 日夜模式 / 字体 / 国色主题（v0.3.4） ===== */
-.mode-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
-.mode-opt{display:flex;flex-direction:column;gap:3px;padding:13px 15px;border:1px solid var(--line);border-radius:13px;background:#fffdfa;cursor:pointer;transition:.15s}
-.mode-opt:hover{border-color:var(--plum)}
-.mode-opt input{margin:0 0 4px;accent-color:var(--plum)}
-.mode-opt b{font-size:13.5px}
-.mode-opt small{font-size:11px;color:var(--muted)}
-.mode-opt:has(input:checked){border-color:var(--plum);background:var(--plum-soft)}
+/* ===== 主题风格页（v0.3.8 全新设计：外观模式 + 国色主题 + 界面字体） ===== */
+.ts-badge{flex:0 0 auto;padding:4px 11px;border-radius:999px;background:var(--plum-soft);color:var(--plum);font-size:11.5px;font-weight:700}
+.ts-hint{margin:12px 0 0;font-size:12.5px;color:var(--muted);line-height:1.65}
 
-.font-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:11px}
-.font-opt{display:flex;flex-direction:column;gap:4px;padding:15px 16px;border:1px solid var(--line);border-radius:14px;background:#fffdfa;text-align:left;transition:.15s}
-.font-opt:hover{border-color:var(--plum);box-shadow:var(--shadow)}
-.font-opt.on{border-color:var(--plum);background:var(--plum-soft);box-shadow:0 0 0 2px var(--plum-soft)}
-.fo-name{font-size:19px;font-weight:600;line-height:1.3}
-.fo-note{font-size:11px;color:var(--muted)}
+/* 外观模式：三段式控件 */
+.ts-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ts-seg-item{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 8px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--muted);transition:.18s}
+.ts-seg-item svg{width:22px;height:22px}
+.ts-seg-item b{font-size:14px;color:var(--ink)}
+.ts-seg-item small{font-size:11px;line-height:1.3;text-align:center}
+.ts-seg-item:hover{border-color:var(--plum);color:var(--plum)}
+.ts-seg-item.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.ts-seg-item.on b{color:#fff}
+.ts-seg-item.on small{color:rgba(255,255,255,.8)}
 
-.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
-/* 方案A：横向模块缩略图卡片（顶栏 / 内容 / 按钮 三段） */
-.thm{border:1px solid var(--line);border-radius:15px;overflow:hidden;background:var(--card);padding:0;cursor:pointer;transition:.18s;display:flex;flex-direction:column;text-align:left}
-.thm:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.13)}
-.thm.on{border-color:var(--plum);box-shadow:0 0 0 2px var(--plum-soft),0 0 0 3px var(--plum)}
-.thm-nav{display:flex;align-items:center;gap:5px;padding:0 10px;height:30px}
-.thm-nav i{width:9px;height:9px;border-radius:3px;display:block;flex:0 0 auto}
-.thm-nav em{margin-left:auto;font-style:normal;font-size:10px;color:var(--muted)}
-.thm-body{display:block;padding:11px 12px;flex:1}
-.thm-body b{display:block;font-size:13.5px;font-weight:700;margin-bottom:8px}
-.thm-body u{display:block;height:7px;border-radius:4px;text-decoration:none;opacity:.16;margin-bottom:5px}
-.thm-body u.s{width:58%}
-.thm-body q{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;text-decoration:none}
-.thm-foot{display:flex;gap:6px;align-items:center;padding:9px 12px}
-.thm-foot i{flex:1;height:27px;border-radius:8px;font-style:normal;font-size:10.5px;font-weight:700;display:grid;place-items:center;border:1px solid transparent}
-.thm-foot i.sub{background:transparent!important}
+/* 当前配色：日间 / 夜间 对照预览 */
+.ts-preview{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 18px}
+.tsp{border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.tsp-tag{display:block;padding:6px 12px;font-size:11px;font-weight:700;letter-spacing:.1em}
+.tsp-card{padding:14px}
+.tsp-card b{display:block;font-size:15px;font-weight:700}
+.tsp-card p{margin:6px 0 11px;font-size:12px}
+.tsp-row{display:flex;align-items:center;gap:8px}
+.tsp-dot{width:22px;height:22px;border-radius:50%;flex:0 0 auto}
+.tsp-bar{flex:1;min-width:0;height:26px;border-radius:13px;font-style:normal;font-size:11.5px;font-weight:700;display:grid;place-items:center}
+
+/* 国色配色卡片 */
+.ts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(134px,1fr));gap:12px}
+.tc{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:left;transition:.18s}
+.tc:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(0,0,0,.1)}
+.tc.on{border-color:var(--plum);box-shadow:0 0 0 2px var(--plum-soft),0 0 0 3px var(--plum)}
+.tc-swatch{position:relative;height:52px;border-radius:11px;display:grid;place-items:center}
+.tc-ck{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.95);color:#22282e;display:grid;place-items:center;opacity:0;transform:scale(.7);transition:.18s}
+.tc.on .tc-ck{opacity:1;transform:scale(1)}
+.tc-ck svg{width:14px;height:14px;stroke-width:2.6}
+.tc-name{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.2}
+.tc-hex{font-size:11px;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace!important;letter-spacing:.02em}
+.tc-duo{display:flex;gap:5px}
+.tc-duo i{flex:1;height:8px;border-radius:4px;display:block}
+
+/* 界面字体选项 */
+.ts-fonts{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:12px}
+.tf{display:flex;align-items:center;gap:14px;padding:15px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:left;transition:.18s}
+.tf:hover{border-color:var(--plum)}
+.tf.on{border-color:var(--plum);box-shadow:0 0 0 2px var(--plum-soft)}
+.tf-spec{flex:0 0 auto;width:58px;height:58px;display:grid;place-items:center;border-radius:15px;background:var(--plum-soft);color:var(--plum);font-size:25px;line-height:1}
+.tf-meta{flex:1;min-width:0}
+.tf-meta b{display:block;font-size:15px;font-weight:700;color:var(--ink)}
+.tf-meta small{display:block;margin-top:3px;font-size:11.5px;color:var(--muted);line-height:1.5}
+.tf-check{flex:0 0 auto;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;color:transparent}
+.tf.on .tf-check{background:var(--plum);border-color:var(--plum);color:#fff}
+.tf-check svg{width:13px;height:13px}
 
 /* 个人中心子页（入口为侧栏/移动端子菜单，无顶部页签） */
 .profile-page{display:none}
@@ -737,9 +757,8 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 
 /* 设置页 */
 .settings-actions{display:flex;justify-content:flex-end;margin-top:14px}
-.btn.danger{color:var(--red);border-color:#ecc9c4;background:#fffdfa}
-.btn.danger:hover{background:#fdf3f1}
-.theme-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
+.btn.danger{color:var(--red);border-color:color-mix(in srgb,var(--red) 40%,var(--line));background:var(--card)}
+.btn.danger:hover{background:color-mix(in srgb,var(--red) 10%,var(--card))}
 
 /* 设备列表 */
 .device-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
@@ -890,6 +909,11 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
   .mobile-nav>button svg{width:21px;height:21px}
   .mobile-nav>button.active{background:var(--plum);color:#fff}
   .login-card{padding:28px 22px}
+  /* 主题风格页：手机端两列色卡、日夜预览上下堆叠 */
+  .ts-preview{grid-template-columns:1fr}
+  .ts-grid{grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px}
+  .ts-fonts{grid-template-columns:1fr}
+  .ts-seg-item{padding:13px 6px}
 }
 @media(max-width:560px){
   body{font-size:14px}

@@ -41,6 +41,8 @@
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.4 0 2-.9 2-1.8 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.9-4-8-9-8Z"/><circle cx="7.5" cy="12" r="1.2"/><circle cx="10.5" cy="7.8" r="1.2"/><circle cx="15.5" cy="8.6" r="1.2"/></symbol>
   </svg>
 
   <!-- 登录遮罩 -->
@@ -86,7 +88,7 @@
         <button class="nav-item side-bottom" id="profileBtn" type="button"><svg><use href="#i-settings"/></svg><span>个人中心</span></button>
         <div class="profile-popover" id="profilePopover" hidden>
           <button class="pp-item" data-ptab="site"><svg><use href="#i-home"/></svg><span>站点信息</span></button>
-          <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>风格字体</span></button>
+          <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>主题风格</span></button>
           <button class="pp-item" data-ptab="security"><svg><use href="#i-people"/></svg><span>账户安全</span></button>
           <button class="pp-item" data-ptab="sysinfo"><svg><use href="#i-chart"/></svg><span>系统信息</span></button>
         </div>
@@ -467,27 +469,34 @@
           </article>
         </div>
 
-        <!-- 子页：风格字体 -->
+        <!-- 子页：主题风格（v0.3.8 全新设计） -->
         <div class="profile-page" id="page-style">
+          <!-- ① 外观模式 -->
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">外观</p><h2>日夜模式</h2></div></div>
-            <div class="mode-opts" id="modeOpts">
-              <label class="mode-opt"><input type="radio" name="uiMode" value="light"><b>日间模式</b><small>始终使用浅色</small></label>
-              <label class="mode-opt"><input type="radio" name="uiMode" value="night"><b>夜间模式</b><small>始终使用深色</small></label>
-              <label class="mode-opt"><input type="radio" name="uiMode" value="auto"><b>跟随日出日落</b><small>自动按当地日出日落切换</small></label>
+            <div class="panel-head"><div><p class="eyebrow">明暗</p><h2>外观模式</h2></div>
+              <span class="ts-badge" id="modeNow">日间</span></div>
+            <div class="ts-seg" id="modeSeg">
+              <button type="button" class="ts-seg-item" data-mode="light"><svg><use href="#i-sun"/></svg><b>日间</b><small>始终浅色</small></button>
+              <button type="button" class="ts-seg-item" data-mode="night"><svg><use href="#i-moon"/></svg><b>夜间</b><small>始终深色</small></button>
+              <button type="button" class="ts-seg-item" data-mode="auto"><svg><use href="#i-clock"/></svg><b>自动</b><small>跟随日出日落</small></button>
             </div>
-            <p class="muted" id="modeTip" style="margin-top:10px"></p>
+            <p class="ts-hint" id="modeTip"></p>
           </article>
+
+          <!-- ② 主题配色 -->
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">字体</p><h2>界面字体</h2></div></div>
-            <div class="font-opts" id="fontOpts"></div>
-            <p class="muted" style="margin-top:10px">霞鹜文楷采用 OFL 开源协议，可免费商用；临海隶书在未安装该字体的设备上会自动回退。</p>
+            <div class="panel-head"><div><p class="eyebrow">国色</p><h2>主题配色</h2></div>
+              <span class="ts-badge" id="themeCount"></span></div>
+            <p class="ts-hint">18 款取自中国传统色的配色，每一款都配有日间与夜间两套色板，切换明暗模式时自动跟随，无需重新挑选。</p>
+            <div class="ts-preview" id="themePreview"></div>
+            <div class="ts-grid" id="themeGrid"></div>
           </article>
+
+          <!-- ③ 界面字体 -->
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">风格</p><h2>主题配色</h2></div>
-              <span class="muted" id="themeCount"></span></div>
-            <p class="muted">每张卡片是一个模块缩略图：顶栏=主色、内容=卡面色、标签=突显色、按钮=主色与描边。点击即应用到整个界面。</p>
-            <div class="theme-grid" id="themeGrid"></div>
+            <div class="panel-head"><div><p class="eyebrow">字形</p><h2>界面字体</h2></div></div>
+            <div class="ts-fonts" id="fontOpts"></div>
+            <p class="ts-hint">霞鹜文楷采用 OFL 开源协议，可免费商用；选定后立即在全站范围内生效。</p>
           </article>
         </div>
 
@@ -534,7 +543,7 @@
       <button id="profileBtnMobile" data-nav="settings" type="button"><svg><use href="#i-settings"/></svg><span>我的</span></button>
       <div class="profile-popover mnav-popover" id="profilePopoverMobile" hidden>
         <button class="pp-item" data-ptab="site"><svg><use href="#i-home"/></svg><span>站点信息</span></button>
-        <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>风格字体</span></button>
+        <button class="pp-item" data-ptab="style"><svg><use href="#i-palette"/></svg><span>主题风格</span></button>
         <button class="pp-item" data-ptab="security"><svg><use href="#i-people"/></svg><span>账户安全</span></button>
         <button class="pp-item" data-ptab="sysinfo"><svg><use href="#i-chart"/></svg><span>系统信息</span></button>
       </div>
