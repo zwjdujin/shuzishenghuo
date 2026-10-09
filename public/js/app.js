@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.3.6
-const VERSION = '0.3.6';
+// 数字生活 · 前端逻辑 v0.3.7
+const VERSION = '0.3.7';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '待更新 · 提交 71a49ac';
-const __BUILD_TIME__ = '2026-10-09 14:15';
+const __BUILD_ID__ = '家庭药箱 v0.3.7 · 待提交';
+const __BUILD_TIME__ = '2026-10-09 20:10';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -55,42 +55,39 @@ async function api(path, opts = {}) {
 // ===== 主题配色 =====
 // 18 种中国传统色（主色 + 浅色背景），数据源 https://api.dujin.org/colors/cn-colors/
 const THEMES = {
-  plum:    { base:'#4d3045', soft:'#4F3247', ink:'#362230', label:'绛紫' },
-  terra:   { base:'#b65f42', soft:'#B76044', ink:'#7F422E', label:'赤陶' },
-  sage:    { base:'#627a67', soft:'#637B68', ink:'#455548', label:'青绿' },
-  sand:    { base:'#a57c45', soft:'#A67D47', ink:'#735730', label:'砂金' },
-  clay:    { base:'#8f4f3b', soft:'#90513D', ink:'#643729', label:'陶土' },
-  yanzhi:  { base:'#952E3A', soft:'#96303C', ink:'#682029', label:'胭脂' },
-  qdhl:    { base:'#B80233', soft:'#B90435', ink:'#810124', label:'牡丹红' },
-  yxht:    { base:'#C43739', soft:'#C5393B', ink:'#892628', label:'殷红' },
-  zll:     { base:'#732E7E', soft:'#74307F', ink:'#502058', label:'紫罗蓝' },
-  ldzi:    { base:'#423171', soft:'#443372', ink:'#2E224F', label:'龙胆紫' },
-  qnz:     { base:'#A22076', soft:'#A32277', ink:'#711653', label:'牵牛紫' },
-  xz:      { base:'#79485A', soft:'#7A4A5B', ink:'#55323F', label:'雪紫' },
-  cng:     { base:'#4E5F45', soft:'#506047', ink:'#374230', label:'苍绿' },
-  ywl:     { base:'#006E5F', soft:'#026F60', ink:'#004D42', label:'翠绿' },
-  lili:    { base:'#4F7E57', soft:'#517F58', ink:'#37583D', label:'琉璃绿' },
-  molv:    { base:'#3F5B50', soft:'#415C52', ink:'#2C4038', label:'墨绿' },
-  jhuang:  { base:'#C77A3A', soft:'#C77B3C', ink:'#8B5529', label:'金黄' },
-  xiah:    { base:'#E1A14D', soft:'#E1A24F', ink:'#9E7136', label:'虾黄' },
-  tuhuang: { base:'#CE9335', soft:'#CE9437', ink:'#906725', label:'土黄' },
-  liliu:   { base:'#1A638A', soft:'#1C648B', ink:'#124561', label:'琉璃蓝' },
-  yushi:   { base:'#507883', soft:'#527984', ink:'#38545C', label:'玉石蓝' },
-  gulan:   { base:'#6493AF', soft:'#6594B0', ink:'#46677A', label:'钴蓝' },
-  kongque: { base:'#168570', soft:'#188671', ink:'#0F5D4E', label:'孔雀绿' }
+  zhiyin:   { main:'#4d3045', accent:'#63455A', bg:'#F2EFF1', card:'#FBF9FA', ink:'#2B1F2C', on:'#FFFFFF', label:'绛紫' },
+  longdan:  { main:'#423171', accent:'#5A4790', bg:'#EFEEF5', card:'#F9F8FC', ink:'#231C3F', on:'#FFFFFF', label:'龙胆紫' },
+  ziluolan: { main:'#732E7E', accent:'#8A4A95', bg:'#F4EFF5', card:'#FBF8FC', ink:'#331636', on:'#FFFFFF', label:'紫罗蓝' },
+  zitao:    { main:'#722E41', accent:'#8A445A', bg:'#F4EFF1', card:'#FBF8FA', ink:'#331722', on:'#FFFFFF', label:'紫绦色' },
+  yanzhi:   { main:'#952E3A', accent:'#AC4552', bg:'#F7EFF0', card:'#FDFAFA', ink:'#3F161C', on:'#FFFFFF', label:'胭脂' },
+  mdh:      { main:'#B80233', accent:'#CB1B49', bg:'#FBEEF1', card:'#FEF9FA', ink:'#4C0819', on:'#FFFFFF', label:'牡丹红' },
+  yinhh:    { main:'#A4414F', accent:'#B95664', bg:'#F8EFF0', card:'#FDFAFA', ink:'#461A21', on:'#FFFFFF', label:'殷红' },
+  yinzhu:   { main:'#C15B5C', accent:'#CE7273', bg:'#FBF0EF', card:'#FEFBFB', ink:'#522525', on:'#FFFFFF', label:'银朱' },
+  cangh:    { main:'#C05206', accent:'#D06A1E', bg:'#FAF0E9', card:'#FDF9F5', ink:'#542203', on:'#FFFFFF', label:'苍黄' },
+  jinhuang: { main:'#C77A3A', accent:'#D28C4E', bg:'#F9F2EA', card:'#FDF9F4', ink:'#573415', on:'#FFFFFF', label:'金黄' },
+  tanxiang: { main:'#DC943B', accent:'#E5A355', bg:'#FBF3E9', card:'#FEFAF4', ink:'#5E3D14', on:'#FFFFFF', label:'檀香' },
+  cangl:    { main:'#4E5F45', accent:'#66765A', bg:'#EFF1ED', card:'#F9FAF8', ink:'#252D21', on:'#FFFFFF', label:'苍绿' },
+  cuilv:    { main:'#006E5F', accent:'#1C8071', bg:'#E9F2F0', card:'#F5FAF9', ink:'#03302A', on:'#FFFFFF', label:'翠绿' },
+  hulv:     { main:'#46817E', accent:'#5C9793', bg:'#ECF2F1', card:'#F7FAFA', ink:'#22403F', on:'#FFFFFF', label:'湖绿' },
+  maolv2:   { main:'#155461', accent:'#2A6C7B', bg:'#E9EFF1', card:'#F5F8F9', ink:'#0A2930', on:'#FFFFFF', label:'毛绿' },
+  yushil:   { main:'#507883', accent:'#688E98', bg:'#EDF1F2', card:'#F8FAFA', ink:'#263A3F', on:'#FFFFFF', label:'玉石蓝' },
+  liulil:   { main:'#1A638A', accent:'#2A779F', bg:'#EBF0F4', card:'#F6F9FB', ink:'#0C2E3F', on:'#FFFFFF', label:'琉璃蓝' },
+  gulan2:   { main:'#5F8FAC', accent:'#77A2BD', bg:'#EEF2F5', card:'#F9FAFB', ink:'#2E4351', on:'#FFFFFF', label:'钴蓝' }
 };
-let currentTheme = 'plum';
+let currentTheme = 'zhiyin';
 function applyTheme(name) {
-  const t = THEMES[name] || THEMES.plum;
-  currentTheme = name in THEMES ? name : 'plum';
+  const t = THEMES[name] || THEMES.zhiyin;
+  currentTheme = name in THEMES ? name : 'zhiyin';
   const root = document.documentElement;
-  // 三色体系：base=突显色 / soft=底色 / ink=字体色
-  root.style.setProperty('--plum', t.base);        // 突显色
-  root.style.setProperty('--plum-soft', t.soft);   // 底色（浅背景）
-  root.style.setProperty('--accent', t.base);      // 突显色别名
-  root.style.setProperty('--tint', t.soft);        // 底色别名
-  root.style.setProperty('--on-accent', t.ink);    // 字体色（在突显色上）
-  root.style.setProperty('--plum-deep', shade(t.base, -18));
+  // 六色体系：main主色 / accent突显色 / bg整体底色 / card卡面色 / ink字体色 / on反白字
+  root.style.setProperty('--plum', t.main);
+  root.style.setProperty('--plum-soft', t.bg);
+  root.style.setProperty('--accent', t.accent);
+  root.style.setProperty('--tint', t.bg);
+  root.style.setProperty('--card', t.card);
+  root.style.setProperty('--ink', t.ink);
+  root.style.setProperty('--on-accent', t.on);
+  root.style.setProperty('--plum-deep', shade(t.main, -18));
   try { localStorage.setItem('pf_theme', currentTheme); } catch (_) {}
 }
 
@@ -1218,6 +1215,7 @@ function switchView(name, opts = {}) {
   if (name === 'calendar') loadCalEvents();
   if (name === 'todos') renderTodos();
   if (name === 'ledger') renderLedger();
+  if (name === 'medicine' && window.medRenderMedicine) window.medRenderMedicine();
   if (name === 'relations') { if (window.pfLoadList) pfLoadList(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1602,30 +1600,36 @@ function buildThemeGrid() {
   const cnt = $('#themeCount');
   if (cnt) cnt.textContent = `共 ${Object.keys(THEMES).length} 种`;
 
-  // 不分组，平铺展示；每格展示 底色 / 突显色 / 字体色 三色条
-  const row = document.createElement('div');
-  row.className = 'theme-row';
+  // 方案A：横向卡片，每张是一个模块缩略图（顶栏/内容/按钮三段）
   Object.keys(THEMES).forEach((k) => {
     const t = THEMES[k];
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'theme-swatch' + (k === currentTheme ? ' active' : '');
-    b.title = `${t.label}｜突显 ${t.base}｜底色 ${t.soft}｜字体 ${t.ink}`;
-    b.innerHTML = `
-      <span class="ts-strip">
-        <i class="ts-soft" style="background:${t.soft}"></i>
-        <i class="ts-base" style="background:${t.base}"></i>
-        <i class="ts-ink" style="background:${t.ink}"></i>
-      </span>
-      <span class="ts-name" style="background:${t.base};color:${t.ink}">${t.label}</span>`;
-    b.addEventListener('click', () => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'thm' + (k === currentTheme ? ' on' : '');
+    card.title = `${t.label}｜主色 ${t.main}｜突显 ${t.accent}｜底色 ${t.bg}`;
+    card.innerHTML =
+      `<span class="thm-nav">` +
+        `<i style="background:${t.main}"></i>` +
+        `<i style="background:${t.accent}"></i>` +
+        `<em>导航</em>` +
+      `</span>` +
+      `<span class="thm-body" style="background:${t.card}">` +
+        `<b style="color:${t.ink}">${t.label}</b>` +
+        `<u style="background:${t.ink}"></u>` +
+        `<u class="s" style="background:${t.ink}"></u>` +
+        `<q style="background:${t.accent};color:${t.on}">突显</q>` +
+      `</span>` +
+      `<span class="thm-foot" style="background:${t.bg}">` +
+        `<i style="background:${t.main};color:${t.on}">主要</i>` +
+        `<i class="sub" style="border-color:${t.ink};color:${t.ink}">次要</i>` +
+      `</span>`;
+    card.addEventListener('click', () => {
       applyTheme(k);
       buildThemeGrid();
       toast('已应用配色：' + t.label);
     });
-    row.appendChild(b);
+    grid.appendChild(card);
   });
-  grid.appendChild(row);
 }
 
 async function renderSettings() {
@@ -2097,6 +2101,9 @@ if ('serviceWorker' in navigator) {
 
 // 人物档案模块（v0.3.1）事件绑定
 if (window.pfBindEvents) window.pfBindEvents();
+
+// 家庭药箱模块（v0.3.7）事件绑定
+if (window.medBindEvents) window.medBindEvents();
 
 // 恢复本地外观设置（主题 / 字体 / 日夜模式）
 (function restoreAppearance() {

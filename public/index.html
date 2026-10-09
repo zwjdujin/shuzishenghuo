@@ -39,6 +39,8 @@
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
   </svg>
 
   <!-- 登录遮罩 -->
@@ -235,7 +237,80 @@
           </article>
         </div>
       </section>
-      <section class="view" id="view-medicine" data-title="家庭药箱"><div class="coming-soon"><svg><use href="#i-pill"/></svg><h2>家庭药箱</h2><p>药品库存与有效期提醒模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
+      <!-- 家庭药箱（v0.3.7 录入 + 药品一览 + 临期 + 过期） -->
+      <section class="view" id="view-medicine" data-title="家庭药箱">
+        <div class="growth-head">
+          <div><p class="eyebrow">家庭药箱</p><h2>药品与效期管理</h2></div>
+          <div class="cal-actions">
+            <button class="btn ghost" id="medTipBtn" type="button"><svg><use href="#i-book"/></svg>用药常识</button>
+            <button class="btn primary" id="addMedBtn" type="button"><svg><use href="#i-plus"/></svg>录入药品</button>
+          </div>
+        </div>
+
+        <div class="ledger-stats med-stats" id="medStats"></div>
+
+        <article class="panel med-filter-panel">
+          <div class="tf-row">
+            <span class="tf-label">视图</span>
+            <div class="tf-chips" id="mfView">
+              <button class="tf-chip on" data-mf="all" type="button">全部</button>
+              <button class="tf-chip" data-mf="soon" type="button">临期</button>
+              <button class="tf-chip" data-mf="expired" type="button">过期</button>
+              <button class="tf-chip" data-mf="low" type="button">库存不足</button>
+            </div>
+          </div>
+          <div class="tf-row">
+            <span class="tf-label">分类</span>
+            <div class="tf-chips" id="mfCat"></div>
+          </div>
+          <div class="tf-row">
+            <span class="tf-label">搜索</span>
+            <input class="inp" id="medSearch" type="search" placeholder="按药名 / 功效 / 厂家搜索" style="max-width:320px">
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow" id="medListEyebrow">药品一览</p><h2 id="medListTitle">全部药品</h2></div>
+            <span class="muted" id="medCount"></span>
+          </div>
+          <div id="medList" class="med-stack"></div>
+        </article>
+
+        <article class="panel med-alert-panel soon">
+          <div class="panel-head">
+            <div><p class="eyebrow">临期提醒</p><h2>6 个月内到期</h2></div>
+            <span class="med-badge soon" id="medSoonBadge">0 种</span>
+          </div>
+          <p class="med-tip-line">临期药品建议尽快用完；拆封后稳定性下降的剂型（口服液、滴剂、糖浆）请优先处理。</p>
+          <div id="medSoonList" class="med-stack"></div>
+        </article>
+
+        <article class="panel med-alert-panel expired">
+          <div class="panel-head">
+            <div><p class="eyebrow">过期清理</p><h2>超过保质期</h2></div>
+            <span class="med-badge expired" id="medExpiredBadge">0 种</span>
+          </div>
+          <p class="med-tip-line">过期药品疗效已降低、成分可能变质，请勿服用，及时清理并送药店回收点处理。</p>
+          <div id="medExpiredList" class="med-stack"></div>
+        </article>
+
+        <div class="med-extra">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">效期分布</p><h2>按分类统计</h2></div></div>
+            <div id="medCatChart" class="med-cat-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">存放位置</p><h2>药箱分布</h2></div></div>
+            <div id="medLocList" class="med-loc-list"></div>
+          </article>
+        </div>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">常备清单</p><h2>家庭药箱建议</h2></div><span class="muted">仅供参考，具体用药请遵医嘱</span></div>
+          <div id="medChecklist" class="med-checklist"></div>
+        </article>
+      </section>
       <!-- 日历中心（v0.2.7 周历 + 月历 + 农历） -->
       <section class="view" id="view-calendar" data-title="日历中心">
         <div class="growth-head">
@@ -411,7 +486,7 @@
           <article class="panel">
             <div class="panel-head"><div><p class="eyebrow">风格</p><h2>主题配色</h2></div>
               <span class="muted" id="themeCount"></span></div>
-            <p class="muted">每种配色由 <b>底色</b>、<b>突显色</b>、<b>字体色</b> 三部分组成；色卡上方三色条即为预览，点击即应用。</p>
+            <p class="muted">每张卡片是一个模块缩略图：顶栏=主色、内容=卡面色、标签=突显色、按钮=主色与描边。点击即应用到整个界面。</p>
             <div class="theme-grid" id="themeGrid"></div>
           </article>
         </div>
@@ -721,8 +796,49 @@
     </div>
   </div>
 
+  <!-- 药品录入 / 编辑（v0.3.7 家庭药箱） -->
+  <div class="modal-overlay" id="medModal" hidden>
+    <div class="modal-card med-modal-card">
+      <div class="modal-head">
+        <h3 id="medModalTitle">录入药品</h3>
+        <button class="icon-btn" id="medModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <form id="medForm">
+        <label class="field"><span>药品名称 *</span><input name="name" maxlength="40" placeholder="例如：布洛芬缓释胶囊" required></label>
+        <label class="field"><span>功效（主治 / 作用）</span><input name="efficacy" maxlength="60" placeholder="例如：解热镇痛，用于头痛、牙痛及退热"></label>
+        <div class="field-row">
+          <label class="field"><span>规格</span><input name="spec" maxlength="40" placeholder="例如：0.3g×20粒"></label>
+          <label class="field"><span>剂型</span><select name="form" id="medFormSel"></select></label>
+        </div>
+        <label class="field"><span>用量（用法用量）</span><input name="dosage" maxlength="60" placeholder="例如：每次1片，每日3次，饭后服用"></label>
+        <div class="field-row">
+          <label class="field"><span>有效期至 *</span><input name="expiry" type="date"></label>
+          <label class="field"><span>分类</span><select name="category" id="medCatSel"></select></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>存放位置</span><select name="location" id="medLocSel"></select></label>
+          <label class="field"><span>适用人群</span><select name="forWhom" id="medWhomSel"></select></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>库存数量</span><input name="stock" type="number" min="0" step="1" value="1"></label>
+          <label class="field"><span>库存下限</span><input name="stockMin" type="number" min="0" step="1" value="1"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>生产厂家</span><input name="manufacturer" maxlength="40" placeholder="选填"></label>
+          <label class="field"><span>开封日期</span><input name="openDate" type="date"></label>
+        </div>
+        <label class="field"><span>参考单价（元）</span><input name="price" type="number" min="0" step="0.01" placeholder="选填"></label>
+        <label class="check-line"><input type="checkbox" name="rx"><span>处方药（需凭医师处方购买与使用）</span></label>
+        <p class="field-hint">有效期留空表示「未填效期」，该药品不会出现在临期与过期一览表中。</p>
+        <button class="btn primary full" type="submit" id="medSubmitBtn">保存</button>
+        <p class="login-error" id="medFormError" hidden></p>
+      </form>
+    </div>
+  </div>
+
   <script src="./js/lunar.js"></script>
   <script src="./js/profile.js"></script>
+  <script src="./js/medicine.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>主题配色 · 展示样式演示</title>
+<style>
+:root{
+  --paper:#f5f0e8;--card:#fffdfa;--ink:#29251f;--muted:#746d63;--line:#ded5c8;
+  --plum:#4d3045;--shadow:0 12px 32px rgba(63,48,36,.07)
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  padding:30px 26px 70px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:24px;margin:0 0 6px}
+.lead{color:var(--muted);font-size:13.5px;margin:0 0 26px;line-height:1.75}
+h2{font-size:16px;margin:34px 0 6px;display:flex;align-items:center;gap:9px}
+h2 .no{width:22px;height:22px;border-radius:7px;background:var(--plum);color:#fff;font-size:12px;display:grid;place-items:center;flex:0 0 auto}
+.desc{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+.sec{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:var(--shadow);margin-bottom:22px}
+
+/* 问题示例 */
+.bad-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.bad-item{border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.bad-strip{height:34px}
+.bad-name{padding:6px;font-size:11.5px;font-weight:700;text-align:center;color:#fff}
+.bad-note{margin-top:12px;font-size:12px;color:#b44d43;line-height:1.7}
+
+/* 方案 A：横向三色卡 */
+.a-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.a-card{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card);cursor:pointer;transition:.18s}
+.a-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.12)}
+.a-card.on{box-shadow:0 0 0 2px var(--c-main),0 0 0 4px color-mix(in srgb,var(--c-main) 22%,transparent)}
+/* 卡面本身就是"模块缩略图"：上部导航条 + 中部内容 + 底部按钮 */
+.a-nav{height:26px;display:flex;align-items:center;gap:5px;padding:0 9px;background:var(--c-bg)}
+.a-nav i{width:9px;height:9px;border-radius:3px;background:var(--c-main);display:block}
+.a-nav b{margin-left:auto;font-size:10px;color:var(--c-ink);opacity:.65}
+.a-body{padding:11px 12px;background:var(--c-card)}
+.a-title{font-size:13.5px;font-weight:700;color:var(--c-ink);margin-bottom:7px}
+.a-line{height:7px;border-radius:4px;background:color-mix(in srgb,var(--c-ink) 14%,transparent);margin-bottom:5px}
+.a-line.short{width:56%}
+.a-chip{display:inline-block;margin-top:7px;font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--c-main);color:var(--c-on)}
+.a-foot{padding:9px 12px;background:var(--c-bg);display:flex;gap:6px;align-items:center}
+.a-btn{flex:1;height:26px;border-radius:8px;background:var(--c-main);color:var(--c-on);font-size:10.5px;font-weight:700;display:grid;place-items:center}
+.a-btn.sub{background:transparent;color:var(--c-ink);border:1px solid color-mix(in srgb,var(--c-ink) 26%,transparent)}
+.a-name{padding:8px;text-align:center;font-size:12px;font-weight:700;background:var(--c-card);color:var(--c-ink);border-top:1px solid var(--line)}
+
+/* 方案 B：紧凑三色条 */
+.b-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+.b-card{border:1px solid var(--line);border-radius:13px;overflow:hidden;cursor:pointer;transition:.15s;background:var(--card)}
+.b-card:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,0,0,.1)}
+.b-card.on{box-shadow:0 0 0 2px var(--c-main)}
+.b-top{height:46px;position:relative}
+.b-top .m{position:absolute;left:0;top:0;bottom:0;width:38%;display:grid;place-items:center}
+.b-top .m span{font-size:10px;font-weight:700}
+.b-top .rest{position:absolute;left:38%;right:0;top:0;bottom:0}
+.b-name{padding:6px;text-align:center;font-size:11.5px;font-weight:700;color:var(--c-ink)}
+.b-hex{display:flex;text-align:center;font-size:9px;color:var(--muted);font-family:ui-monospace,monospace}
+.b-hex span{flex:1}
+
+/* 实际应用预览 */
+.live{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--c-bg)}
+.live-top{background:var(--c-main);padding:14px 18px;color:var(--c-on)}
+.live-top b{font-size:16px}
+.live-top small{display:block;font-size:11.5px;opacity:.8;margin-top:3px}
+.live-body{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.live-card{background:var(--c-card);border:1px solid var(--line);border-radius:13px;padding:13px}
+.live-card h4{font-size:13px;margin:0 0 8px;color:var(--c-ink)}
+.live-bar{height:8px;border-radius:4px;background:color-mix(in srgb,var(--c-ink) 12%,transparent);margin-bottom:6px}
+.live-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--c-main);color:var(--c-on);margin-top:6px}
+.note{background:#f6f1e7;border-left:3px solid var(--plum);padding:12px 14px;border-radius:0 11px 11px 0;font-size:12.5px;color:#5e574e;line-height:1.75}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>主题配色 · 展示样式演示</h1>
+  <p class="lead">
+    当前问题：① 配色只有一个颜色，缺少层次；② 单色块竖排看不出整体效果；③ 「底色」算成了深色（绛紫的 soft 是 #4F3247），导致日间模式下凸显过浓。<br>
+    下面先对比现状，再给两种展示方案（点击卡片可切换预览）。
+  </p>
+
+  <h2><span class="no">1</span>现状：单色块，看不出配色全貌</h2>
+  <div class="sec">
+    <div class="bad-grid" id="badGrid"></div>
+    <div class="bad-note">
+      ▲ 问题：每张卡只显示一个颜色，看不出「底色 / 突显 / 字体」如何配合；且 soft（底色）算成了深色，页面底色过重。<br>
+      修正：底色应为极浅（向白混合 90%+），突显色才用饱和的主色。
+    </div>
+  </div>
+
+  <h2><span class="no">2</span>方案 A：横向卡片，直接看模块效果（推荐）</h2>
+  <p class="desc">每张卡是一个「模块缩略图」：顶栏用底色+主色、卡片用卡面色、按钮用突显色+反白字。一眼看出这套配色用起来是什么感觉。</p>
+  <div class="sec">
+    <div class="a-grid" id="aGrid"></div>
+  </div>
+
+  <h2><span class="no">3</span>方案 B：紧凑三色条（省空间）</h2>
+  <p class="desc">左侧色块=主色（带名称），右侧大块=底色，下方三色值。一行放更多，适合空间有限的设置页。</p>
+  <div class="sec">
+    <div class="b-grid" id="bGrid"></div>
+  </div>
+
+  <h2><span class="no">4</span>实际应用预览</h2>
+  <p class="desc">选中配色在真实界面中的应用效果（模拟首页卡片）。</p>
+  <div class="sec">
+    <div class="live" id="live"></div>
+  </div>
+
+  <div class="note" style="margin-top:20px">
+    <b>说明</b>：本页面仅为样式演示，不影响线上。若采用方案 A，我会重新计算三色（底色向白混合 92%，突显色用主色，字体色取主色加深版），并把配色写入 Settings 持久化。
+  </div>
+</div>
+
+<script>
+// 三色体系：bg=整体底色（极浅）/ main=主色（框架）/ accent=突显色（模块重点）/ ink=字体色 / card=卡面色
+const P = [
+  {k:'plum',   label:'绛紫', main:'#4d3045'},
+  {k:'terra',  label:'赤陶', main:'#b65f42'},
+  {k:'sage',   label:'青绿', main:'#627a67'},
+  {k:'sand',   label:'砂金', main:'#a57c45'},
+  {k:'clay',   label:'陶土', main:'#8f4f3b'},
+  {k:'yanzhi', label:'胭脂', main:'#952E3A'},
+  {k:'qdhl',   label:'牡丹红', main:'#B80233'},
+  {k:'yxht',   label:'殷红', main:'#C43739'},
+  {k:'zll',    label:'紫罗蓝', main:'#732E7E'},
+  {k:'ldzi',   label:'龙胆紫', main:'#423171'},
+  {k:'qnz',    label:'牵牛紫', main:'#A22076'},
+  {k:'xz',     label:'雪紫', main:'#79485A'},
+  {k:'cng',    label:'苍绿', main:'#4E5F45'},
+  {k:'ywl',    label:'翠绿', main:'#006E5F'},
+  {k:'lili',   label:'琉璃绿', main:'#4F7E57'},
+  {k:'molv',   label:'墨绿', main:'#3F5B50'},
+  {k:'jhuang', label:'金黄', main:'#C77A3A'},
+  {k:'xiah',   label:'虾黄', main:'#E1A14D'},
+  {k:'tuh',    label:'土黄', main:'#CE9335'},
+  {k:'liliu',  label:'琉璃蓝', main:'#1A638A'},
+  {k:'yushi',  label:'玉石蓝', main:'#507883'},
+  {k:'gulan',  label:'钴蓝', main:'#6493AF'},
+  {k:'kql',    label:'孔雀绿', main:'#168570'},
+];
+// 突显色：主色稍加饱和偏移（这里直接用主色，实际可派生）
+const T = {
+  k:'plum',   label:'绛紫', main:'#4d3045', accent:'#6B4A62', bg:'#F3EFF2', ink:'#2E2230', on:'#FFFFFF' },
+  k:'terra',  label:'赤陶', main:'#b65f42', accent:'#C96A4E', bg:'#FAF1ED', ink:'#3A2720', on:'#FFFFFF' },
+  k:'sage',   label:'青绿', main:'#627a67', accent:'#74907B', bg:'#EFF3F0', ink:'#26302A', on:'#FFFFFF' },
+  k:'sand',   label:'砂金', main:'#a57c45', accent:'#B98F5E', bg:'#F6F1E9', ink:'#33291B', on:'#FFFFFF' },
+  k:'clay',   label:'陶土', main:'#8f4f3b', accent:'#A2604A', bg:'#F7F0EC', ink:'#331F19', on:'#FFFFFF' },
+  k:'yanzhi', label:'胭脂', main:'#952E3A', accent:'#A83A47', bg:'#FAF0F1', ink:'#331419', on:'#FFFFFF' },
+  k:'qdhl',   label:'牡丹红', main:'#B80233', accent:'#C41B47', bg:'#FBEFF2', ink:'#3A0D1A', on:'#FFFFFF' },
+  k:'yxht',   label:'殷红', main:'#C43739', accent:'#D04E50', bg:'#FBF0EF', ink:'#3C1516', on:'#FFFFFF' },
+  k:'zll',    label:'紫罗蓝', main:'#732E7E', accent:'#844095', bg:'#F5F0F6', ink:'#2C132F', on:'#FFFFFF' },
+  k:'ldzi',   label:'龙胆紫', main:'#423171', accent:'#53418A', bg:'#EFEEF6', ink:'#1C1733', on:'#FFFFFF' },
+  k:'qnz',    label:'牵牛紫', main:'#A22076', accent:'#B43389', bg:'#F8EFF5', ink:'#380C2A', on:'#FFFFFF' },
+  k:'xz',     label:'雪紫', main:'#79485A', accent:'#8C5870', bg:'#F6F0F2', ink:'#2E1C23', on:'#FFFFFF' },
+  k:'cng',    label:'苍绿', main:'#4E5F45', accent:'#5F7355', bg:'#EFF2EC', ink:'#222A1E', on:'#FFFFFF' },
+  k:'ywl',    label:'翠绿', main:'#006E5F', accent:'#1A8372', bg:'#E9F3F1', ink:'#032B27', on:'#FFFFFF' },
+  k:'lili',   label:'琉璃绿', main:'#4F7E57', accent:'#5F9568', bg:'#EFF3EE', ink:'#20301F', on:'#FFFFFF' },
+  k:'molv',   label:'墨绿', main:'#3F5B50', accent:'#4F6F62', bg:'#EDF0EF', ink:'#1B2621', on:'#FFFFFF' },
+  k:'jhuang', label:'金黄', main:'#C77A3A', accent:'#D68C4E', bg:'#F9F3EA', ink:'#382812', on:'#FFFFFF' },
+  k:'xiah',   label:'虾黄', main:'#E1A14D', accent:'#EBB061', bg:'#FBF4E9', ink:'#3D2F14', on:'#3D2F14' },
+  k:'tuh',    label:'土黄', main:'#CE9335', accent:'#DCA349', bg:'#FAF4E7', ink:'#3A2E12', on:'#FFFFFF' },
+  k:'liliu',  label:'琉璃蓝', main:'#1A638A', accent:'#2A779F', bg:'#ECF2F6', ink:'#0C2739', on:'#FFFFFF' },
+  k:'yushi',  label:'玉石蓝', main:'#507883', accent:'#648D98', bg:'#EFF3F4', ink:'#1F3136', on:'#FFFFFF' },
+  k:'gulan',  label:'钴蓝', main:'#6493AF', accent:'#77A6C0', bg:'#F0F4F7', ink:'#283A45', on:'#FFFFFF' },
+  k:'kql',    label:'孔雀绿', main:'#168570', accent:'#249A83', bg:'#E9F4F1', ink:'#0A332B', on:'#FFFFFF' },
+];
+let cur = 'plum';
+const cv = k => T.find(x=>x.k===k);
+const v = k => '--c-'+cv(k);
+
+// 1. 现状
+document.getElementById('badGrid').innerHTML = P.slice(0,10).map(p=>
+  `<div class="bad-item" style="background:#4F3247">
+     <div class="bad-strip" style="background:${p.main}"></div>
+     <div class="bad-name" style="background:${p.main}">${p.label}</div>
+   </div>`).join('');
+
+// 2. 方案 A
+document.getElementById('aGrid').innerHTML = T.map(x=>
+  `<div class="a-card${x.k===cur?' on':''}" style="${v(x.k)}" onclick="pick('${x.k}')">
+     <div class="a-nav"><i></i><i style="opacity:.55"></i><i style="opacity:.3"></i><b>导航</b></div>
+     <div class="a-body">
+       <div class="a-title">${x.label}主题</div>
+       <div class="a-line"></div><div class="a-line short"></div>
+       <span class="a-chip">突显色</span>
+     </div>
+     <div class="a-foot"><span class="a-btn">主要按钮</span><span class="a-btn sub">次要</span></div>
+     <div class="a-name">${x.label}</div>
+   </div>`).join('');
+
+// 3. 方案 B
+document.getElementById('bGrid').innerHTML = T.map(x=>
+  `<div class="b-card${x.k===cur?' on':''}" style="${v(x.k)}" onclick="pick('${x.k}')">
+     <div class="b-top">
+       <div class="m" style="background:${x.main}"><span style="color:${x.on}">${x.label}</span></div>
+       <div class="rest" style="background:${x.accent}"></div>
+     </div>
+     <div class="b-name">${x.label}</div>
+     <div class="b-hex"><span style="color:${x.main}">${x.main.replace('#','')}</span><span>${x.accent.replace('#','')}</span><span>${x.bg.replace('#','')}</span></div>
+   </div>`).join('');
+
+// 4. 实际应用
+function live(){
+  const x = cv(cur);
+  document.getElementById('live').style.cssText = '--c-bg:'+x.bg+';--c-main:'+x.main+';--c-accent:'+x.accent+';--c-ink:'+x.ink+';--c-on:'+x.on+';--c-card:#fffdfa';
+  document.getElementById('live').innerHTML =
+   `<div class="live-top"><b>${x.label}主题 · 今日总览</b><small>这是主色在顶栏的应用：背景为主色，文字用反白</small></div>
+    <div class="live-body">
+      <div class="live-card"><h4>成长打卡</h4>
+        <div class="live-bar"></div><div class="live-bar" style="width:64%"></div>
+        <span class="live-tag">进行中</span></div>
+      <div class="live-card"><h4>待办提醒</h4>
+        <div class="live-bar"></div><div class="live-bar" style="width:48%"></div>
+        <span class="live-tag" style="background:${x.accent}">P1 优先</span></div>
+    </div>`;
+}
+live();
+
+function pick(k){ cur=k;
+  document.querySelectorAll('.a-card').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.b-card').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll(`[data-k]`).forEach(()=>{});
+  document.querySelectorAll('.a-card').forEach((e,i)=>{ if(T[i].k===k) e.classList.add('on'); });
+  document.querySelectorAll('.b-card').forEach((e,i)=>{ if(T[i].k===k) e.classList.add('on'); });
+  live();
+}
+</script>
+</body>
+</html>
