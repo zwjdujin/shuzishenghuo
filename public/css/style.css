@@ -58,14 +58,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .span-2{grid-column:span 2}
 
 /* Hero */
-.hero-card{grid-column:span 2;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:30px 34px;background:linear-gradient(135deg,#4d3045,#6b4259);color:#fff;border:0;box-shadow:0 18px 44px rgba(77,48,69,.28)}
+.hero-card{grid-column:span 2;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:30px 34px;background:linear-gradient(135deg,#4d3045,#6b4259);color:#fff;border:0;border-radius:var(--radius);box-shadow:0 18px 44px rgba(77,48,69,.28)}
 .hero-card>div:first-child{min-width:0}
 .hero-card .eyebrow.light{color:rgba(255,255,255,.7)}
 .hero-card h2{margin:10px 0 8px;font:700 30px/1.15 "Songti SC",serif}
 .hero-card p{margin:0;color:rgba(255,255,255,.82);max-width:42ch}
-.score-orbit{position:relative;width:120px;height:120px;flex:0 0 auto;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
+.score-orbit{position:relative;width:120px;height:120px;flex:0 0 auto;border-radius:50%;background:rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .score-orbit span{position:absolute;inset:10px;border-radius:50%;border:3px dashed rgba(255,255,255,.4)}
-.score-orbit b{font:700 15px/1 "Songti SC",serif;color:#fff}
+.score-orbit b{font:700 20px/1 "Songti SC",serif;color:#fff}
+.score-orbit small{font-size:10px;color:rgba(255,255,255,.75);letter-spacing:.05em}
 
 /* 快速开始 */
 .quick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
@@ -145,6 +146,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .growth-head h2{margin:4px 0 0;font:700 26px/1.2 "Songti SC",serif}
 .muted{color:var(--muted);font-size:13px}
 
+/* 个人中心模块间距 */
+#view-settings.active{display:flex;flex-direction:column;gap:0}
+#view-settings .growth-head{margin-bottom:0}
+
 .checkin-stack{display:flex;flex-direction:column;gap:10px}
 .checkin-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
 .checkin-card .ci-main{display:flex;align-items:center;gap:12px;min-width:0}
@@ -172,19 +177,34 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .icon-btn svg{width:18px;height:18px}
 
 /* 热力图 */
-.heatmap-scroll{display:flex;flex-direction:column;gap:8px;overflow-x:auto;padding-bottom:6px}
-.heatmap-row{display:flex;align-items:center;gap:10px}
-.hm-label{width:72px;flex:0 0 auto;font-size:12px;font-weight:600;text-align:right}
-.hm-cells{display:flex;gap:4px;flex-wrap:nowrap}
-.hm-cell{width:13px;height:13px;border-radius:4px;flex:0 0 auto;background:#ece5db}
-.hm-tip{margin:10px 0 0;font-size:11px;color:var(--muted)}
+.heatmap-scroll{display:flex;flex-direction:column;gap:18px;overflow-x:auto;padding-bottom:6px}
+.heatmap-block{display:flex;flex-direction:column;gap:6px}
+.hm-label{font-size:12px;font-weight:600;text-align:left;line-height:1}
+/* 网页端：30 天一行（30 列）；每个小块占满可用宽度 */
+.hm-cells{display:grid;grid-template-columns:repeat(30,1fr);gap:3px}
+.hm-cell{aspect-ratio:1;border-radius:3px;background:#ece5db;min-width:0}
+.hm-tip{margin:12px 0 0;font-size:11px;color:var(--muted)}
 
 /* 侧栏底部「个人中心」 */
-.side-bottom{margin-top:14px;border-top:1px solid rgba(104,87,68,.12);padding-top:14px;color:#5e574e}
+.side-bottom-wrap{position:relative;margin-top:14px}
+.side-bottom{margin-top:0;border-top:1px solid rgba(104,87,68,.12);padding-top:14px;color:#5e574e}
 .side-bottom:hover{background:rgba(255,255,255,.48);color:var(--ink)}
 
-/* 个人中心 */
-.settings-actions{display:flex;justify-content:flex-end;margin-top:4px}
+/* 个人中心弹子菜单 */
+.profile-popover{position:absolute;left:0;right:0;bottom:calc(100% - 8px);z-index:30;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
+.pp-item{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#5e574e;text-align:left;font-size:14px}
+.pp-item:hover{background:var(--plum-soft);color:var(--plum)}
+.pp-item svg{width:18px;height:18px}
+
+/* 个人中心页签 */
+.profile-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.ptab{height:38px;padding:0 16px;border:1px solid var(--line);border-radius:11px;background:#fffdfa;color:var(--muted);font-weight:600;font-size:13px}
+.ptab.active{background:var(--plum);border-color:var(--plum);color:#fff}
+.profile-page{display:none}
+.profile-page.active{display:block;animation:fade .3s ease}
+
+/* 设置页 */
+.settings-actions{display:flex;justify-content:flex-end;margin-top:14px}
 .btn.danger{color:var(--red);border-color:#ecc9c4;background:#fffdfa}
 .btn.danger:hover{background:#fdf3f1}
 .theme-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
@@ -192,6 +212,20 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .theme-swatch span{font-size:12px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.25)}
 .theme-swatch.active{outline:3px solid var(--ink);outline-offset:2px}
 .theme-swatch:hover{transform:translateY(-2px)}
+
+/* 设备列表 */
+.device-list{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.device-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fffdfa}
+.device-item.current{border-color:var(--sage);background:var(--sage-soft)}
+.dev-icon{width:40px;height:40px;flex:0 0 auto;border-radius:12px;background:var(--plum-soft);color:var(--plum);display:grid;place-items:center}
+.dev-icon svg{width:20px;height:20px}
+.dev-main{flex:1;min-width:0}
+.dev-main b{display:block;font-size:14px;font-weight:600}
+.dev-main small{display:block;font-size:12px;color:var(--muted)}
+.dev-main em{display:block;font-size:11px;color:#a59c90;font-style:normal;margin-top:2px}
+.dev-current-tag{font-size:11px;font-weight:600;color:var(--sage);white-space:nowrap}
+.danger-chip{color:var(--red);border-color:#ecc9c4}
+.danger-chip:hover{background:#fbe9e6;color:var(--red)}
 
 /* 新增/编辑习惯弹窗内的分段与提示 */
 .seg{display:flex;gap:8px;flex-wrap:wrap}
@@ -265,16 +299,17 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
   html,body{overflow-x:hidden}
   .sidebar{display:none}
   .main-content{margin-left:0;padding:18px 16px calc(96px + env(safe-area-inset-bottom))}
-  .topbar{align-items:flex-start;flex-direction:column;gap:10px}
-  .topbar h1{font-size:24px}
-  .top-actions{width:100%;justify-content:space-between}
   .dashboard-grid,.hero-card,.span-2{grid-column:auto;grid-template-columns:1fr}
   .hero-card{min-height:150px}
   .quick-grid{grid-template-columns:repeat(2,1fr)}
   .glance-grid{grid-template-columns:1fr 1fr}
   .growth-head{flex-direction:column;align-items:flex-start;gap:10px}
   .field-row{flex-direction:column;gap:0}
-  .hm-label{width:56px;font-size:11px}
+  /* 热力图手机端：15 列两行显示 30 天 */
+  .hm-cells{grid-template-columns:repeat(15,1fr);gap:3px}
+  /* 打卡卡片手机端堆叠 */
+  .checkin-card{flex-direction:column;align-items:stretch}
+  .checkin-card .ci-actions{flex-wrap:wrap}
   .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(6,1fr);left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;height:64px;padding:6px;border:1px solid rgba(85,69,55,.14);border-radius:20px;background:rgba(255,252,247,.94);box-shadow:0 14px 35px rgba(53,41,31,.16);backdrop-filter:blur(14px)}
   .mobile-nav button{min-width:0;border:0;border-radius:14px;background:transparent;color:#847a70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px}
   .mobile-nav button svg{width:21px;height:21px}

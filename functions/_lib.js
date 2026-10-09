@@ -36,9 +36,9 @@ async function hmac(secret, data) {
   return bytesToB64url(sig);
 }
 
-export async function signToken(user, secret, ttlMs = 1000 * 60 * 60 * 24 * 7) {
+export async function signToken(user, secret, ttlMs = 1000 * 60 * 60 * 24 * 7, extra = {}) {
   const exp = Date.now() + ttlMs;
-  const payload = bytesToB64url(new TextEncoder().encode(JSON.stringify({ user, exp })));
+  const payload = bytesToB64url(new TextEncoder().encode(JSON.stringify({ user, exp, ...extra })));
   const sig = await hmac(secret, payload);
   return `${payload}.${sig}`;
 }
@@ -54,6 +54,17 @@ export async function verifyToken(token, secret) {
     return true;
   } catch {
     return false;
+  }
+}
+
+// 解码 token（不校验签名，供已知合法 token 读取字段用，如 sid）
+export function decodeToken(token) {
+  if (!token || typeof token !== 'string' || !token.includes('.')) return null;
+  const [payload] = token.split('.');
+  try {
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
   }
 }
 

@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.2.1
-const VERSION = '0.2.1';
+// 数字生活 · 前端逻辑 v0.2.2
+const VERSION = '0.2.2';
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -137,6 +137,47 @@ async function loadHome() {
   renderHome(data);
 }
 
+// 十二时辰 → 循行经络（子午流注）
+const SHICHEN = [
+  { name: '子时', range: '23:00-01:00', meridian: '足少阳胆经', tip: '子时睡得足，黑眼圈不露' },
+  { name: '丑时', range: '01:00-03:00', meridian: '足厥阴肝经', tip: '丑时不睡晚，脸上不长斑' },
+  { name: '寅时', range: '03:00-05:00', meridian: '手太阴肺经', tip: '寅时睡得熟，色红精气足' },
+  { name: '卯时', range: '05:00-07:00', meridian: '手阳明大肠经', tip: '卯时大肠蠕，排毒渣滓出' },
+  { name: '辰时', range: '07:00-09:00', meridian: '足阳明胃经', tip: '辰时吃早餐，营养身体安' },
+  { name: '巳时', range: '09:00-11:00', meridian: '足太阴脾经', tip: '巳时脾经旺，造血身体壮' },
+  { name: '午时', range: '11:00-13:00', meridian: '手少阴心经', tip: '午时一小憩，安神养精气' },
+  { name: '未时', range: '13:00-15:00', meridian: '手太阳小肠经', tip: '未时分清浊，饮水能降火' },
+  { name: '申时', range: '15:00-17:00', meridian: '足太阳膀胱经', tip: '申时津液足，养阴身体舒' },
+  { name: '酉时', range: '17:00-19:00', meridian: '足少阴肾经', tip: '酉时肾藏精，纳华元气清' },
+  { name: '戌时', range: '19:00-21:00', meridian: '手厥阴心包经', tip: '戌时护心脏，减压心舒畅' },
+  { name: '亥时', range: '21:00-23:00', meridian: '手少阳三焦经', tip: '亥时百脉通，养身养娇容' },
+];
+function shichenOf(hour) {
+  // 每个时辰占 2 小时：子 23-1, 丑 1-3, ... 亥 21-23
+  const idx = Math.floor(((hour + 1) % 24) / 2);
+  return SHICHEN[idx];
+}
+function renderShichen(hour) {
+  const sc = shichenOf(hour);
+  const orbit = $('.score-orbit');
+  // 时辰名写进中间徽标，时间段写在下方小字
+  const badge = $('#dayBadge');
+  if (badge) badge.textContent = sc.name;
+  if (orbit) {
+    let small = orbit.querySelector('.shichen-range');
+    if (!small) {
+      small = document.createElement('small');
+      small.className = 'shichen-range';
+      orbit.appendChild(small);
+    }
+    small.textContent = sc.range;
+  }
+  const g = $('#heroGreeting');
+  if (g) g.textContent = sc.meridian;
+  const s = $('#heroSummary');
+  if (s) s.textContent = sc.tip;
+}
+
 function renderHome(d) {
   // 品牌
   $('#brandAvatar').textContent = (d.brand && d.brand.avatar) || '数';
@@ -144,14 +185,9 @@ function renderHome(d) {
   $('#brandTagline').textContent = (d.brand && d.brand.tagline) || '把日子过成自己喜欢的样子';
   if (d.brand && d.brand.theme) applyTheme(d.brand.theme);
 
-  // 顶部日期
-  $('#todayLabel').textContent = d.todayLabel || d.today;
-
-  // Hero 问候
+  // Hero 问候：按十二时辰显示时辰 + 对应循行经络
   const h = new Date().getHours();
-  const greet = h < 6 ? '夜深了，早点休息' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好';
-  $('#heroGreeting').textContent = `${greet}，今天也辛苦了`;
-  $('#heroSummary').textContent = summaryLine(d.stats);
+  renderShichen(h);
 
   // 统计卡
   const s = d.stats;
@@ -273,9 +309,8 @@ function switchView(name) {
   target.classList.add('active');
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
   $$('.mobile-nav button').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
-  $('#viewTitle').textContent = target.dataset.title || '数字生活';
   if (name === 'growth') renderGrowth();
-  if (name === 'settings') renderSettings();
+  if (name === 'settings') { renderSettings(); switchProfileTab('site'); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
@@ -450,8 +485,8 @@ function renderHeatmap(heat) {
   const wrap = document.createElement('div');
   wrap.className = 'heatmap-scroll';
   cats.forEach((c) => {
-    const row = document.createElement('div');
-    row.className = 'heatmap-row';
+    const block = document.createElement('div');
+    block.className = 'heatmap-block';
     const label = document.createElement('div');
     label.className = 'hm-label';
     label.textContent = c.name;
@@ -471,9 +506,9 @@ function renderHeatmap(heat) {
       cell.title = `${c.name}：${Math.round(v * 100)}%`;
       cells.appendChild(cell);
     });
-    row.appendChild(label);
-    row.appendChild(cells);
-    wrap.appendChild(row);
+    block.appendChild(label);
+    block.appendChild(cells);
+    wrap.appendChild(block);
   });
   box.appendChild(wrap);
   const tip = document.createElement('p');
@@ -605,6 +640,17 @@ $('#habitForm').addEventListener('submit', async (e) => {
 });
 
 // ===== 个人中心 =====
+// 页签切换（站点信息 / 风格字体 / 账户安全）
+const PROFILE_TITLES = { site: '站点信息', style: '风格字体', security: '账户安全' };
+function switchProfileTab(name) {
+  const tab = name && PROFILE_TITLES[name] ? name : 'site';
+  $$('.ptab').forEach((t) => t.classList.toggle('active', t.dataset.ptab === tab));
+  $$('.profile-page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
+  const title = $('#profilePageTitle');
+  if (title) title.textContent = PROFILE_TITLES[tab];
+  if (tab === 'security') renderSessions();
+}
+
 function buildThemeGrid() {
   const grid = $('#themeGrid');
   if (!grid) return;
@@ -641,6 +687,65 @@ async function renderSettings() {
   }
 }
 
+async function renderSessions() {
+  const box = $('#deviceList');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  try {
+    const res = await api('/api/sessions');
+    const data = await res.json();
+    const devices = data.devices || [];
+    if (!devices.length) {
+      box.innerHTML = '<div class="empty-hint">暂无登录设备记录。</div>';
+      return;
+    }
+    box.innerHTML = '';
+    devices.forEach((d) => {
+      const el = document.createElement('div');
+      el.className = 'device-item' + (d.current ? ' current' : '');
+      el.innerHTML = `
+        <div class="dev-icon"><svg><use href="#i-people"/></svg></div>
+        <div class="dev-main">
+          <b></b>
+          <small></small>
+          <em></em>
+        </div>
+        <div class="dev-action"></div>`;
+      el.querySelector('b').textContent = d.terminal;
+      el.querySelector('small').textContent = `${d.browser} · IP ${d.ip}`;
+      el.querySelector('em').textContent = `登录于 ${d.loginAt}${d.lastSeen && d.lastSeen !== d.loginAt ? ' · 最近活跃 ' + d.lastSeen : ''}`;
+      const act = el.querySelector('.dev-action');
+      if (d.current) {
+        const tag = document.createElement('span');
+        tag.className = 'dev-current-tag';
+        tag.textContent = '当前设备';
+        act.appendChild(tag);
+      } else {
+        const btn = document.createElement('button');
+        btn.className = 'chip danger-chip';
+        btn.textContent = '登出';
+        btn.addEventListener('click', () => revokeSession(d.sid));
+        act.appendChild(btn);
+      }
+      box.appendChild(el);
+    });
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+    box.innerHTML = '<div class="empty-hint">加载设备失败。</div>';
+  }
+}
+
+async function revokeSession(sid) {
+  if (!confirm('确定登出该设备？该设备上的登录将立即失效。')) return;
+  try {
+    const res = await api(`/api/sessions/${sid}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast('已登出该设备');
+      await renderSessions();
+    }
+  } catch { /* 401 已处理 */ }
+}
+
 $('#saveSettingsBtn').addEventListener('click', async () => {
   const payload = {
     brand_name: ($('#setBrandName').value || '').trim() || '数字生活',
@@ -673,6 +778,37 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
 });
 
 $('#logoutBtn2').addEventListener('click', doLogout);
+
+// 页签点击
+document.addEventListener('click', (e) => {
+  const tabEl = e.target.closest('[data-ptab]');
+  if (!tabEl) return;
+  switchProfileTab(tabEl.dataset.ptab);
+  // 若在侧栏 popover 里点击，切到个人中心视图并关闭 popover
+  if (tabEl.classList.contains('pp-item')) {
+    switchView('settings');
+    closeProfilePopover();
+  }
+});
+
+// 侧栏「个人中心」按钮：弹出子菜单
+function toggleProfilePopover() {
+  const p = $('#profilePopover');
+  p.hidden = !p.hidden;
+}
+function closeProfilePopover() {
+  $('#profilePopover').hidden = true;
+}
+$('#profileBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleProfilePopover();
+});
+document.addEventListener('click', (e) => {
+  const p = $('#profilePopover');
+  if (!p.hidden && !e.target.closest('#profilePopover') && !e.target.closest('#profileBtn')) {
+    p.hidden = true;
+  }
+});
 
 // ===== PWA =====
 if ('serviceWorker' in navigator) {

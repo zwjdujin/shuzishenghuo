@@ -3,16 +3,18 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.0.1（初始脚手架+个人首页）。下一页补齐→v0.1.1。
-- **模块状态**：个人首页已成型；**成长打卡 v0.1.1 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.1。
+- **模块状态**：个人首页已成型；**成长打卡已补齐**；**个人中心(v0.2.1) 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
 - **数据表**：app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts。建表见 `schema.sql`，示例见 `seed.sql`。
-- **成长打卡（v0.1.1）数据结构**：
-  - `habits`：`category`(分类名) / `type`('normal'|'sleep') / `bed_time`&`rise_time`(仅 sleep 用，用户自定)。
-  - `habit_logs`：`done`(normal 0/1；sleep 时存完成项数) / `done_bed` / `done_rise`(各 0/1)；每日每习惯 UNIQUE(habit_id, log_date)。
-  - 默认分类=学习/锻炼/早睡早起（原示例的 喝水、冥想 已删；看书→学习、运动→锻炼、睡觉→是否早睡/早起）；支持自定义分类（`type='normal'` + 任意 category 名）。
-  - 后端：`GET/POST /api/habits`、`POST /api/habits/[id]/check`(body {field:'done'|'bed'|'rise',value})、`DELETE /api/habits/[id]`、`GET /api/habits/heatmap?days=120`(返回 days[] + categories[{name,color,values[] 0~1}])。
-  - 前端：`renderGrowth()` 渲染「今日待完成 / 我的习惯 / 各分类热力图」；右上角「新增习惯」弹窗 `#habitModal`（选「早睡早起」自动 sleep 类型并显示时间输入，选「＋自定义分类」显示自定义名输入）。
+- **成长打卡（v0.2.1）数据结构**：
+  - `habits`：`category`(分类名) / `type`('normal'|'sleep') / `method`('count'按次|'duration'按时长，仅 normal) / `target`&`unit`(目标值+单位) / `bed_time`&`rise_time`&`nap_time`(仅 sleep；nap_time 为「12:30-14:00」格式午睡区间)。
+  - `habit_logs`：`done`(normal 存累计值，count=次数/duration=分钟；sleep 存完成项数) / `done_bed` / `done_rise` / `done_nap`(各 0/1)；每日每习惯 UNIQUE(habit_id, log_date)。
+  - 默认分类=学习/锻炼/睡眠（睡眠=早睡+早起+午睡三件套，各算 1 项，凑满 3 项 todayDone）；支持自定义分类（任意 category 名）。
+  - 后端：`GET/POST /api/habits`、`PUT /api/habits/[id]`(编辑)、`POST /api/habits/[id]/check`(body {field:'done'|'bed'|'rise'|'nap', value})、`DELETE /api/habits/[id]`、`GET /api/habits/heatmap?days=30`。
+  - 共享帮助函数放 `functions/api/_helpers.js`（progressOf、parseHabitBody），供 habits.js 与 [id].js 复用。
+  - **PWA/Pages Functions 打包坑（重要）**：下划线前缀文件放错目录会导致 esbuild 报 `Could not resolve`。`_helpers.js` 必须在 `functions/api/_helpers.js`（与 `habits.js` 同级），`habits.js` 用 `./_helpers.js`、`habits/[id].js` 用 `../_helpers.js`；不能放在 `habits/` 子目录里。
+- **个人中心（v0.2.1）**：侧栏底部 `.side-bottom` 的「个人中心」入口（`data-nav="settings"`）；页内可改 站点名/头像字/副标题/主题配色(plum/terra/sage/sand/clay)，`GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)。主题切换在 app.js 的 `applyTheme(name)`，直接改 `:root` 的 `--plum`/`--plum-soft` CSS 变量。退出登录按钮 `#logoutBtn2` 移到个人中心页（原 topbar `#logoutBtn` 已删）。
 - **本地验证**：可用 Node + mock D1 跑 `functions/api/*` 处理器（`signToken` 必须把 JSON 字符串先 `TextEncoder().encode` 再 base64url，否则 payload 为空）。
-- **部署**：Cloudflare 控制台建 D1/R2→绑定 DB/BUCKET→环境变量；或 `wrangler pages deploy ./public`。仓库 `zwjdujin/shuzishenghuo`。
-- **PWA 缓存坑（重要）**：`public/js/sw.js` 必须静态资源走「网络优先」、且每次部署改 `CACHE` 名（现 `shuzishenghuo-v3`）。否则旧缓存会一直提供旧资源，导致“代码更新了但浏览器不生效”。用户侧遇“改了没生效”先让其硬刷新/清站点数据/Ctrl+Shift+R 两次。
+- **部署**：Cloudflare 控制台建 D1/R2→绑定 DB/BUCKET→环境变量；或 `wrangler pages deploy ./public`。D1 迁移用 `wrangler d1 execute shuzishenghuo --remote --file=./migrate-vX.Y.Z.sql`（用 `--command "..."` 可直接跑 SQL）。仓库 `zwjdujin/shuzishenghuo`。
+- **PWA 缓存坑（重要）**：`public/js/sw.js` 必须静态资源走「网络优先」、且每次部署改 `CACHE` 名（现 `shuzishenghuo-v4`）。否则旧缓存会一直提供旧资源，导致“代码更新了但浏览器不生效”。用户侧遇“改了没生效”先让其硬刷新/清站点数据/Ctrl+Shift+R 两次。
 - **CSS hidden 覆盖坑（重要）**：若元素用作者样式设了 `display`（如 `.login-overlay{display:grid}`），会盖掉浏览器默认的 `[hidden]{display:none}`，使 JS 里 `el.hidden=true` 失效。统一在样式表顶部加 `[hidden]{display:none!important}` 兜底。曾导致“登录成功后遮罩不消失、页面变两页高”。

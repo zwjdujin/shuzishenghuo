@@ -69,22 +69,22 @@
         <button class="nav-item" data-nav="calendar"><svg><use href="#i-calendar"/></svg><span>日历中心</span></button>
         <button class="nav-item" data-nav="relations"><svg><use href="#i-people"/></svg><span>人际关系</span></button>
       </nav>
-      <button class="nav-item side-bottom" data-nav="settings"><svg><use href="#i-settings"/></svg><span>个人中心</span></button>
       <div class="local-card">
         <div class="local-status"><span class="status-dot"></span><span id="syncText">云端已同步</span></div>
         <p>数据存于 Cloudflare D1，多端自动同步。</p>
         <small id="versionText">v0.0.1</small>
       </div>
+      <div class="side-bottom-wrap">
+        <button class="nav-item side-bottom" id="profileBtn" type="button"><svg><use href="#i-settings"/></svg><span>个人中心</span></button>
+        <div class="profile-popover" id="profilePopover" hidden>
+          <button class="pp-item" data-ptab="site"><svg><use href="#i-home"/></svg><span>站点信息</span></button>
+          <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>风格字体</span></button>
+          <button class="pp-item" data-ptab="security"><svg><use href="#i-people"/></svg><span>账户安全</span></button>
+        </div>
+      </div>
     </aside>
 
     <main class="main-content">
-      <header class="topbar">
-        <div><p class="eyebrow" id="todayLabel">—</p><h1 id="viewTitle">个人首页</h1></div>
-        <div class="top-actions">
-          <span class="save-state"><span></span><b id="saveText">已同步</b></span>
-        </div>
-      </header>
-
       <!-- 个人首页 / 今日总览 -->
       <section class="view active" id="view-home" data-title="个人首页">
         <div class="dashboard-grid">
@@ -183,33 +183,52 @@
       <section class="view" id="view-calendar" data-title="日历中心"><div class="coming-soon"><svg><use href="#i-calendar"/></svg><h2>日历中心</h2><p>日程事件与月历模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
       <section class="view" id="view-relations" data-title="人际关系"><div class="coming-soon"><svg><use href="#i-people"/></svg><h2>人际关系</h2><p>联系人、生日与纪念日模块正在路上。骨架与数据表已就绪，下一版为你补上。</p></div></section>
 
-      <!-- 个人中心（v0.2.1） -->
+      <!-- 个人中心（v0.2.2 子页面化） -->
       <section class="view" id="view-settings" data-title="个人中心">
         <div class="growth-head">
-          <div><p class="eyebrow">个人中心</p><h2>参数 · 设置 · 风格</h2></div>
+          <div><p class="eyebrow">个人中心</p><h2 id="profilePageTitle">站点信息</h2></div>
         </div>
 
-        <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">常规参数</p><h2>站点信息</h2></div></div>
-          <label class="field"><span>站点名称</span><input name="set_brand_name" id="setBrandName" maxlength="20" placeholder="数字生活"></label>
-          <label class="field"><span>头像文字</span><input name="set_brand_avatar" id="setBrandAvatar" maxlength="2" placeholder="数"></label>
-          <label class="field"><span>副标题</span><input name="set_brand_tagline" id="setBrandTagline" maxlength="40" placeholder="把日子过成自己喜欢的样子"></label>
-        </article>
+        <div class="profile-tabs" role="tablist">
+          <button class="ptab active" data-ptab="site" type="button">站点信息</button>
+          <button class="ptab" data-ptab="style" type="button">风格字体</button>
+          <button class="ptab" data-ptab="security" type="button">账户安全</button>
+        </div>
 
-        <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">风格</p><h2>主题配色</h2></div></div>
-          <p class="muted">选择一种主色调，立即预览并保存。</p>
-          <div class="theme-grid" id="themeGrid"></div>
-        </article>
+        <!-- 子页：站点信息 -->
+        <div class="profile-page active" id="page-site">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">常规参数</p><h2>站点信息</h2></div></div>
+            <label class="field"><span>站点名称</span><input id="setBrandName" maxlength="20" placeholder="数字生活"></label>
+            <label class="field"><span>头像文字</span><input id="setBrandAvatar" maxlength="2" placeholder="数"></label>
+            <label class="field"><span>副标题</span><input id="setBrandTagline" maxlength="40" placeholder="把日子过成自己喜欢的样子"></label>
+            <div class="settings-actions">
+              <button class="btn primary" id="saveSettingsBtn" type="button">保存参数</button>
+            </div>
+          </article>
+        </div>
 
-        <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">账户</p><h2>登录与安全</h2></div></div>
-          <p class="muted">当前以管理员身份登录。</p>
-          <button class="btn ghost danger" id="logoutBtn2"><svg><use href="#i-logout"/></svg><span>退出登录</span></button>
-        </article>
+        <!-- 子页：风格字体 -->
+        <div class="profile-page" id="page-style">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">风格</p><h2>主题配色</h2></div></div>
+            <p class="muted">选择一种主色调，立即预览并保存。</p>
+            <div class="theme-grid" id="themeGrid"></div>
+          </article>
+        </div>
 
-        <div class="settings-actions">
-          <button class="btn primary" id="saveSettingsBtn" type="button">保存参数</button>
+        <!-- 子页：账户安全 -->
+        <div class="profile-page" id="page-security">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">登录设备</p><h2>账户安全</h2></div></div>
+            <p class="muted">以下为该账号当前登录的设备，可点击「登出」踢除指定设备。</p>
+            <div class="device-list" id="deviceList"></div>
+          </article>
+          <article class="panel" style="margin-top:22px">
+            <div class="panel-head"><div><p class="eyebrow">账户</p><h2>登录与安全</h2></div></div>
+            <p class="muted">当前以管理员身份登录。</p>
+            <button class="btn ghost danger" id="logoutBtn2"><svg><use href="#i-logout"/></svg><span>退出登录</span></button>
+          </article>
         </div>
       </section>
     </main>

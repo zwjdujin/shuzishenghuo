@@ -107,6 +107,17 @@ CREATE TABLE IF NOT EXISTS contacts (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 心情一句话（占位，避免 schema 与迁移不一致）
+-- 登录会话（账户安全：展示/登出各登录设备）
+CREATE TABLE IF NOT EXISTS sessions (
+  sid          TEXT PRIMARY KEY,
+  user         TEXT NOT NULL,
+  ip           TEXT,
+  user_agent   TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT
+);
+
 -- 索引（加速按日期/完成状态查询）
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date);
 CREATE INDEX IF NOT EXISTS idx_todos_date      ON todos(todo_date);
