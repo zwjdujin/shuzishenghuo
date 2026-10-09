@@ -80,6 +80,7 @@
           <button class="pp-item" data-ptab="site"><svg><use href="#i-home"/></svg><span>站点信息</span></button>
           <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>风格字体</span></button>
           <button class="pp-item" data-ptab="security"><svg><use href="#i-people"/></svg><span>账户安全</span></button>
+          <button class="pp-item" data-ptab="sysinfo"><svg><use href="#i-chart"/></svg><span>系统信息</span></button>
         </div>
       </div>
     </aside>
@@ -220,6 +221,22 @@
             <button class="btn ghost danger" id="logoutBtn2"><svg><use href="#i-logout"/></svg><span>退出登录</span></button>
           </article>
         </div>
+
+        <!-- 子页：系统信息 -->
+        <div class="profile-page" id="page-sysinfo">
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">云端实例</p><h2>云端实例</h2></div></div>
+            <div class="info-grid" id="infoInstance"></div>
+          </article>
+          <article class="panel" style="margin-top:22px">
+            <div class="panel-head"><div><p class="eyebrow">当前客户端</p><h2>当前客户端</h2></div></div>
+            <div class="info-grid" id="infoClient"></div>
+          </article>
+          <article class="panel" style="margin-top:22px">
+            <div class="panel-head"><div><p class="eyebrow">连接与同步</p><h2>连接与同步</h2></div></div>
+            <div class="info-grid" id="infoSync"></div>
+          </article>
+        </div>
       </section>
     </main>
   </div>
@@ -236,6 +253,7 @@
         <button class="pp-item" data-ptab="site"><svg><use href="#i-home"/></svg><span>站点信息</span></button>
         <button class="pp-item" data-ptab="style"><svg><use href="#i-settings"/></svg><span>风格字体</span></button>
         <button class="pp-item" data-ptab="security"><svg><use href="#i-people"/></svg><span>账户安全</span></button>
+        <button class="pp-item" data-ptab="sysinfo"><svg><use href="#i-chart"/></svg><span>系统信息</span></button>
       </div>
     </div>
   </nav>

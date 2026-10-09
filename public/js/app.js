@@ -1,5 +1,20 @@
-// 数字生活 · 前端逻辑 v0.2.5
-const VERSION = '0.2.5';
+// 数字生活 · 前端逻辑 v0.2.6
+const VERSION = '0.2.6';
+// 本次发版信息（系统信息页展示）
+const __BUILD_ID__ = 'f90112a2 · 提交 19e2cd3';
+const __BUILD_TIME__ = '2026-10-09 12:36';
+
+// 同步状态（数据实时写入云端 D1，无待同步队列）
+let __SYNC_TIME__ = '尚未同步';
+let __PENDING__ = '0 项';
+let __CONFLICT__ = '0 项';
+// 每次成功调用写接口后更新「最近成功同步」
+function markSynced() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  __SYNC_TIME__ = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  __PENDING__ = '0 项';
+}
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
 function fatal(msg) {
@@ -134,6 +149,7 @@ async function boot() {
 async function loadHome() {
   const res = await api('/api/home');
   const data = await res.json();
+  markSynced();
   renderHome(data);
 }
 
@@ -464,6 +480,7 @@ async function checkHabit(id, field, value) {
     });
     if (res.ok) {
       toast('已记录 ✓');
+      markSynced();
       await renderGrowth();
     }
   } catch { /* 401 已处理 */ }
@@ -505,7 +522,7 @@ async function deleteHabit(id, name) {
   if (!confirm(`确定删除习惯「${name}」？其打卡记录也会一并清除。`)) return;
   try {
     const res = await api(`/api/habits/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast('已删除'); await renderGrowth(); }
+    if (res.ok) { toast('已删除'); markSynced(); await renderGrowth(); }
   } catch { /* 401 已处理 */ }
 }
 
@@ -674,6 +691,7 @@ $('#habitForm').addEventListener('submit', async (e) => {
     if (res.ok) {
       closeHabitModal();
       toast(editingId ? '已更新习惯' : '已新增习惯');
+      markSynced();
       await renderGrowth();
     } else {
       const d = await res.json().catch(() => ({}));
@@ -688,7 +706,7 @@ $('#habitForm').addEventListener('submit', async (e) => {
 
 // ===== 个人中心 =====
 // 子页名称（站点信息 / 风格字体 / 账户安全）
-const PROFILE_TITLES = { site: '站点信息', style: '风格字体', security: '账户安全' };
+const PROFILE_TITLES = { site: '站点信息', style: '风格字体', security: '账户安全', sysinfo: '系统信息' };
 
 function buildThemeGrid() {
   const grid = $('#themeGrid');
@@ -785,6 +803,134 @@ async function revokeSession(sid) {
   } catch { /* 401 已处理 */ }
 }
 
+// ===== 系统信息 =====
+// 采集当前客户端（浏览器/设备）信息
+function collectClientInfo() {
+  const ua = navigator.userAgent || '';
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+
+  let browser = '未知浏览器';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/OPR\/|Opera/i.test(ua)) browser = 'Opera';
+  else if (/MicroMessenger/i.test(ua)) browser = '微信内置浏览器';
+  else if (/Chrome\//i.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/Safari\//i.test(ua)) browser = 'Safari';
+
+  let os = '未知系统';
+  if (/Windows NT/i.test(ua)) os = 'Windows';
+  else if (/iPhone/i.test(ua)) os = 'iOS (iPhone)';
+  else if (/iPad/i.test(ua)) os = 'iOS (iPad)';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/Mac OS X|Macintosh/i.test(ua)) os = 'macOS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+
+  // 设备型号：Android 上可从 UA 抽取型号
+  let model = isMobile ? (navigator.userAgentData && navigator.userAgentData.model) || '' : '';
+  if (!model) {
+    const m = /Android[^;)]*;\s*([^;)]+?)\s*(?:Build|\))/i.exec(ua);
+    if (m) model = m[1].trim();
+  }
+  if (!model) {
+    if (/iPhone/i.test(ua)) model = 'iPhone';
+    else if (/iPad/i.test(ua)) model = 'iPad';
+    else model = '桌面设备';
+  }
+
+  const arch = /arm|aarch64/i.test(ua) ? 'ARM (64 位)' : 'x86 / x64';
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '未知';
+  const lang = navigator.language || '未知';
+  const cores = navigator.hardwareConcurrency || '未知';
+  const mem = navigator.deviceMemory ? `${navigator.deviceMemory} GB（近似）` : '浏览器未提供';
+
+  return {
+    version: 'v' + VERSION,
+    releaseTime: __BUILD_TIME__,
+    build: __BUILD_ID__,
+    client: browser + (isMobile ? '（移动端）' : '（桌面端）'),
+    system: os,
+    model: model,
+    arch: arch,
+    engine: browser === 'Chrome' || browser === 'Edge' || browser === 'Opera' ? 'Blink' :
+            browser === 'Firefox' ? 'Gecko' : browser === 'Safari' || /iPhone|iPad|Mac OS/.test(ua) ? 'WebKit' : '未知',
+    language: lang + ` · ${cores} 核 · ${mem}`,
+    screen: `${screen.width} × ${screen.height} 像素 · ${window.devicePixelRatio || 1}x 缩放 · ${window.innerWidth}×${window.innerHeight} 可视区`,
+    timezone: tz,
+  };
+}
+
+// 渲染信息网格（键值对）
+function renderInfoGrid(box, rows) {
+  box.innerHTML = '';
+  rows.forEach(([k, v]) => {
+    const el = document.createElement('div');
+    el.className = 'info-row';
+    el.innerHTML = '<span class="info-k"></span><span class="info-v"></span>';
+    el.querySelector('.info-k').textContent = k;
+    el.querySelector('.info-v').textContent = v;
+    box.appendChild(el);
+  });
+}
+
+async function renderSysInfo() {
+  const instBox = $('#infoInstance');
+  const cliBox = $('#infoClient');
+  const syncBox = $('#infoSync');
+  [instBox, cliBox, syncBox].forEach((b) => { if (b) b.innerHTML = '<div class="empty-hint">加载中…</div>'; });
+
+  // 客户端信息（本地即可采集，先渲染避免等待）
+  const cli = collectClientInfo();
+  renderInfoGrid(cliBox, [
+    ['客户端版本', cli.version],
+    ['发版时间', cli.releaseTime],
+    ['构建', cli.build],
+    ['客户端', cli.client],
+    ['系统', cli.system],
+    ['设备型号', cli.model],
+    ['架构', cli.arch],
+    ['运行引擎', cli.engine],
+    ['语言', cli.language],
+    ['屏幕分辨率', cli.screen],
+    ['时区', cli.timezone],
+  ]);
+
+  // 云端实例信息
+  let inst = {}, health = { ok: false, ms: 0, note: '未检测' };
+  try {
+    const t0 = performance.now();
+    const res = await api('/api/sysinfo');
+    const data = await res.json();
+    inst = data.instance || {};
+    health = data.health || {};
+    // 健康检查耗时以浏览器实测+服务端耗时中的较大值展示更贴近真实
+    const rtt = Math.round(performance.now() - t0);
+    renderInfoGrid(instBox, [
+      ['实例版本', inst.version || '未知'],
+      ['实例构建', inst.build || '未知'],
+      ['实例部署时间', inst.deployTime || '未知'],
+      ['数据库版本', inst.dbVersion || '未知'],
+      ['数据库后端', inst.dbBackend || '未知'],
+      ['对象存储', inst.storage || '未知'],
+      ['部署平台', inst.platform || '未知'],
+      ['部署来源', inst.source || '未知'],
+      ['后端运行时', inst.backend || '未知'],
+      ['边缘节点', inst.colo || '未知'],
+      ['访问协议', (inst.protocol || 'https').toUpperCase()],
+    ]);
+    renderInfoGrid(syncBox, [
+      ['实例连接状况', health.ok ? '● 正常' : '○ ' + (health.note || '异常')],
+      ['健康检查耗时', `${health.ms ?? rtt} ms（服务端） · ${rtt} ms（往返）`],
+      ['最近成功同步', __SYNC_TIME__],
+      ['待同步', __PENDING__],
+      ['失败或冲突', __CONFLICT__],
+    ]);
+  } catch (err) {
+    const msg = String(err.message).includes('unauthorized') ? '未登录' : '加载失败';
+    if (instBox) instBox.innerHTML = `<div class="empty-hint">${msg}</div>`;
+    if (syncBox) syncBox.innerHTML = `<div class="empty-hint">${msg}</div>`;
+  }
+}
+
 $('#saveSettingsBtn').addEventListener('click', async () => {
   const payload = {
     brand_name: ($('#setBrandName').value || '').trim() || '数字生活',
@@ -809,6 +955,7 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
         $('#brandTagline').textContent = d.settings.brand_tagline;
       }
       toast('已保存');
+      markSynced();
     } else {
       toast('保存失败');
     }
@@ -826,6 +973,7 @@ function switchProfileTab(name) {
   currentProfileTab = tab;
   $$('.profile-page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
   if (tab === 'security') renderSessions();
+  if (tab === 'sysinfo') renderSysInfo();
 }
 
 // 从子菜单进入个人中心的指定子页

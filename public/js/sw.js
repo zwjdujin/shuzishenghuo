@@ -1,7 +1,7 @@
 // 数字生活 · Service Worker（PWA 可“添加到主屏幕”当 APP 用）
 // 策略：除 /api/ 接口外，所有静态资源（HTML/JS/CSS/图标/manifest）一律“网络优先”，
 // 失败再回退缓存。这样每次部署新版本后，浏览器刷新即能拿到最新代码，不再被旧缓存卡住。
-const CACHE = 'shuzishenghuo-v7';
+const CACHE = 'shuzishenghuo-v8';
 const PRECACHE = ['./', './index.html', './manifest.webmanifest', './css/style.css', './js/app.js'];
 
 self.addEventListener('install', (e) => {

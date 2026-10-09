@@ -3,7 +3,17 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.4。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.2.5。
+- **个人中心（v0.2.5 当前）**：**子菜单是唯一入口**，页面顶部无标题、无页签，直接显示子页内容。
+  - 侧栏：`#profileBtn`（在 `.local-card` 下方）→ 向上弹出 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security）。
+  - 移动端：底部导航 `.mnav-profile > #profileBtnMobile`（文案「我的」）→ 向上弹出 `#profilePopoverMobile`，结构同上。
+  - 统一由 `PROFILE_MENUS` 数组 + `closeAllProfilePopovers()` 管理；点击子菜单项走 `openProfileTab(name)`。
+  - **坑**：`switchView('settings')` 内不可无条件 `switchProfileTab('site')`，会把带参进入的子页重置（曾导致子菜单点了没反应）。现用 `currentProfileTab` 记忆 + `switchView(name,{keepTab:true})`。
+  - 导航委托里 `navEl.id !== 'profileBtnMobile'` 排除移动端「我的」，避免直接切视图。
+  - `#view-settings` 子页容器 `.profile-page`(id=page-site/style/security)，`switchProfileTab()` 切换 active。
+  - 站点信息页 `GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)；主题切换 `applyTheme(name)` 改 `:root` 的 `--plum`/`--plum-soft`。
+  - 账户安全页 `renderSessions()` 渲染设备列表，`DELETE /api/sessions/[sid]` 登出设备；退出登录 `#logoutBtn2`。
+- **打卡卡片布局（v0.2.5）**：`.ci-actions` 固定 `width:210px`（=手机端一行宽），各类控件统一；睡眠三件套加 `.tri` 类三按钮 flex:1 均分；移动端 `.checkin-card` 纵向两行、操作区 `width:100%`。
 - **JS 作用域坑（重要）**：`const/let` 声明在 `if/else` 块内，块外不可见。改造函数时若把变量声明收进分支、块外又要用，会抛 `xxx is not defined`，且 `node --check` 查不出——必须人工核对作用域。
 - **固定高度+border/padding 坑**：给固定 `height` 的元素加 border/padding 会压缩内容盒（除非显式 `box-sizing:border-box`），视觉上表现为「内容不居中」。`.side-bottom` 曾因此把 44px 按钮的文字挤偏，分隔线应放到父容器。
 - **模块状态**：个人首页已成型；**成长打卡已补齐**；**个人中心(v0.2.2) 已补齐**；待办提醒/我的账本/家庭药箱/日历中心/人际关系 仍为留白菜单入口，数据表已建好，后续每次迭代只补 1 个页面。
@@ -17,8 +27,6 @@
   - **CSS 溢出坑**：flex 容器内 input/select 需 `width:100%;max-width:100%` + 父级 `min-width:0`，否则输入框会撑破弹窗边框。
   - 共享帮助函数放 `functions/api/_helpers.js`（progressOf、parseHabitBody），供 habits.js 与 [id].js 复用。
   - **PWA/Pages Functions 打包坑（重要）**：下划线前缀文件放错目录会导致 esbuild 报 `Could not resolve`。`_helpers.js` 必须在 `functions/api/_helpers.js`（与 `habits.js` 同级），`habits.js` 用 `./_helpers.js`、`habits/[id].js` 用 `../_helpers.js`；不能放在 `habits/` 子目录里。
-- **个人中心（v0.2.1）**：侧栏底部 `.side-bottom` 的「个人中心」入口（`data-nav="settings"`）；页内可改 站点名/头像字/副标题/主题配色(plum/terra/sage/sand/clay)，`GET/PUT /api/settings` 读写 `app_settings`(白名单 brand_name/brand_avatar/brand_tagline/theme)。主题切换在 app.js 的 `applyTheme(name)`，直接改 `:root` 的 `--plum`/`--plum-soft` CSS 变量。退出登录按钮 `#logoutBtn2` 移到个人中心页（原 topbar `#logoutBtn` 已删）。
-- **个人中心（v0.2.2 重构）**：`#profileBtn` 按钮移到 `local-card` 下方（不再用 `data-nav` 直接切视图），点击弹出 `.profile-popover` 子菜单（站点信息/风格字体/账户安全，`data-ptab`）。个人中心页 `#view-settings` 改为「页签 `.ptab` + 三个 `.profile-page`(site/style/security)」结构，`switchProfileTab(name)` 切换。移动端底部仍用 `data-nav="settings"` 直接进个人中心。账户安全页 `renderSessions()` 渲染设备列表，`DELETE /api/sessions/[sid]` 登出设备。
 - **会话/设备（v0.2.2）**：`sessions` 表(sid PK/user/ip/user_agent/created_at/last_seen_at)。`signToken(user,secret,ttlMs,extra)` 支持额外字段，登录时生成 `sid` 写入 token 并落库；`decodeToken(token)` 取**第一段 payload**（token 格式 `payload.sig`，切勿取第二段）。`_middleware.js` 校验 token 后还查 sessions 表确认 sid 存在（被登出设备 token 立即 401）。IP 取 `cf-connecting-ip` 或 `x-forwarded-for`。终端识别 `parseDevice(ua)` 在 sessions.js。
 - **十二时辰经络（v0.2.2）**：`SHICHEN` 数组(12 项，name/range/meridian/tip)，`shichenOf(hour)` 用 `Math.floor(((hour+1)%24)/2)` 索引；`renderShichen()` 把时辰名写入 hero 的 `#dayBadge`、时间段写入 `.score-orbit` 内 `.shichen-range` small、`#heroGreeting` 显示经络、`#heroSummary` 显示养生口诀。数据源 https://www.dujin.org/6100.html。
 - **本地验证**：可用 Node + mock D1 跑 `functions/api/*` 处理器（`signToken` 必须把 JSON 字符串先 `TextEncoder().encode` 再 base64url，否则 payload 为空）。
