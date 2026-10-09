@@ -7,3 +7,4 @@ _shot_*.png
 node_modules/
 .ssh-keys/
 .wrangler/
+backups/
