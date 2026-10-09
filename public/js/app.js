@@ -1,5 +1,5 @@
-// 数字生活 · 前端逻辑 v0.3.3
-const VERSION = '0.3.3';
+// 数字生活 · 前端逻辑 v0.3.4
+const VERSION = '0.3.4';
 // 本次发版信息（系统信息页展示）
 const __BUILD_ID__ = '待更新 · 提交 71a49ac';
 const __BUILD_TIME__ = '2026-10-09 14:15';
@@ -53,12 +53,42 @@ async function api(path, opts = {}) {
 }
 
 // ===== 主题配色 =====
+// 18 种中国传统色（主色 + 浅色背景），数据源 https://api.dujin.org/colors/cn-colors/
 const THEMES = {
-  plum:  { base: '#4d3045', soft: '#e8dfe5', label: '绛紫' },
-  terra: { base: '#b65f42', soft: '#f3dfd6', label: '赤陶' },
-  sage:  { base: '#627a67', soft: '#dfe8df', label: '青绿' },
-  sand:  { base: '#a57c45', soft: '#eee2ce', label: '砂金' },
-  clay:  { base: '#8f4f3b', soft: '#ecd9d0', label: '陶土' },
+  // 原有配色（保留以兼容历史设置）
+  plum:  { base: '#4d3045', soft: '#e8dfe5', label: '绛紫',   group: '经典' },
+  terra: { base: '#b65f42', soft: '#f3dfd6', label: '赤陶',   group: '经典' },
+  sage:  { base: '#627a67', soft: '#dfe8df', label: '青绿',   group: '经典' },
+  sand:  { base: '#a57c45', soft: '#eee2ce', label: '砂金',   group: '经典' },
+  clay:  { base: '#8f4f3b', soft: '#ecd9d0', label: '陶土',   group: '经典' },
+
+  // 中国传统色 · 红
+  yanzhi:{ base: '#952E3A', soft: '#F0E0E2', label: '胭脂',   group: '红' },
+  qdhl:  { base: '#B80233', soft: '#F7DDE2', label: '牡丹红', group: '红' },
+  yxht:  { base: '#952E3A', soft: '#F0E0E2', label: '殷红',   group: '红' },
+
+  // 中国传统色 · 紫
+  zll:   { base: '#732E7E', soft: '#EEE0F0', label: '紫罗蓝', group: '紫' },
+  ldzi:  { base: '#423171', soft: '#E1DFEC', label: '龙胆紫', group: '紫' },
+  qnz:   { base: '#A22076', soft: '#F3DEEC', label: '牵牛紫', group: '紫' },
+  xz:    { base: '#79485A', soft: '#F0E2E7', label: '雪紫',   group: '紫' },
+
+  // 中国传统色 · 绿
+  cng:   { base: '#4E5F45', soft: '#E3EAE1', label: '苍绿',   group: '绿' },
+  ywl:   { base: '#006E5F', soft: '#DCEEEA', label: '翠绿',   group: '绿' },
+  yxls:  { base: '#4F7E57', soft: '#E1EBE3', label: '琉璃绿', group: '绿' },
+  dll:   { base: '#3F5B50', soft: '#DFE7E4', label: '墨绿',   group: '绿' },
+
+  // 中国传统色 · 黄
+  myh:   { base: '#C77A3A', soft: '#F5E6D2', label: '金黄',   group: '黄' },
+  jsh:   { base: '#E1A14D', soft: '#FAEDD8', label: '虾黄',   group: '黄' },
+  th:    { base: '#CE9335', soft: '#F7E9CF', label: '土黄',   group: '黄' },
+
+  // 中国传统色 · 蓝
+  ll:    { base: '#1A638A', soft: '#DFEAF1', label: '琉璃蓝', group: '蓝' },
+  szsbl: { base: '#507883', soft: '#E0EAED', label: '玉石蓝', group: '蓝' },
+  zy:    { base: '#6493AF', soft: '#E4EDF3', label: '钴蓝',   group: '蓝' },
+  qnh:   { base: '#168570', soft: '#DEEDE8', label: '孔雀绿', group: '蓝' },
 };
 let currentTheme = 'plum';
 function applyTheme(name) {
@@ -67,6 +97,115 @@ function applyTheme(name) {
   const root = document.documentElement;
   root.style.setProperty('--plum', t.base);
   root.style.setProperty('--plum-soft', t.soft);
+  // 同步辅助色（按钮 hover / 边框用），由主色派生
+  root.style.setProperty('--plum-deep', shade(t.base, -18));
+  try { localStorage.setItem('pf_theme', currentTheme); } catch (_) {}
+}
+
+// 主色加深（用于 hover 态）
+function shade(hex, pct) {
+  try {
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    const f = 1 + pct / 100;
+    r = Math.max(0, Math.min(255, Math.round(r * f)));
+    g = Math.max(0, Math.min(255, Math.round(g * f)));
+    b = Math.max(0, Math.min(255, Math.round(b * f)));
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  } catch (_) { return hex; }
+}
+
+// ===== 日夜模式（日出日落自动） =====
+let uiMode = 'auto';           // light | night | auto
+let lastAppliedMode = '';
+
+/** 按纬度与日期估算日出日落时刻（简化算法，精度 ±10 分钟） */
+function sunTimes(lat, date) {
+  const rad = Math.PI / 180;
+  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+  // 太阳赤纬
+  const decl = 23.45 * rad * Math.sin(((360 / 365) * (dayOfYear - 81)) * rad);
+  // 日落/日出时角（忽略经度与时区中心 meridian）
+  const latR = lat * rad;
+  const cosH = -Math.tan(latR) * Math.tan(decl);
+  let sunsetHour;
+  if (cosH >= 1 || cosH <= -1) sunsetHour = 19; // 极昼/极夜
+  else {
+    const H = Math.acos(cosH) / rad / 15;       // 半昼长（小时）
+    sunsetHour = 12 + H;
+  }
+  return { sunrise: 12 - (sunsetHour - 12), sunset: sunsetHour };
+}
+
+/** 应用模式；auto 时按当前时刻与日出日落判断 */
+function applyUIMode() {
+  let mode = uiMode;
+  if (mode === 'auto') {
+    const t = sunTimes(30.5, new Date()); // 默认按南京/深圳一带估算
+    const now = new Date();
+    const h = now.getHours() + now.getMinutes() / 60;
+    mode = (h >= t.sunrise && h < t.sunset) ? 'light' : 'night';
+  }
+  if (mode === lastAppliedMode) return;
+  lastAppliedMode = mode;
+  document.documentElement.setAttribute('data-mode', mode);
+  try { localStorage.setItem('pf_mode', uiMode); } catch (_) {}
+  updateModeTip(mode);
+}
+
+function updateModeTip(actual) {
+  const tip = $('#modeTip');
+  if (!tip) return;
+  if (uiMode !== 'auto') {
+    tip.textContent = actual === 'night' ? '当前：夜间模式' : '当前：日间模式';
+    return;
+  }
+  const t = sunTimes(30.5, new Date());
+  const fmt = (x) => `${String(Math.floor(x)).padStart(2, '0')}:${String(Math.round((x % 1) * 60)).padStart(2, '0')}`;
+  tip.textContent = `当前：${actual === 'night' ? '夜间模式' : '日间模式'} · 今日日出约 ${fmt(t.sunrise)}，日落约 ${fmt(t.sunset)}`;
+}
+
+function buildModeOpts() {
+  const box = $('#modeOpts');
+  if (!box) return;
+  box.querySelectorAll('input[name=uiMode]').forEach((r) => {
+    r.checked = r.value === uiMode;
+    r.addEventListener('change', () => {
+      uiMode = r.value;
+      lastAppliedMode = '';      // 强制重算
+      applyUIMode();
+      toast(uiMode === 'auto' ? '已开启日出日落自动切换' : (uiMode === 'night' ? '已切换夜间模式' : '已切换日间模式'));
+    });
+  });
+  applyUIMode();
+  // 每分钟检查一次（跨过日出/日落时自动切换）
+  setInterval(() => { if (uiMode === 'auto') { lastAppliedMode = ''; applyUIMode(); } }, 60000);
+}
+
+function buildFontOpts() {
+  const box = $('#fontOpts');
+  if (!box) return;
+  box.innerHTML = Object.keys(FONTS).map((k) => {
+    const f = FONTS[k];
+    return `<button class="font-opt${currentFont === k ? ' on' : ''}" onclick="pickFont('${k}')">
+      <span class="fo-name" style="font-family:${f.stack}">${f.label}</span>
+      <span class="fo-note">${f.note}</span>
+    </button>`;
+  }).join('');
+}
+function pickFont(name) {
+  applyFont(name);
+  buildFontOpts();
+  toast('已切换字体：' + FONTS[currentFont].label);
+}
+
+function applyFont(name) {
+  currentFont = FONTS[name] ? name : 'default';
+  const f = FONTS[currentFont];
+  const root = document.documentElement;
+  root.style.setProperty('--font-ui', f.stack);
+  root.style.setProperty('--font-serif', f.serif);
+  try { localStorage.setItem('pf_font', currentFont); } catch (_) {}
 }
 
 // ===== 登录 =====
@@ -1449,19 +1588,41 @@ function buildThemeGrid() {
   const grid = $('#themeGrid');
   if (!grid) return;
   grid.innerHTML = '';
+  // 按 group 分组展示
+  const groups = {};
   Object.keys(THEMES).forEach((k) => {
-    const t = THEMES[k];
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'theme-swatch' + (k === currentTheme ? ' active' : '');
-    b.style.background = t.base;
-    b.innerHTML = `<span>${t.label}</span>`;
-    b.addEventListener('click', () => {
-      currentTheme = k;
-      applyTheme(k);
-      buildThemeGrid();
+    const g = THEMES[k].group || '其他';
+    (groups[g] = groups[g] || []).push(k);
+  });
+  const order = ['经典', '红', '紫', '绿', '黄', '蓝', '其他'];
+  const cnt = $('#themeCount');
+  if (cnt) cnt.textContent = `共 ${Object.keys(THEMES).length} 种`;
+
+  order.forEach((g) => {
+    const keys = groups[g];
+    if (!keys) return;
+    const sec = document.createElement('div');
+    sec.className = 'theme-group';
+    sec.innerHTML = `<span class="tg-label">${g}</span>`;
+    grid.appendChild(sec);
+    const row = document.createElement('div');
+    row.className = 'theme-row';
+    keys.forEach((k) => {
+      const t = THEMES[k];
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'theme-swatch' + (k === currentTheme ? ' active' : '');
+      b.style.background = t.base;
+      b.innerHTML = `<span>${t.label}</span><i style="background:${t.soft}"></i>`;
+      b.title = `${t.label} ${t.base}`;
+      b.addEventListener('click', () => {
+        applyTheme(k);
+        buildThemeGrid();
+        toast('已应用配色：' + t.label);
+      });
+      row.appendChild(b);
     });
-    grid.appendChild(b);
+    grid.appendChild(row);
   });
 }
 
@@ -1934,5 +2095,21 @@ if ('serviceWorker' in navigator) {
 
 // 人物档案模块（v0.3.1）事件绑定
 if (window.pfBindEvents) window.pfBindEvents();
+
+// 恢复本地外观设置（主题 / 字体 / 日夜模式）
+(function restoreAppearance() {
+  try {
+    const th = localStorage.getItem('pf_theme');
+    if (th && THEMES[th]) applyTheme(th);
+    const fo = localStorage.getItem('pf_font');
+    if (fo && FONTS[fo]) applyFont(fo);
+    const mo = localStorage.getItem('pf_mode');
+    if (mo) uiMode = mo;
+  } catch (_) { /* 隐私模式忽略 */ }
+  lastAppliedMode = '';
+  applyUIMode();
+  buildModeOpts();
+  buildFontOpts();
+})();
 
 boot();

@@ -6,6 +6,10 @@
   <meta name="theme-color" content="#4d3045">
   <meta name="description" content="数字生活——把成长打卡、待办提醒、账本、药箱、日历与人际关系安放在一个地方。">
   <link rel="manifest" href="./manifest.webmanifest">
+  <!-- 免费商用字体：霞鹜文楷（OFL 协议，可商用） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+Regular&family=LXGW+WenKai+Lite&display=swap">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
   <link rel="stylesheet" href="./css/style.css">
   <title>数字生活 · 个人工作台</title>
@@ -391,8 +395,23 @@
         <!-- 子页：风格字体 -->
         <div class="profile-page" id="page-style">
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">风格</p><h2>主题配色</h2></div></div>
-            <p class="muted">选择一种主色调，立即预览并保存。</p>
+            <div class="panel-head"><div><p class="eyebrow">外观</p><h2>日夜模式</h2></div></div>
+            <div class="mode-opts" id="modeOpts">
+              <label class="mode-opt"><input type="radio" name="uiMode" value="light"><b>日间模式</b><small>始终使用浅色</small></label>
+              <label class="mode-opt"><input type="radio" name="uiMode" value="night"><b>夜间模式</b><small>始终使用深色</small></label>
+              <label class="mode-opt"><input type="radio" name="uiMode" value="auto"><b>跟随日出日落</b><small>自动按当地日出日落切换</small></label>
+            </div>
+            <p class="muted" id="modeTip" style="margin-top:10px"></p>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">字体</p><h2>界面字体</h2></div></div>
+            <div class="font-opts" id="fontOpts"></div>
+            <p class="muted" style="margin-top:10px">霞鹜文楷采用 OFL 开源协议，可免费商用；临海隶书在未安装该字体的设备上会自动回退。</p>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">风格</p><h2>主题配色</h2></div>
+              <span class="muted" id="themeCount"></span></div>
+            <p class="muted">中国传统色 · 选一种主色调，立即预览并保存。</p>
             <div class="theme-grid" id="themeGrid"></div>
           </article>
         </div>

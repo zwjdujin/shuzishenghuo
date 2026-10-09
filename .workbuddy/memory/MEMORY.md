@@ -3,7 +3,8 @@
 - **技术栈**：Cloudflare Pages（静态前端 `./public`）+ Pages Functions（`./functions`）+ D1 数据库（名 `shuzishenghuo`）+ R2 存储桶（名 `shuzishenghuo`）。非 资料库 托管。
 - **认证**：管理员登录，凭据来自后台变量 `ADMIN_USER/ADMIN_PASS/SESSION_SECRET`；HMAC-SHA256 签名 Cookie（7天），`_middleware.js` 全局校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）。
 - **前端风格**：参考「日常集」——暖色纸感背景、左侧 `.sidebar` 模块导航、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS，零外部依赖；图标用 `#i-*` SVG sprite。
-- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.2（全部页面已补齐，无留白页）。
+- **版本号规则**：`主.次.修订`。主版本(左)由用户特别说明时改；次版本(中)每新增一个功能页面 +1；修订号(右)每次修改 +1。当前 v0.3.3（全部页面已补齐，无留白页）。
+- **改字段名必须全局搜索（教训）**：v0.3.2 修了档案页的 `nb.date`→`nb.full`，但v0.3.3 发现列表页生日卡片仍写 `b.date` → 同一问题二次出现。**任何字段重命名/修改，必须 `grep` 该字段名的所有引用处一并改**。
 - **全局模块间距（最高优先级，用户强调过多次，严禁再犯）**：**任何页面内模块之间都必须有 22px 间隔**，且每次新增页面/模块都要保证。
   - 通用规则：`.view.active>*{margin-bottom:22px}` + `:last-child{margin-bottom:0}`（`.view` 的直接子元素）。
   - **嵌套容器例外**：若页面结构是 `.view > #xxxView > .panel`（多包了一层），通用规则不生效，必须为该容器单独加规则，如 `#relListView>*,#relProfileView>*{margin-bottom:22px}` + `:last-child{margin-bottom:0}`。
@@ -21,7 +22,8 @@
   - 列表 7 维筛选：姓氏/性别/年龄段/关系/省份/城市/亲疏 + 关键词搜索。
   - 多联系方式点× 三选项：删除 / 弃用(保留并显示"(已弃用)"，可恢复) / 取消。
   - 删除联系人：`DELETE /api/profile/delete?id=N`，级联清理 11 张档案表 + R2 附件 + 承诺生成的 todos + 人情产生的 transactions，并把他人的 `ref_id` 置空防死链。
-  - **字段名坑**：列表接口的 `nextBirthday` 用 `b.date`，详情接口用 `nb.full`，两者不同勿混用（曾致 undefined）。
+  - **字段名坑**：列表与详情的 `nextBirthday` **都返回 `full`**（不要用 `date`，曾两次致undefined）。列表额外返回 `phone`（取未弃用的首个 phones）。
+  - 显示方式切换：`PF.mode` = `detail`(一行一个，含昵称/性别/年龄/关系/亲疏/省市/职业/手机/公历+农历生日) | `simple`(grid auto-fill minmax(150px,1fr)，仅姓名+手机)。切换用缓存 `PF.lastList` 重渲染。
 - **个人中心（v0.2.5 当前）**：**子菜单是唯一入口**，页面顶部无标题、无页签，直接显示子页内容。
   - 侧栏：`#profileBtn`（在 `.local-card` 下方）→ 向上弹出 `#profilePopover`（`.pp-item` 带 `data-ptab`：site/style/security/sysinfo）。
   - 移动端：底部导航 `.mnav-profile > #profileBtnMobile`（文案「我的」）→ 向上弹出 `#profilePopoverMobile`，结构同上。
