@@ -5,3 +5,5 @@ _t.html
 _dom.html
 _shot_*.png
 node_modules/
+.ssh-keys/
+.wrangler/

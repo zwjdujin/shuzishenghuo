@@ -56,9 +56,18 @@ v0.3.2 修了档案页 `nb.date`→`nb.full`，v0.3.3 发现列表页仍写 `b.d
 
 ## 数据表
 `app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts, sessions`。建表见 `schema.sql`，示例见 `seed.sql`。
-- `medicines`：id / name / spec / quantity / expiry / note / created_at。**待扩充**（功效、用量）。
+- `medicines`（v0.3.7 扩展）：id / name / efficacy(功效) / spec(规格) / dosage(用量) / form(剂型) / expiry(效期) / category / location / manufacturer / stock / stock_min / for_whom / rx(处方药) / open_date / price / quantity / note。原 `quantity` 语义模糊已弃用，新数据走 dosage+stock。
 
 ## 模块实现要点
+- **家庭药箱（v0.3.7）**：`public/js/medicine.js`（app.js 前引入）+ `functions/api/medicines.js` + `medicines/[id].js`。
+  - **临期定义：6 个月，按自然月加**（`new Date(y, m+6, d)`），**不用 180/184 天**，否则边界差几天。已测：正好 6 个月算临期，6 个月零 1 天算正常。
+  - 四态：`expired`(days<0) / `soon`(≤6个月) / `safe` / `none`(未填效期，不进临期/过期表)。
+  - 前端暴露 `window.medRenderMedicine` / `window.medBindEvents`（app.js 末尾调用）。
+  - 页面含：录入弹窗 + 统计卡(5) + 筛选栏 + 药品一览 + 临期一览 + 过期一览 + 分类统计 + 位置分布 + 常备清单。
+  - **踩坑**：项目里 `.inp` 类**原先没有通用样式**（只有 `.rel-search .inp`），新页面用 `class="inp"` 会渲染成裸输入框。已在 style.css 补通用规则。
+  - 迁移 `migrate-v0.3.7.sql` 含 16 条示例数据（含 2 条过期、3 条临期、1 条库存为 0），便于首次打开看效果。
+  - 本地测试 `scripts/test-medicines.mjs`（mock D1 跑 20 项断言，含 6 个月边界与空态）。
+
 - **人际关系（v0.3.1）**：`public/js/profile.js`（~1300行，app.js 前引入）+ `functions/api/profile/*`。
   - `_profile.js` 提供农历换算(1900-2100 LUNAR_INFO)、`nextBirthday()`、`birthdayFromIdcard()`、`ageOf()`。
   - 三端联动：承诺→`todos`(list='人际关系',person_id)；人情→`transactions`(category='人情',note='@姓名')；互动可同步 `events`。
@@ -94,4 +103,5 @@ v0.3.2 修了档案页 `nb.date`→`nb.full`，v0.3.3 发现列表页仍写 `b.d
 
 ## 其他备忘
 - **邮件通知（已放弃，勿重复尝试）**：Cloudflare Pages Functions 无 TCP 能力，SMTP 无法直连。唯一可行路径是 HTTP 邮件 API（Resend / SendGrid / Cloudflare Email binding），用 `fetch()` 调用。用户 v0.2.8 已确认暂不做。
-- **模块状态**：个人首页、成长打卡、个人中心、日历中心、待办提醒、我的账本、人际关系 均已补齐。**家庭药箱仍为空白页**（`medicines` 表已建好）。
+- **模块状态**：个人首页、成长打卡、个人中心、日历中心、待办提醒、我的账本、人际关系、**家庭药箱(v0.3.7)** 均已补齐，**已无留白页**。
+- **PWA 缓存名实际已到 v20**（历史记录里写的 v4/v19 已过时，以 `public/js/sw.js` 里 `const CACHE =` 为准）。
