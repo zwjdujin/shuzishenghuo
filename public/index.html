@@ -218,10 +218,10 @@
         </article>
       </section>
 
-      <!-- 我的账本（v0.2.7 记账理财） -->
+      <!-- 我的账本（v0.3.14 记账理财增强） -->
       <section class="view" id="view-ledger" data-title="我的账本">
         <div class="growth-head">
-          <div><p class="eyebrow">我的账本</p><h2>收支与结余</h2></div>
+          <div><p class="eyebrow" id="ledEyebrow">我的账本</p><h2>收支与结余</h2></div>
           <div class="cal-actions">
             <div class="cal-nav">
               <button class="icon-btn" id="ledPrev" title="上月" aria-label="上月"><svg><use href="#i-left"/></svg></button>
@@ -231,14 +231,46 @@
             <button class="btn primary" id="addTxnBtn" type="button"><svg><use href="#i-plus"/></svg>记一笔</button>
           </div>
         </div>
-        <div class="ledger-stats" id="ledgerStats"></div>
+
+        <!-- 概览：收入 / 支出 / 结余 / 日均 -->
+        <div class="led-overview" id="ledgerStats"></div>
+
+        <!-- 月预算 -->
+        <article class="panel led-budget" id="ledgerBudget"></article>
+
+        <!-- 近 6 个月收支趋势 -->
+        <article class="panel" id="ledgerTrendPanel">
+          <div class="panel-head">
+            <div><p class="eyebrow">近 6 个月</p><h2>收支趋势</h2></div>
+            <div class="led-mini-legend"><span class="lm inc"><i></i>收入</span><span class="lm exp"><i></i>支出</span></div>
+          </div>
+          <div id="ledgerTrend" class="led-trend"></div>
+        </article>
+
         <div class="ledger-grid">
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">支出构成</p><h2>分类占比</h2></div></div>
+            <div class="panel-head">
+              <div><p class="eyebrow">构成</p><h2 id="ledDonutTitle">支出构成</h2></div>
+              <div class="seg led-donut-seg">
+                <button class="seg-item active" data-leddonut="expense" type="button"><span>支出</span></button>
+                <button class="seg-item" data-leddonut="income" type="button"><span>收入</span></button>
+              </div>
+            </div>
             <div id="ledgerChart" class="donut-wrap"></div>
           </article>
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">明细</p><h2>本月流水</h2></div></div>
+            <div class="panel-head">
+              <div><p class="eyebrow">明细</p><h2>本月流水</h2></div>
+              <span class="led-count" id="ledCount"></span>
+            </div>
+            <div class="led-filter">
+              <div class="lf-seg" id="ledFlowFilter">
+                <button class="lf-btn active" data-ledflow="all" type="button">全部</button>
+                <button class="lf-btn" data-ledflow="expense" type="button">支出</button>
+                <button class="lf-btn" data-ledflow="income" type="button">收入</button>
+              </div>
+              <input class="lf-input" id="ledSearch" type="search" placeholder="搜索备注 / 分类 / 账户">
+            </div>
             <div id="ledgerList" class="txn-stack"></div>
           </article>
         </div>
@@ -818,25 +850,45 @@
     </div>
   </div>
 
-  <!-- 记一笔弹窗 -->
+  <!-- 记一笔 / 编辑记录 弹窗 -->
   <div class="modal-overlay" id="txnModal" hidden>
-    <div class="modal-card">
+    <div class="modal-card txn-card">
       <div class="modal-head">
-        <h3>记一笔</h3>
+        <h3 id="txnModalTitle">记一笔</h3>
         <button class="icon-btn" id="txnModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
       <form id="txnForm">
+        <input type="hidden" name="id" id="txnEditId" value="">
         <div class="seg" style="margin-bottom:14px">
           <label class="seg-item"><input type="radio" name="flow" value="expense" checked><span>支出</span></label>
           <label class="seg-item"><input type="radio" name="flow" value="income"><span>收入</span></label>
         </div>
-        <label class="field"><span>金额</span><input name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required></label>
-        <div class="field-row">
-          <label class="field"><span>分类</span><select name="category" id="txnCatSel"></select></label>
-          <label class="field"><span>日期</span><input name="date" type="date"></label>
+
+        <div class="field txn-amount">
+          <span>金额</span>
+          <div class="amt-input"><i>¥</i><input name="amount" id="txnAmount" type="number" min="0.01" step="0.01" placeholder="0.00" inputmode="decimal" required></div>
         </div>
-        <label class="field"><span>备注</span><input name="note" maxlength="30" placeholder="选填，例如：午饭"></label>
-        <button class="btn primary full" type="submit">保存</button>
+        <div class="quick-amt" id="quickAmt">
+          <button type="button" data-amt="10">+10</button>
+          <button type="button" data-amt="50">+50</button>
+          <button type="button" data-amt="100">+100</button>
+          <button type="button" data-amt="500">+500</button>
+          <button type="button" data-amt="clear">清零</button>
+        </div>
+
+        <div class="field">
+          <span>分类</span>
+          <div class="cat-chips" id="txnCatChips"></div>
+          <select name="category" id="txnCatSel" hidden></select>
+        </div>
+
+        <div class="field-row">
+          <label class="field"><span>日期</span><input name="date" id="txnDate" type="date"></label>
+          <label class="field"><span>账户</span><select name="account" id="txnAcctSel"></select></label>
+        </div>
+        <label class="field"><span>备注</span><input name="note" maxlength="30" placeholder="选填，例如：午饭 / @张伟 生日礼物"></label>
+        <div class="note info" id="txnSyncHint" hidden>🔗 备注以 <b>@姓名</b> 开头，会与「人际关系 · 财务人情账」互相反查。</div>
+        <button class="btn primary full" type="submit" id="txnSubmitBtn">保存</button>
         <p class="login-error" id="txnFormError" hidden></p>
       </form>
     </div>

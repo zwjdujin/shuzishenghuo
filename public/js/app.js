@@ -1,8 +1,8 @@
 // 数字生活 · 前端逻辑 v0.3.12
-const VERSION = '0.3.13';
+const VERSION = '0.3.14';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '账户安全：新增修改密码 v0.3.13';
-const __BUILD_TIME__ = '2026-10-10 19:20';
+const __BUILD_ID__ = '我的账本增强：预算 / 趋势 / 构成排行 / 流水筛选与编辑 v0.3.14';
+const __BUILD_TIME__ = '2026-10-10 19:46';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -1232,8 +1232,23 @@ function setSystemAlarm(t) {
 }
 
 // ===== 我的账本 =====
-let ledgerState = { month: todayStrLocal().slice(0, 7) };
-const DONUT_COLORS = ['#4d3045', '#b65f42', '#627a67', '#a57c45', '#8f4f3b', '#7a6a8f', '#4a7a8c', '#8a7a4a'];
+let ledgerState = { month: todayStrLocal().slice(0, 7), donutMode: 'expense', flow: 'all', cat: '', q: '' };
+let ledgerData = {
+  catStats: [], incomeCatStats: [], list: [], trend: [], accounts: ['默认账户'],
+  payees: {}, budget: 0, summary: {}, social: { out: 0, in: 0, count: 0 },
+};
+let txnCats = { expense: ['其他'], income: ['其他'] };
+let editingTxnId = null;
+
+// 分类 → 调色板槽位（与 CSS 的 .dc0~.dc9 对应，日/夜自动换色）
+const LED_CAT_IDX = {
+  餐饮: 0, 交通: 1, 购物: 2, 居住: 3, 娱乐: 4, 医疗: 5, 教育: 6, 人情: 7, 借还款: 8, 其他: 9,
+  工资: 3, 奖金: 0, 兼职: 2, 理财: 6, 红包: 8,
+};
+const ledCatClass = (n) => 'dc' + (LED_CAT_IDX[n] === undefined ? 9 : LED_CAT_IDX[n]);
+const escHtml = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 async function renderLedger() {
   const box = $('#ledgerStats');
@@ -1242,101 +1257,442 @@ async function renderLedger() {
   try {
     const res = await api(`/api/transactions?month=${ledgerState.month}`);
     const data = await res.json();
-    renderLedgerStats(data.summary || {});
-    renderDonut(data.catStats || []);
-    renderTxnList(data.list || []);
-    // 分类下拉按收入/支出切换
-    $('#txnCatSel') && fillTxnCats(data.categories || {});
+    ledgerData = {
+      catStats: data.catStats || [],
+      incomeCatStats: data.incomeCatStats || [],
+      list: data.list || [],
+      trend: data.trend || [],
+      accounts: (data.accounts && data.accounts.length) ? data.accounts : ['默认账户'],
+      payees: data.payees || {},
+      budget: Number(data.budget) || 0,
+      summary: data.summary || {},
+      social: data.social || { out: 0, in: 0, count: 0 },
+    };
+    txnCats = data.categories || txnCats;
+    renderLedgerStats();
+    renderBudget();
+    renderTrend();
+    renderDonut();
+    renderTxnList();
+    syncTxnCats();
     markSynced();
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载账本失败</div>';
   }
 }
 
-function renderLedgerStats(s) {
+// 概览 4 格：收入 / 支出 / 结余 / 日均支出（末格顺带露出人情往来小结）
+function renderLedgerStats() {
   const box = $('#ledgerStats');
+  const s = ledgerData.summary || {};
+  const sc = ledgerData.social || { out: 0, in: 0, count: 0 };
+  const bal = Number(s.balance) || 0;
   box.innerHTML = `
-    <div class="ls"><span>本月收入</span><strong style="color:var(--green)">${money(s.income)}</strong></div>
-    <div class="ls"><span>本月支出</span><strong style="color:var(--red)">${money(s.expense)}</strong></div>
-    <div class="ls"><span>本月结余</span><strong>${money(s.balance)}</strong></div>`;
+    <div class="ls income"><span>本月收入</span><strong>${money(s.income)}</strong><small>${Number(s.count) || 0} 笔流水</small></div>
+    <div class="ls expense"><span>本月支出</span><strong>${money(s.expense)}</strong><small>最大单笔 ${money(s.maxExpense)}</small></div>
+    <div class="ls ${bal >= 0 ? 'income' : 'expense'}"><span>本月结余</span><strong>${money(bal)}</strong><small>${bal >= 0 ? '收入大于支出' : '本月为净支出'}</small></div>
+    <div class="ls"><span>日均支出</span><strong>${money(s.avgDaily)}</strong><small>人情往来 ${sc.count} 笔 · 出 ${money(sc.out)}</small></div>`;
+}
+
+// 月预算：进度条 + 超支提醒（预算存 app_settings.ledger_budget，多端一致）
+function renderBudget() {
+  const box = $('#ledgerBudget');
+  if (!box) return;
+  const b = ledgerData.budget;
+  const spent = Number(ledgerData.summary.expense) || 0;
+  if (!b) {
+    box.innerHTML = `
+      <div class="lb-head">
+        <div><p class="eyebrow">本月预算</p><h2>还没有设置预算</h2></div>
+        <button class="text-btn" type="button" id="lbSetBtn">设置</button>
+      </div>
+      <p class="lb-tip">设一个月度预算，平时能看到已用比例，超支时这里会直接提醒你。</p>
+      <div class="lb-edit" id="lbEdit" hidden>
+        <input type="number" min="1" step="1" id="lbInput" placeholder="例如 5000" inputmode="decimal" aria-label="月预算金额">
+        <button class="btn primary" type="button" id="lbSaveBtn">保存</button>
+      </div>`;
+  } else {
+    const pct = Math.round((spent / b) * 100);
+    const cls = pct > 100 ? 'over' : pct >= 80 ? 'warn' : '';
+    box.innerHTML = `
+      <div class="lb-head">
+        <div><p class="eyebrow">本月预算</p><h2>${money(b)} · 已用 ${pct}%</h2></div>
+        <button class="text-btn" type="button" id="lbSetBtn">设置</button>
+      </div>
+      <div class="lb-bar"><i class="${cls}" style="width:${Math.min(100, Math.max(pct, 1))}%"></i></div>
+      <div class="lb-foot">
+        <span>已支出 <b>${money(spent)}</b></span>
+        <span class="${pct > 100 ? 'over' : ''}">${pct > 100 ? '已超支 ' + money(spent - b) : '还剩 ' + money(b - spent)}</span>
+      </div>
+      <div class="lb-edit" id="lbEdit" hidden>
+        <input type="number" min="1" step="1" id="lbInput" value="${b}" inputmode="decimal" aria-label="月预算金额">
+        <button class="btn primary" type="button" id="lbSaveBtn">保存</button>
+        <button class="btn ghost" type="button" id="lbClearBtn">清除预算</button>
+      </div>`;
+  }
+  // 幂等绑定（renderBudget 会被反复调用，必须用 onclick 赋值而非 addEventListener）
+  const setBtn = $('#lbSetBtn');
+  if (setBtn) setBtn.onclick = () => {
+    const e = $('#lbEdit');
+    e.hidden = !e.hidden;
+    if (!e.hidden) { const i = $('#lbInput'); if (i) i.focus(); }
+  };
+  const saveBtn = $('#lbSaveBtn');
+  if (saveBtn) saveBtn.onclick = () => saveLedgerBudget();
+  const clearBtn = $('#lbClearBtn');
+  if (clearBtn) clearBtn.onclick = () => saveLedgerBudget(0);
+}
+
+async function saveLedgerBudget(force) {
+  const v = force === 0 ? 0 : Number(($('#lbInput') || {}).value);
+  if (force !== 0 && (!Number.isFinite(v) || v <= 0)) { toast('请输入大于 0 的金额'); return; }
+  try {
+    const res = await api('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ledger_budget: String(Math.round(v)) }),
+    });
+    if (res.ok) {
+      toast(v > 0 ? '预算已保存' : '已清除预算');
+      markSynced();
+      await renderLedger();
+    }
+  } catch { /* 401 已处理 */ }
+}
+
+// 近 6 个月收支趋势 —— 纯 HTML 柱状图（不用 SVG，文字始终是真实字号，手机端也不会缩到看不清）
+function renderTrend() {
+  const box = $('#ledgerTrend');
+  if (!box) return;
+  const t = ledgerData.trend || [];
+  if (!t.length || !t.some((d) => d.income || d.expense)) {
+    box.innerHTML = '<div class="empty-hint">近 6 个月还没有记账数据</div>';
+    return;
+  }
+  const max = Math.max(1, ...t.map((d) => Math.max(Number(d.income) || 0, Number(d.expense) || 0)));
+  const bars = t.map((d) => {
+    const m = Number(String(d.month).slice(5, 7));
+    const cur = d.month === ledgerState.month;
+    const inc = Number(d.income) || 0;
+    const exp = Number(d.expense) || 0;
+    // 有值的最小给 4% 高度，避免 0 值柱完全看不见
+    const hi = inc ? Math.max(4, Math.round((inc / max) * 100)) : 1;
+    const he = exp ? Math.max(4, Math.round((exp / max) * 100)) : 1;
+    return `<div class="tc-col${cur ? ' cur' : ''}" title="${m}月 收入 ${money(inc)} / 支出 ${money(exp)}">
+      <div class="tc-bars">
+        <span class="tc-bar inc" style="height:${hi}%"><b>${money(inc)}</b></span>
+        <span class="tc-bar exp" style="height:${he}%"><b>${money(exp)}</b></span>
+      </div>
+      <span class="tc-lab">${m}月</span>
+    </div>`;
+  }).join('');
+  const sumIn = t.reduce((a, d) => a + (Number(d.income) || 0), 0);
+  const sumEx = t.reduce((a, d) => a + (Number(d.expense) || 0), 0);
+  box.innerHTML = `<div class="trend-chart">${bars}</div>
+    <p class="lb-tip">近 6 个月合计：收入 <b>${money(sumIn)}</b> · 支出 <b>${money(sumEx)}</b> · 结余 <b>${money(sumIn - sumEx)}</b>，月均支出 ${money(sumEx / t.length)}。</p>`;
 }
 
 // 内联 SVG 甜甜圈图（无外部库）
-function renderDonut(cats) {
+// ⚠️ 尺寸必须由 .donut-svg 的 CSS 给出：全局 `svg{width:20px;height:20px}` 只给图标用，
+//    但 CSS 规则优先级高于 SVG 自身的 width/height 表现属性，会把这个环图压成 20×20 的小点。
+function renderDonut() {
   const box = $('#ledgerChart');
+  if (!box) return;
+  const isIncome = ledgerState.donutMode === 'income';
+  const cats = isIncome ? (ledgerData.incomeCatStats || []) : (ledgerData.catStats || []);
+  const title = $('#ledDonutTitle');
+  if (title) title.textContent = isIncome ? '收入构成' : '支出构成';
+  $$('.led-donut-seg .seg-item').forEach((b) =>
+    b.classList.toggle('active', b.dataset.leddonut === ledgerState.donutMode)
+  );
+
   box.innerHTML = '';
   if (!cats.length) {
-    box.innerHTML = '<div class="empty-hint">本月还没有支出记录</div>';
+    box.innerHTML = `<div class="empty-hint">本月还没有${isIncome ? '收入' : '支出'}记录</div>`;
     return;
   }
   const total = cats.reduce((s, c) => s + c.value, 0) || 1;
-  const R = 60;
-  const CX = 80;
-  const CY = 80;
+  const R = 62;
+  const CX = 90;
+  const CY = 90;
   const CIRC = 2 * Math.PI * R;
   let offset = 0;
   let paths = '';
   let legend = '<div class="donut-legend">';
   cats.forEach((c, i) => {
     const frac = c.value / total;
-    const color = DONUT_COLORS[i % DONUT_COLORS.length];
-    const dash = frac * CIRC;
-    paths += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${color}" stroke-width="22"
-      stroke-dasharray="${dash} ${CIRC - dash}" stroke-dashoffset="${-offset}"
-      transform="rotate(-90 ${CX} ${CY})"/>`;
-    offset += dash;
-    legend += `<div class="dl"><i class="dot" style="background:${color}"></i><span class="nm">${c.name}</span>
-      <span class="vl">${money(c.value)}</span><span class="pc">${Math.round(frac * 100)}%</span></div>`;
+    const dash = Math.max(0.5, frac * CIRC - 1.6); // 相邻扇区留 1.6 的缝，看得到分界
+    paths += `<circle class="dseg ${ledCatClass(c.name)}" cx="${CX}" cy="${CY}" r="${R}"
+      transform="rotate(-90 ${CX} ${CY})"
+      stroke-dasharray="${dash} ${CIRC - dash}" stroke-dashoffset="${-offset}"/>`;
+    offset += frac * CIRC;
+    const pct = Math.round(frac * 100);
+    legend += `<button class="dl ${ledCatClass(c.name)}${ledgerState.cat && ledgerState.cat !== c.name ? ' dim' : ''}" type="button" data-ledcat="${escHtml(c.name)}">
+      <i class="dot"></i><span class="nm">${escHtml(c.name)}</span>
+      <span class="vl">${money(c.value)}</span><span class="pc">${pct}%</span>
+      <span class="dl-bar"><i style="width:${Math.max(pct, 2)}%"></i></span>
+    </button>`;
   });
   legend += '</div>';
   box.innerHTML =
-    `<svg viewBox="0 0 160 160" width="160" height="160" style="max-width:100%">
+    `<svg class="donut-svg" viewBox="0 0 180 180" role="img" aria-label="${isIncome ? '收入' : '支出'}构成环形图">
       ${paths}
-      <text x="${CX}" y="${CY - 2}" text-anchor="middle" font-size="11" fill="#746d63">本月支出</text>
-      <text x="${CX}" y="${CY + 16}" text-anchor="middle" font-size="15" font-weight="700" fill="#29251f">${money(total)}</text>
+      <text class="dt-lab" x="${CX}" y="${CY - 4}" text-anchor="middle">本月${isIncome ? '收入' : '支出'}</text>
+      <text class="dt-val" x="${CX}" y="${CY + 18}" text-anchor="middle">${money(total)}</text>
     </svg>` + legend;
+
+  // 点击图例 = 按该分类筛选右侧流水（再点一次取消）
+  box.querySelectorAll('.dl').forEach((b) => {
+    b.onclick = () => {
+      const name = b.dataset.ledcat;
+      const same = ledgerState.cat === name;
+      ledgerState.cat = same ? '' : name;
+      ledgerState.flow = same ? 'all' : ledgerState.donutMode;
+      renderDonut();
+      renderTxnList();
+    };
+  });
 }
 
-function renderTxnList(list) {
+// 流水：筛选（收/支 + 分类 + 关键字）→ 按日期分组
+function renderTxnList() {
   const box = $('#ledgerList');
+  if (!box) return;
+  const all = ledgerData.list || [];
+  const q = (ledgerState.q || '').trim().toLowerCase();
+  // 按日期倒序（同日按 id 倒序）后再分组——分组依赖「同一天相邻」，不能假定后端顺序永远不变
+  const rows = all
+    .filter((t) => {
+      if (ledgerState.flow !== 'all' && t.flow !== ledgerState.flow) return false;
+      if (ledgerState.cat && t.category !== ledgerState.cat) return false;
+      if (q && `${t.note} ${t.category} ${t.account}`.toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    })
+    .sort((a, b) => (a.date === b.date ? b.id - a.id : a.date < b.date ? 1 : -1));
+
+  const cnt = $('#ledCount');
+  if (cnt) cnt.textContent = rows.length === all.length ? `${all.length} 笔` : `${rows.length} / ${all.length} 笔`;
+
+  // 筛选按钮联动
+  $$('#ledFlowFilter .lf-btn').forEach((b) =>
+    b.classList.toggle('active', b.dataset.ledflow === ledgerState.flow)
+  );
+  const search = $('#ledSearch');
+  if (search && search.value !== ledgerState.q) search.value = ledgerState.q;
+
   box.innerHTML = '';
-  if (!list.length) {
-    box.innerHTML = '<div class="empty-hint">本月还没有流水</div>';
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty-hint">${all.length ? '没有符合条件的流水' : '本月还没有流水'}</div>`;
     return;
   }
-  list.forEach((t) => {
-    const row = document.createElement('div');
-    row.className = 'txn-row';
-    const isExp = t.flow === 'expense';
-    row.innerHTML = `
-      <span class="cat-tag" style="background:${catTint(t.category === '餐饮' ? 'terra' : 'plum')};color:${catColor(t.category === '餐饮' ? 'terra' : 'plum')}">${t.category}</span>
-      <div class="todo-main"><b style="font-size:13px">${t.note || t.category}</b><div class="todo-meta"><span>${t.date}</span></div></div>
-      <span class="txn-amt ${isExp ? 'exp' : 'inc'}">${isExp ? '-' : '+'}${money(t.amount)}</span>
-      <button class="icon-btn del" title="删除"><svg><use href="#i-x"/></svg></button>`;
-    row.querySelector('.del').addEventListener('click', () => removeTxn(t.id));
-    box.appendChild(row);
+
+  const groups = [];
+  rows.forEach((t) => {
+    const last = groups[groups.length - 1];
+    if (last && last.date === t.date) last.items.push(t);
+    else groups.push({ date: t.date, items: [t] });
   });
+
+  groups.forEach((g) => {
+    const inSum = g.items.filter((t) => t.flow === 'income').reduce((s, t) => s + t.amount, 0);
+    const exSum = g.items.filter((t) => t.flow === 'expense').reduce((s, t) => s + t.amount, 0);
+    const day = document.createElement('div');
+    day.className = 'txn-day';
+    day.innerHTML = `<b>${txnDayLabel(g.date)}</b><span>${inSum ? '收 ' + money(inSum) + ' · ' : ''}支 ${money(exSum)}</span>`;
+    box.appendChild(day);
+    g.items.forEach((t) => box.appendChild(buildTxnRow(t)));
+  });
+}
+
+function txnDayLabel(s) {
+  const d = new Date(s + 'T00:00:00');
+  const today = todayStrLocal();
+  const yest = ymd(new Date(Date.now() - 864e5));
+  const suffix = s === today ? ' · 今天' : s === yest ? ' · 昨天' : '';
+  return `${Number(s.slice(5, 7))}月${s.slice(8, 10)}日 周${WK[d.getDay()]}${suffix}`;
+}
+
+function buildTxnRow(t) {
+  const isExp = t.flow === 'expense';
+  const payee = ledgerData.payees ? ledgerData.payees[t.id] : null;
+  // 由「人际关系 · 财务人情账」写入的流水：分类与金额以人际关系页为准，账本里只读+可跳转，
+  // 避免两端各改一次造成数据不一致。
+  const synced = t.account === '人情往来';
+  const row = document.createElement('div');
+  row.className = 'txn-row' + (synced ? ' locked' : '');
+  row.innerHTML = `
+    <span class="txn-ic"></span>
+    <div class="txn-main">
+      <b></b>
+      <div class="txn-meta"></div>
+    </div>
+    <span class="txn-amt ${isExp ? 'exp' : 'inc'}">${isExp ? '-' : '+'}${money(t.amount)}</span>
+    ${synced ? '' : '<button class="icon-btn del" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>'}`;
+  row.classList.add(ledCatClass(t.category));
+  const head = row.querySelector('b');
+  head.textContent = t.note || t.category;
+  row.querySelector('.txn-ic').textContent = String(t.category || '其').slice(0, 1);
+  const meta = row.querySelector('.txn-meta');
+  meta.innerHTML = `<span class="cat-tag">${escHtml(t.category)}</span><span>${escHtml(t.account)}</span>`;
+  if (payee) {
+    const p = document.createElement('button');
+    p.type = 'button';
+    p.className = 'txn-pill';
+    p.textContent = '@' + payee.name;
+    p.title = '查看人际关系档案';
+    p.onclick = (e) => { e.stopPropagation(); jumpToContact(payee.id); };
+    meta.appendChild(p);
+  }
+  if (synced) {
+    const s = document.createElement('span');
+    s.className = 'txn-pill sync';
+    s.textContent = '人际同步';
+    meta.appendChild(s);
+  }
+
+  if (synced) {
+    row.title = payee ? `来自人际关系 · 点此查看 ${payee.name}` : '来自人际关系 · 请到人际关系页修改';
+    row.onclick = () => {
+      if (payee) jumpToContact(payee.id);
+      else toast('该笔由人际关系生成，请到人际关系页修改');
+    };
+  } else {
+    row.title = '点击编辑';
+    row.onclick = () => openTxnModal(t);
+    const del = row.querySelector('.del');
+    if (del) del.addEventListener('click', (e) => { e.stopPropagation(); removeTxn(t.id); });
+  }
+  return row;
 }
 
 async function removeTxn(id) {
   if (!confirm('确定删除这笔记录？')) return;
   try {
-    const res = await api(`/api/transactions?id=${id}`, { method: 'DELETE' });
+    const res = await api(`/api/transactions/${id}`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); await renderLedger(); }
   } catch { /* 401 已处理 */ }
 }
 
-let txnCats = { expense: ['其他'], income: ['其他'] };
-function fillTxnCats(cats) {
-  txnCats = cats;
-  syncTxnCats();
+// 账本 → 人际关系：跳转到该联系人的档案
+function jumpToContact(id) {
+  switchView('relations');
+  if (window.pfOpenProfile) window.pfOpenProfile(id);
 }
-function syncTxnCats() {
+
+// ===== 记一笔 / 编辑记录 弹窗 =====
+function syncTxnCats(extra) {
   const sel = $('#txnCatSel');
-  if (!sel) return;
   const flow = ($('#txnForm') && $('#txnForm').flow.value) || 'expense';
-  const list = (txnCats && txnCats[flow]) || ['其他'];
-  sel.innerHTML = list.map((c) => `<option value="${c}">${c}</option>`).join('');
+  const list = ((txnCats && txnCats[flow]) || ['其他']).slice();
+  if (extra && !list.includes(extra)) list.push(extra);
+  if (sel) {
+    const keep = sel.value;
+    sel.innerHTML = list.map((c) => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+    sel.value = list.includes(keep) ? keep : list[0];
+  }
+  renderCatChips();
+}
+
+function renderCatChips() {
+  const box = $('#txnCatChips');
+  const sel = $('#txnCatSel');
+  if (!box || !sel) return;
+  box.innerHTML = '';
+  $$('#txnCatSel option').forEach((o) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cat-chip' + (o.value === sel.value ? ' on' : '');
+    b.textContent = o.value;
+    b.onclick = () => { sel.value = o.value; renderCatChips(); };
+    box.appendChild(b);
+  });
+}
+
+function fillTxnAccounts(current) {
+  const sel = $('#txnAcctSel');
+  if (!sel) return;
+  const list = (ledgerData.accounts && ledgerData.accounts.length) ? ledgerData.accounts.slice() : ['默认账户'];
+  if (current && !list.includes(current)) list.push(current);
+  sel.innerHTML = list.map((a) => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('');
+  sel.value = current && list.includes(current) ? current : list[0];
+}
+
+function openTxnModal(t) {
+  const f = $('#txnForm');
+  if (!f) return;
+  f.reset();
+  editingTxnId = t ? t.id : null;
+  $('#txnEditId').value = t ? String(t.id) : '';
+  $('#txnModalTitle').textContent = t ? '编辑记录' : '记一笔';
+  $('#txnSubmitBtn').textContent = t ? '保存修改' : '保存';
+  $('#txnFormError').hidden = true;
+
+  if (t) {
+    const radio = f.querySelector(`[name=flow][value="${t.flow === 'income' ? 'income' : 'expense'}"]`);
+    if (radio) radio.checked = true;
+    $('#txnAmount').value = String(t.amount);
+    $('#txnDate').value = t.date || todayStrLocal();
+    f.note.value = t.note || '';
+    fillTxnAccounts(t.account);
+    syncTxnCats(t.category);
+    $('#txnCatSel').value = t.category;
+    renderCatChips();
+  } else {
+    $('#txnDate').value = todayStrLocal();
+    fillTxnAccounts(ledgerState.lastAccount || '默认账户');
+    syncTxnCats();
+  }
+  syncTxnHint();
+  $('#txnModal').hidden = false;
+  // 桌面端自动聚焦金额（手机端不聚焦，避免键盘顶起页面）
+  if (window.innerWidth > 860) setTimeout(() => { const a = $('#txnAmount'); if (a) a.focus(); }, 40);
+}
+
+function closeTxnModal() {
+  const m = $('#txnModal');
+  if (m) m.hidden = true;
+}
+
+function syncTxnHint() {
+  const hint = $('#txnSyncHint');
+  const note = $('#txnForm') && $('#txnForm').note.value.trim();
+  if (hint) hint.hidden = !(note && note[0] === '@');
+}
+
+async function submitTxn(e) {
+  e.preventDefault();
+  const f = $('#txnForm');
+  const fd = new FormData(f);
+  const errEl = $('#txnFormError');
+  const amount = Number(fd.get('amount'));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    errEl.textContent = '请填写有效金额';
+    errEl.hidden = false;
+    return;
+  }
+  const id = fd.get('id');
+  const account = String(fd.get('account') || '默认账户');
+  ledgerState.lastAccount = account;
+  try {
+    const res = await api(id ? `/api/transactions/${id}` : '/api/transactions', {
+      method: id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow: fd.get('flow'), amount, category: fd.get('category'),
+        date: fd.get('date'), note: fd.get('note'), account,
+      }),
+    });
+    if (res.ok) {
+      closeTxnModal();
+      toast(id ? '已保存修改' : '已记账');
+      markSynced();
+      await renderLedger();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      errEl.textContent = d.error || '保存失败，请稍后重试';
+      errEl.hidden = false;
+    }
+  } catch { /* 401 已处理 */ }
 }
 
 // ===== 人际关系（联系人 + 生日） =====
@@ -2489,46 +2845,68 @@ $('#todoForm').addEventListener('submit', async (e) => {
 });
 
 // ===== 账本交互 =====
-$('#ledPrev').addEventListener('click', () => {
+function shiftLedgerMonth(delta) {
   const [y, m] = ledgerState.month.split('-').map(Number);
-  const d = new Date(y, m - 2, 1);
+  const d = new Date(y, (m - 1) + delta, 1);
   ledgerState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // 换月后该分类可能不存在，清掉筛选
+  ledgerState.cat = '';
+  ledgerState.flow = 'all';
   renderLedger();
+}
+
+// 供其它页跳转过来时预置筛选（人际关系 → 账本的「人情 / 借还款」）
+window.ledgerFocus = function (mode) {
+  if (mode === 'social') { ledgerState.flow = 'all'; ledgerState.cat = '人情'; ledgerState.q = ''; }
+  else if (mode === 'social-loan') { ledgerState.flow = 'all'; ledgerState.cat = '借还款'; ledgerState.q = ''; }
+  else { ledgerState.flow = 'all'; ledgerState.cat = ''; ledgerState.q = ''; }
+};
+bind('#ledPrev', 'click', () => shiftLedgerMonth(-1));
+bind('#ledNext', 'click', () => shiftLedgerMonth(1));
+bind('#addTxnBtn', 'click', () => openTxnModal(null));
+bind('#txnModalClose', 'click', closeTxnModal);
+bind('#txnModal', 'click', (e) => { if (e.target === $('#txnModal')) closeTxnModal(); });
+bind('#txnForm', 'submit', submitTxn);
+
+// 支出/收入 切换 → 分类下拉跟着换
+$$('#txnForm [name=flow]').forEach((r) =>
+  r.addEventListener('change', () => { if (!editingTxnId) syncTxnCats(); else syncTxnCats($('#txnCatSel').value); })
+);
+// 备注以 @ 开头 → 提示与「人际关系」联动
+bind('#txnForm', 'input', (e) => { if (e.target && e.target.name === 'note') syncTxnHint(); });
+
+// 快捷金额
+$$('#quickAmt button').forEach((b) => {
+  b.onclick = () => {
+    const a = $('#txnAmount');
+    if (!a) return;
+    if (b.dataset.amt === 'clear') { a.value = ''; a.focus(); return; }
+    const next = (Number(a.value) || 0) + Number(b.dataset.amt);
+    a.value = String(Math.round(next * 100) / 100);
+  };
 });
-$('#ledNext').addEventListener('click', () => {
-  const [y, m] = ledgerState.month.split('-').map(Number);
-  const d = new Date(y, m, 1);
-  ledgerState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  renderLedger();
+
+// 构成环图：支出 / 收入
+$$('.led-donut-seg .seg-item').forEach((b) => {
+  b.onclick = () => {
+    ledgerState.donutMode = b.dataset.leddonut === 'income' ? 'income' : 'expense';
+    ledgerState.cat = '';
+    ledgerState.flow = 'all';
+    renderDonut();
+    renderTxnList();
+  };
 });
-$('#addTxnBtn').addEventListener('click', () => {
-  const f = $('#txnForm');
-  f.reset();
-  f.date.value = todayStrLocal();
-  $('#txnFormError').hidden = true;
-  syncTxnCats();
-  $('#txnModal').hidden = false;
+
+// 流水筛选：收/支 + 关键字
+$$('#ledFlowFilter .lf-btn').forEach((b) => {
+  b.onclick = () => {
+    ledgerState.flow = b.dataset.ledflow || 'all';
+    ledgerState.cat = '';
+    renderDonut();
+    renderTxnList();
+  };
 });
-$('#txnModalClose').addEventListener('click', () => { $('#txnModal').hidden = true; });
-$('#txnModal').addEventListener('click', (e) => { if (e.target === $('#txnModal')) $('#txnModal').hidden = true; });
-$$('#txnForm [name=flow]').forEach((r) => r.addEventListener('change', syncTxnCats));
-$('#txnForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const amount = Number(fd.get('amount'));
-  if (!Number.isFinite(amount) || amount <= 0) { const el = $('#txnFormError'); el.textContent = '请填写有效金额'; el.hidden = false; return; }
-  try {
-    const res = await api('/api/transactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        flow: fd.get('flow'), amount, category: fd.get('category'),
-        date: fd.get('date'), note: fd.get('note'),
-      }),
-    });
-    if (res.ok) { $('#txnModal').hidden = true; toast('已记账'); markSynced(); await renderLedger(); }
-  } catch { /* 401 已处理 */ }
-});
+bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; renderTxnList(); });
 
 // ===== 人际关系交互 =====
 $('#addContactBtn').addEventListener('click', () => openContactModal(null));

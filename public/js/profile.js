@@ -448,7 +448,8 @@ function pfRenderMoney() {
       <div class="money"><span>送出/借出</span><b style="color:var(--red)">${money(out)}</b></div>
       <div class="money"><span>收到</span><b style="color:var(--green)">${money(inc)}</b></div>
     </div>
-    <div class="note info" style="margin-bottom:12px">🔗 已同步「我的账本」（分类：人情/借还款，备注 @${pfEsc(PF.data.base.name)}）</div>`;
+    <div class="note info" style="margin-bottom:12px">🔗 已同步「我的账本」（分类：人情/借还款，备注 @${pfEsc(PF.data.base.name)}）
+      <button class="text-btn" type="button" onclick="pfGotoLedger('social')">在账本中查看</button></div>`;
   if (!list.length) { box.innerHTML = head + '<div class="empty-hint">暂无往来记录</div>'; return; }
   box.innerHTML = head + list.map((m) => `
     <div class="contact-row" style="cursor:default">
@@ -996,9 +997,17 @@ function pfModPromise() {
     <button class="btn" onclick="pfOpenPromiseModal()">+ 新增承诺</button>`;
 }
 function pfModMoney() {
-  return `<div class="note info" style="margin-bottom:14px">🔗 与「我的账本」双向同步：记一笔即写一条账本流水（分类人情/借还款，备注 @姓名）。</div>
+  return `<div class="note info" style="margin-bottom:14px">🔗 与「我的账本」双向同步：记一笔即写一条账本流水（分类人情/借还款，备注 @姓名）。
+    <button class="text-btn" type="button" onclick="pfGotoLedger('social')">在账本中查看</button></div>
     <button class="btn" onclick="pfOpenMoneyModal()">+ 记一笔</button>`;
 }
+
+// 跳转到「我的账本」并预置筛选（人情 / 借还款）
+function pfGotoLedger(mode) {
+  if (window.ledgerFocus) window.ledgerFocus(mode);
+  if (typeof switchView === 'function') switchView('ledger');
+}
+window.pfGotoLedger = pfGotoLedger;
 function pfModDates() {
   const d = PF.data.dates || {};
   return `<div class="note info" style="margin-bottom:14px">🔗 生日等关键日期会同步到「日历中心」显示（需在基础身份开启）。</div>
