@@ -1,4 +1,4 @@
-import { json, parseCookie, decodeToken } from '../_lib.js';
+import { json, parseCookie, decodeToken, readCustomPassHash } from '../_lib.js';
 
 // 简单识别终端类型与设备名
 function parseDevice(ua) {
@@ -48,5 +48,8 @@ export async function onRequestGet(context) {
     };
   });
 
-  return json({ devices });
+  // 是否已设置过自定义密码（供「账户安全」页提示当前用的是初始密码还是自定义密码）
+  const customPass = !!(await readCustomPassHash(env));
+
+  return json({ devices, customPass });
 }

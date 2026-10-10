@@ -838,6 +838,9 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .data-stat b{font-size:14px;font-weight:700;flex:0 0 auto}
 .data-stat.zero{opacity:.5}
 .data-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+/* 账户安全页的「退出登录 / 修改密码」纵向排列 */
+.sec-actions{display:flex;flex-direction:column;align-items:stretch;gap:10px;max-width:260px;margin-top:16px}
+.sec-actions .btn{justify-content:center}
 .data-warn{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:12px 14px;border:1px solid var(--danger-line);border-radius:12px;background:var(--danger-soft);font-size:13px;line-height:1.55}
 .data-warn b{color:var(--red)}
 .ack-line{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13px;cursor:pointer}
@@ -979,6 +982,8 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
   #view-calendar .cal-actions .cal-month-sel{height:32px;font-size:13px}
   .ledger-stats{grid-template-columns:1fr;gap:10px;margin-bottom:16px}
   .ledger-grid{grid-template-columns:1fr;gap:16px}
+  /* 账户安全：手机上两个按钮铺满整行，便于点按 */
+  .sec-actions{max-width:none}
   /* 家庭药箱移动端 */
   .med-stats{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
   .med-stats .ms{padding:13px 14px}

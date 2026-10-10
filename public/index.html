@@ -40,6 +40,7 @@
     <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><path d="M12 14.6v2.6"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></symbol>
     <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.4 0 2-.9 2-1.8 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.9-4-8-9-8Z"/><circle cx="7.5" cy="12" r="1.2"/><circle cx="10.5" cy="7.8" r="1.2"/><circle cx="15.5" cy="8.6" r="1.2"/></symbol>
@@ -541,8 +542,11 @@
           </article>
           <article class="panel" style="margin-top:22px">
             <div class="panel-head"><div><p class="eyebrow">账户</p><h2>登录与安全</h2></div></div>
-            <p class="muted">当前以管理员身份登录。</p>
-            <button class="btn ghost danger" id="logoutBtn2"><svg><use href="#i-logout"/></svg><span>退出登录</span></button>
+            <p class="muted">当前以管理员身份登录。<span id="passStateHint"></span></p>
+            <div class="sec-actions">
+              <button class="btn danger" id="logoutBtn2" type="button"><svg><use href="#i-logout"/></svg><span>退出登录</span></button>
+              <button class="btn" id="changePassBtn" type="button"><svg><use href="#i-lock"/></svg><span>修改密码</span></button>
+            </div>
           </article>
         </div>
 
@@ -895,6 +899,34 @@
         <button class="btn danger" id="clearConfirmBtn" type="button" disabled><svg><use href="#i-trash"/></svg><span>确认清空</span></button>
       </div>
       <p class="login-error" id="clearError" hidden></p>
+    </div>
+  </div>
+
+  <!-- 修改密码（v0.3.13） -->
+  <div class="modal-overlay" id="passModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>修改密码</h3>
+        <button class="icon-btn" id="passModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <p class="muted">修改后，其它设备上的登录会立即失效，当前设备不受影响。</p>
+      <label class="field" style="margin-top:14px">
+        <span>当前密码</span>
+        <input id="passOld" type="password" autocomplete="current-password" placeholder="请输入当前密码">
+      </label>
+      <label class="field">
+        <span>新密码</span>
+        <input id="passNew" type="password" autocomplete="new-password" placeholder="至少 6 位">
+      </label>
+      <label class="field">
+        <span>确认新密码</span>
+        <input id="passConfirm" type="password" autocomplete="new-password" placeholder="再次输入新密码">
+      </label>
+      <div class="data-actions" style="margin-top:6px">
+        <button class="btn ghost" id="passCancelBtn" type="button">取消</button>
+        <button class="btn primary" id="passSubmitBtn" type="button"><svg><use href="#i-lock"/></svg><span>确认修改</span></button>
+      </div>
+      <p class="login-error" id="passError" hidden></p>
     </div>
   </div>
 

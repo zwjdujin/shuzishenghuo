@@ -1,4 +1,4 @@
-import { json, signToken } from '../../_lib.js';
+import { json, signToken, verifyAdminPassword } from '../../_lib.js';
 
 function clientIp(request) {
   // Cloudflare 会把真实 IP 放在 CF-Connecting-IP
@@ -20,8 +20,10 @@ export async function onRequestPost(context) {
   const user = String(body.user || '');
   const pass = String(body.pass || '');
 
-  // 校验管理员用户名 / 密码（来自后台变量）
-  if (user !== env.ADMIN_USER || pass !== env.ADMIN_PASS) {
+  // 校验管理员用户名 / 密码
+  // 密码优先比对库中的自定义密码（在「个人中心 → 账户安全」里改过），否则回退到环境变量初始密码
+  const passOk = await verifyAdminPassword(env, pass);
+  if (user !== env.ADMIN_USER || !passOk) {
     return json({ error: '用户名或密码错误' }, 401);
   }
 

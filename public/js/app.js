@@ -1,8 +1,8 @@
 // 数字生活 · 前端逻辑 v0.3.12
-const VERSION = '0.3.12';
+const VERSION = '0.3.13';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '日历中心：周历全天时间轴 / 月历铺满一屏 v0.3.12';
-const __BUILD_TIME__ = '2026-10-10 10:08';
+const __BUILD_ID__ = '账户安全：新增修改密码 v0.3.13';
+const __BUILD_TIME__ = '2026-10-10 19:20';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -1909,6 +1909,7 @@ async function renderSessions() {
   try {
     const res = await api('/api/sessions');
     const data = await res.json();
+    setPassHint(!!data.customPass);
     // 当前设备排最前，方便第一时间确认「哪台是本机」
     const devices = (data.devices || []).slice()
       .sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
@@ -1961,6 +1962,78 @@ async function revokeSession(sid) {
       await renderSessions();
     }
   } catch { /* 401 已处理 */ }
+}
+
+// ===== 修改密码 =====
+// 密码存在服务端（app_settings.admin_pass_hash，PBKDF2-SHA256 哈希，不存明文），因此多端一致；
+// 改密成功后服务端会清掉「除当前设备外」的会话。
+const PASS_MIN = 6;
+
+function setPassHint(custom) {
+  const el = $('#passStateHint');
+  if (!el) return;
+  el.textContent = custom
+    ? ' 当前使用自定义密码。'
+    : ' 当前使用的是初始密码，建议尽快修改。';
+}
+
+function passError(msg) {
+  const el = $('#passError');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+
+function openPassModal() {
+  const m = $('#passModal');
+  if (!m) return;
+  ['#passOld', '#passNew', '#passConfirm'].forEach((s) => { const i = $(s); if (i) i.value = ''; });
+  passError('');
+  const btn = $('#passSubmitBtn');
+  if (btn) btn.disabled = false;
+  m.hidden = false;
+  const first = $('#passOld');
+  if (first) setTimeout(() => first.focus(), 30);
+}
+
+function closePassModal() {
+  const m = $('#passModal');
+  if (m) m.hidden = true;
+}
+
+async function submitPassChange() {
+  const oldPass = $('#passOld').value;
+  const newPass = $('#passNew').value;
+  const confirmPass = $('#passConfirm').value;
+
+  if (!oldPass) return passError('请输入当前密码');
+  if (!newPass || newPass.length < PASS_MIN) return passError(`新密码至少 ${PASS_MIN} 位`);
+  if (newPass !== confirmPass) return passError('两次输入的新密码不一致');
+  if (newPass === oldPass) return passError('新密码不能与当前密码相同');
+
+  passError('');
+  const btn = $('#passSubmitBtn');
+  btn.disabled = true;
+  try {
+    const res = await api('/api/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPass, newPass, confirmPass }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.ok) {
+      closePassModal();
+      setPassHint(true);
+      toast(d.revoked ? `密码已修改，已登出其它 ${d.revoked} 台设备` : '密码已修改');
+      await renderSessions();
+    } else {
+      passError(d.error || '修改失败，请稍后重试');
+    }
+  } catch (err) {
+    if (!String(err.message || '').includes('unauthorized')) passError('网络错误，请稍后重试');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ===== 数据处理：备份下载 / 清空所有数据 =====
@@ -2232,6 +2305,24 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
 });
 
 $('#logoutBtn2').addEventListener('click', doLogout);
+
+// ===== 修改密码弹窗交互 =====
+// 注意：app.js 末尾的绑定都是直连 DOM，任一元素缺失就会中断后续初始化
+// （曾因预览页 HTML 快照早于 index.html，导致 #changePassBtn 为 null 而整段失败），此处统一加空值保护。
+function bind(sel, type, fn) {
+  const el = $(sel);
+  if (el) el.addEventListener(type, fn);
+}
+bind('#changePassBtn', 'click', openPassModal);
+bind('#passModalClose', 'click', closePassModal);
+bind('#passCancelBtn', 'click', closePassModal);
+bind('#passModal', 'click', (e) => { if (e.target === $('#passModal')) closePassModal(); });
+bind('#passSubmitBtn', 'click', submitPassChange);
+['#passOld', '#passNew', '#passConfirm'].forEach((s) => {
+  bind(s, 'keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitPassChange(); }
+  });
+});
 
 // ===== 数据处理页交互 =====
 $('#exportDataBtn').addEventListener('click', exportAllData);

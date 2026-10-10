@@ -1,4 +1,5 @@
 import { listDataTables, labelOf } from './_tables.js';
+import { ADMIN_PASS_KEY } from '../../_lib.js';
 
 function stamp(d = new Date()) {
   const z = (n) => String(n).padStart(2, '0');
@@ -21,10 +22,11 @@ export async function onRequestGet(context) {
   }
 
   // 一并带上品牌与外观偏好（虽不参与清空，但备份里有它才算完整）
+  // 注意：排除管理员密码哈希 —— 备份文件可能被下载 / 转发，凭证不应外泄
   let settings = {};
   try {
     const rows = (await env.DB.prepare('SELECT key, value FROM app_settings').all()).results || [];
-    rows.forEach((r) => { settings[r.key] = r.value; });
+    rows.forEach((r) => { if (r.key !== ADMIN_PASS_KEY) settings[r.key] = r.value; });
   } catch (_) { /* 忽略 */ }
 
   const labels = {};
