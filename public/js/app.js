@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.3.11
-const VERSION = '0.3.11';
+// 数字生活 · 前端逻辑 v0.3.12
+const VERSION = '0.3.12';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '人际关系移动端排版修复 v0.3.11';
-const __BUILD_TIME__ = '2026-10-09 23:55';
+const __BUILD_ID__ = '日历中心：周历全天时间轴 / 月历铺满一屏 v0.3.12';
+const __BUILD_TIME__ = '2026-10-10 10:08';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -737,27 +737,68 @@ function addDays(d, n) {
   return x;
 }
 
+// 周序：以「含 1 月 1 日的那一周（周日起）」为第 1 周，与日历显示的周日～周六区间保持一致
+function weekOfYear(date) {
+  const s = startOfWeek(date);
+  const firstSunday = startOfWeek(new Date(s.getFullYear(), 0, 1));
+  return Math.floor(Math.round((s - firstSunday) / 86400000) / 7) + 1;
+}
+
 function renderCalView() {
   const box = $('#calViewBox');
   const title = $('#calTitle');
+  const eyebrow = $('#calEyebrow');
   if (!box) return;
   if (calState.view === 'week') {
     const s = startOfWeek(calState.anchor);
     const e = addDays(s, 6);
-    title.textContent = `${s.getMonth() + 1}月${s.getDate()}日 - ${e.getMonth() + 1}月${e.getDate()}日 · 第${s.getFullYear()}年`;
+    title.textContent = `当前为${s.getFullYear()}年第${weekOfYear(s)}周`;
+    if (eyebrow) eyebrow.textContent = `日历中心 · ${s.getMonth() + 1}月${s.getDate()}日 - ${e.getMonth() + 1}月${e.getDate()}日`;
     box.innerHTML = '';
     box.appendChild(buildWeekView(s));
   } else {
     const a = calState.anchor;
     title.textContent = `${a.getFullYear()}年${a.getMonth() + 1}月`;
+    if (eyebrow) eyebrow.textContent = '日历中心';
     box.innerHTML = '';
     box.appendChild(buildMonthView(a));
   }
+  syncCalNavLabels();
+  fitCalView();
 }
+
+// 上/下页按钮语义随视图切换：周历＝上一周/下一周，月历＝上一月/下一月
+function syncCalNavLabels() {
+  const wk = calState.view === 'week';
+  [['#calPrev', wk ? '上一周' : '上一月'], ['#calNext', wk ? '下一周' : '下一月']].forEach(([sel, label]) => {
+    const el = $(sel);
+    if (!el) return;
+    el.title = label;
+    el.setAttribute('aria-label', label);
+  });
+}
+
+// 让日历视图正好铺满一屏：视图高 = 视口高 − 视图距顶距离 − 主内容下内边距，
+// 于是页面总高恰好等于视口高，月历方格把剩余空间平均分完且刚好不出现滚动条。
+// 用实测值而不是写死 100vh-N：浏览器标题栏/地址栏/收藏栏、手机动态地址栏都能自适应。
+function fitCalView() {
+  const v = $('#view-calendar');
+  if (!v || !v.classList.contains('active')) return;
+  const main = v.parentElement;
+  const bottom = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+  const top = window.scrollY + v.getBoundingClientRect().top;
+  v.style.height = Math.round(Math.max(window.innerHeight - top - bottom, 440)) + 'px';
+}
+let __calFitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(__calFitTimer);
+  __calFitTimer = setTimeout(fitCalView, 120);
+});
 
 // 月历：整月 7 列网格，每格带农历与事件
 function buildMonthView(anchor) {
   const wrap = document.createElement('div');
+  wrap.className = 'cal-month-wrap';
   const y = anchor.getFullYear();
   const m = anchor.getMonth();
   const first = new Date(y, m, 1);
@@ -835,16 +876,64 @@ function eventsOn(dateStr) {
   return calState.events.filter((ev) => ymd(new Date(ev.start.replace(' ', 'T'))) === dateStr);
 }
 
-// 周历：7 天 × 时间轴（8:00-22:00）
+// 周历：7 天 × 全天 0:00-23:00 竖向时间轴；点某个小时格子即在该日该点新增日程
+// 结构：.cal-week > .cal-week-scroll > [.cal-allday? , .cal-week-head , .cal-week-grid]
+// 注意：.cal-week-grid 必须是「纵向堆叠」的容器，每一行 .cal-hour 才是 8 列网格。
+//       早期把 .cal-hour 直接塞进 8 列 grid，导致 15 个整行被当成 15 个格子在
+//       外层 8 列里横排换行（时间轴变成横向乱排），这里一并修掉。
+const WEEK_H0 = 0;
+const WEEK_H1 = 23;
+
 function buildWeekView(start) {
   const wrap = document.createElement('div');
+  wrap.className = 'cal-week';
   const today = todayStrLocal();
-  const H0 = 8;
-  const H1 = 22;
+  const nowHour = new Date().getHours();
 
+  const scroll = document.createElement('div');
+  scroll.className = 'cal-week-scroll';
+
+  // —— 全天行（生日 / 全天日程）——
+  const allDay = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    eventsOn(ymd(d)).forEach((ev) => { if (ev.allDay) allDay.push({ ev, d }); });
+  }
+  if (allDay.length) {
+    const bar = document.createElement('div');
+    bar.className = 'cal-allday';
+    const lab = document.createElement('div');
+    lab.className = 'hh ad-lab';
+    lab.textContent = '全天';
+    bar.appendChild(lab);
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(start, i);
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell ad-cell';
+      allDay.forEach((item) => {
+        if (item.d.getTime() !== d.getTime()) return;
+        const ev = item.ev;
+        const b = document.createElement('div');
+        b.className = 'wev';
+        b.dataset.evid = ev.id;
+        b.style.background = ev.color || calColorOf(ev.calendar);
+        b.textContent = ev.title;
+        b.title = ev.title;
+        b.addEventListener('click', (e) => { e.stopPropagation(); openEventModal(ev); });
+        cell.appendChild(b);
+      });
+      cell.addEventListener('click', () => openEventModal(null, ymd(d)));
+      bar.appendChild(cell);
+    }
+    scroll.appendChild(bar);
+  }
+
+  // —— 星期表头（滚动时吸附在顶部）——
   const head = document.createElement('div');
   head.className = 'cal-week-head';
-  head.appendChild(document.createElement('div'));
+  const corner = document.createElement('div');
+  corner.className = 'wh-corner';
+  head.appendChild(corner);
   for (let i = 0; i < 7; i++) {
     const d = addDays(start, i);
     const lun = lunarLabel(d);
@@ -855,12 +944,12 @@ function buildWeekView(start) {
     h.addEventListener('click', () => openEventModal(null, ymd(d)));
     head.appendChild(h);
   }
-  wrap.appendChild(head);
+  scroll.appendChild(head);
 
+  // —— 0:00 - 23:00 时间轴 ——
   const grid = document.createElement('div');
   grid.className = 'cal-week-grid';
-
-  for (let hh = H0; hh <= H1; hh++) {
+  for (let hh = WEEK_H0; hh <= WEEK_H1; hh++) {
     const row = document.createElement('div');
     row.className = 'cal-hour';
     const lab = document.createElement('div');
@@ -869,8 +958,9 @@ function buildWeekView(start) {
     row.appendChild(lab);
     for (let i = 0; i < 7; i++) {
       const d = addDays(start, i);
+      const isToday = ymd(d) === today;
       const cell = document.createElement('div');
-      cell.className = 'cal-cell';
+      cell.className = 'cal-cell' + (isToday ? ' today' : '') + (isToday && hh === nowHour ? ' now' : '');
       // 该小时内的事件
       evsInHour(d, hh).forEach((ev) => {
         const b = document.createElement('div');
@@ -882,12 +972,15 @@ function buildWeekView(start) {
         b.addEventListener('click', (e) => { e.stopPropagation(); openEventModal(ev); });
         cell.appendChild(b);
       });
+      cell.title = `${d.getMonth() + 1}月${d.getDate()}日 ${String(hh).padStart(2, '0')}:00 - ${String(hh).padStart(2, '0')}:59`;
       cell.addEventListener('click', () => openEventModal(null, ymd(d), hh));
       row.appendChild(cell);
     }
     grid.appendChild(row);
   }
-  wrap.appendChild(grid);
+  scroll.appendChild(grid);
+
+  wrap.appendChild(scroll);
   return wrap;
 }
 

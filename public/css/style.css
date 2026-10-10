@@ -341,38 +341,69 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .cal-legend .lg{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 .cal-legend .dot{width:10px;height:10px;border-radius:3px}
 
-/* 月历（紧凑高度，尽量一屏显示完，无需滚动） */
-.cal-month-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px}
+/* ===== 日历整屏自适应 =====
+   视图高度由 fitCalView() 实测「视口高 − 视图距顶距离 − .main-content 下内边距」写进 inline style，
+   于是页面总高恰好等于视口高 → 刚好不出现滚动条；也自动适配浏览器标题栏/地址栏/收藏栏
+   以及手机端动态变化的地址栏（无需写死 100vh - N 之类魔法数）。 */
+#view-calendar.active{display:flex;flex-direction:column;min-height:0}
+#view-calendar.active>.growth-head{flex:0 0 auto}
+#view-calendar.active>.cal-panel{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#view-calendar.active .cal-legend{flex:0 0 auto}
+#view-calendar.active #calViewBox{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+
+/* 月历：方格高度按可用空间平均分配，把整个模块铺满 */
+.cal-month-wrap{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.cal-month-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:5px;flex:0 0 auto}
 .cal-month-head span{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:2px 0}
 .cal-month-head span.we{color:var(--terra)}
-.cal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.mcell{min-height:52px;padding:4px 5px;border:1px solid var(--line);border-radius:9px;background:var(--surface);display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.cal-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;
+  flex:1 1 auto;min-height:0;grid-auto-rows:minmax(0,1fr)}
+.mcell{min-height:0;padding:4px 5px;border:1px solid var(--line);border-radius:9px;background:var(--surface);display:flex;flex-direction:column;gap:2px;overflow:hidden}
 .mcell.out{background:#f7f3ec;opacity:.6}
 .mcell.today{border-color:var(--plum);box-shadow:0 0 0 2px var(--plum-soft)}
-.mcell-top{display:flex;align-items:baseline;justify-content:space-between;gap:3px}
+.mcell-top{display:flex;align-items:baseline;justify-content:space-between;gap:3px;flex:0 0 auto}
 .mcell-day{font-size:13px;font-weight:700;line-height:1}
 .mcell-lunar{font-size:9.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcell-lunar.fest{color:var(--terra);font-weight:600}
-.mcell-evs{display:flex;flex-direction:column;gap:1px;overflow:hidden}
-.mev{font-size:9.5px;line-height:1.45;padding:0 4px;border-radius:4px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mcell-evs{display:flex;flex-direction:column;gap:1px;overflow:hidden;min-height:0}
+.mev{font-size:9.5px;line-height:1.45;padding:0 4px;border-radius:4px;color:#fff;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;cursor:pointer;flex:0 0 auto}
 .mev-more{font-size:9.5px;color:var(--muted);padding-left:2px}
 
-/* 周历 */
-.cal-week-head{display:grid;grid-template-columns:44px repeat(7,1fr);gap:6px;margin-bottom:8px}
-.cal-week-head .wh{padding:6px 4px;border-radius:10px;background:var(--sage-soft);text-align:center}
+/* 周历：7 天 × 全天 00:00-23:00 竖向时间轴
+   ⚠️ .cal-week-grid 必须是「纵向堆叠」容器，每一行 .cal-hour 才是 8 列网格。
+   旧实现把 .cal-hour 直接当外层 8 列 grid 的格子上屏，导致 15 个整行在 8 列里横排换行
+   （时间轴变成横向乱排、7 天列被压扁），这里一并修正。
+   星期表头滚动时吸附顶部；小时刻度列在横向滚动时吸附左侧（手机端）。 */
+.cal-week{--cal-hcol:46px;--cal-gap:6px;--cal-row:22px;--cal-minw:0px;
+  display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.cal-week-scroll{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;
+  overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.cal-week-scroll>*{min-width:var(--cal-minw)}
+.cal-week-head,.cal-allday,.cal-hour{display:grid;grid-template-columns:var(--cal-hcol) repeat(7,1fr);gap:var(--cal-gap)}
+.cal-week-head,.cal-allday{flex:0 0 auto}
+.cal-week-head{position:sticky;top:0;z-index:3;background:var(--card)}
+.cal-week-head .wh{padding:5px 4px;border-radius:10px;background:var(--sage-soft);text-align:center;cursor:pointer;margin-bottom:6px}
 .cal-week-head .wh b{display:block;font-size:13px}
-.cal-week-head .wh small{display:block;font-size:10px;color:var(--muted);margin-top:1px}
+.cal-week-head .wh small{display:block;font-size:10px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cal-week-head .wh.today{background:var(--plum)}
 .cal-week-head .wh.today b,.cal-week-head .wh.today small{color:#fff}
-.cal-week-grid{display:grid;grid-template-columns:44px repeat(7,1fr);gap:6px;position:relative}
-.cal-hour-spacer{height:46px}
-.cal-col{display:flex;flex-direction:column;gap:4px}
-.cal-hour{display:grid;grid-template-columns:44px repeat(7,1fr);gap:6px;align-items:start}
-.cal-hour .hh{font-size:10px;color:var(--muted);text-align:right;padding-top:2px;height:46px}
-.cal-cell{min-height:46px;border-top:1px dashed var(--line);cursor:pointer;transition:.15s}
+.cal-week-head .wh-corner{margin-bottom:6px}
+.cal-allday{align-items:start;margin-bottom:6px}
+.cal-allday .ad-lab{font-size:10px;color:var(--muted);text-align:right;padding:1px 3px 0 0;line-height:1.2;position:sticky;left:0;background:var(--card)}
+.cal-allday .ad-cell{border-top:0;padding:0 2px;gap:2px;min-height:0}
+/* 注意：这里不能加 min-height:0 —— 否则网格会被压缩到小于 24 行最小高度，
+   12:00-23:00 直接不可见也不可滚。保持 min-height:auto 让滚动容器按内容撑开。 */
+.cal-week-grid{flex:1 1 auto;display:flex;flex-direction:column;gap:2px}
+.cal-hour{flex:1 1 0;min-height:var(--cal-row);align-items:stretch}
+.cal-hour .hh{font-size:10px;color:var(--muted);text-align:right;padding:1px 3px 0 0;line-height:1.15;
+  position:sticky;left:0;z-index:2;background:var(--card)}
+.cal-cell{min-height:0;padding:0 2px;border-top:1px dashed var(--line);border-radius:4px;
+  cursor:pointer;transition:background .15s;display:flex;flex-direction:column;gap:1px;overflow:hidden}
 .cal-cell:hover{background:var(--plum-soft)}
-.wev{font-size:10px;line-height:1.35;padding:2px 5px;border-radius:6px;color:#fff;margin:1px 2px;overflow:hidden;cursor:pointer;white-space:nowrap;text-overflow:ellipsis}
-.cal-col-title{font-size:10px;color:var(--muted);text-align:center;padding-bottom:2px}
+.cal-cell.now{background:var(--plum-soft)}
+.wev{font-size:10px;line-height:1.35;padding:1px 5px;border-radius:6px;color:#fff;flex:0 0 auto;
+  overflow:hidden;cursor:pointer;white-space:nowrap;text-overflow:ellipsis}
 
 /* 账本 */
 .led-month{font-weight:700;font-size:14px;min-width:84px;text-align:center}
@@ -933,9 +964,19 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
   .mnav-popover{left:14px;right:14px;bottom:calc(82px + env(safe-area-inset-bottom));max-height:min(56vh,320px);overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:16px;padding:8px}
   .mnav-popover .pp-item{height:46px;font-size:14.5px}
   .mnav-profile{z-index:60}
-  .cal-week-grid,.cal-week-head{grid-template-columns:34px repeat(7,1fr);gap:3px}
-  .cal-hour .hh,.cal-hour-spacer{font-size:9px}
-  .cal-hour .hh,.cal-cell{height:40px;min-height:40px}
+  /* 周历手机端：日期列加宽后横向滚动（刻度列吸附左侧），小时行更高、更好点 */
+  .cal-week{--cal-hcol:38px;--cal-gap:4px;--cal-row:30px;--cal-minw:640px}
+  .cal-hour .hh,.cal-week-head .wh small{font-size:9px}
+  .cal-allday .ad-lab{font-size:9px}
+  /* 日历工具栏手机端压缩尺寸，让 4 组控件只占两行（省下的高度留给时间轴） */
+  #view-calendar .cal-actions{gap:8px}
+  #view-calendar .cal-actions .seg-item{padding:5px 12px;font-size:13px}
+  #view-calendar .cal-actions .btn{height:34px;padding:0 12px;font-size:13px}
+  #view-calendar .cal-actions .icon-btn{width:32px;height:32px}
+  #view-calendar .cal-actions .cal-picker{gap:2px;margin:0}
+  #view-calendar .cal-actions .cal-year{width:62px;height:32px;font-size:13px}
+  #view-calendar .cal-actions .cal-sep{font-size:12px}
+  #view-calendar .cal-actions .cal-month-sel{height:32px;font-size:13px}
   .ledger-stats{grid-template-columns:1fr;gap:10px;margin-bottom:16px}
   .ledger-grid{grid-template-columns:1fr;gap:16px}
   /* 家庭药箱移动端 */

@@ -1,89 +1,83 @@
 # 数字生活 shuzishenghuo — 项目约定
 
 ## 技术栈与部署
-- Cloudflare Pages（静态 `./public`）+ Pages Functions（`./functions`）+ D1（`shuzishenghuo`）+ R2。**非资料库托管**。仓库 `zwjdujin/shuzishenghuo`。
-- 认证：`ADMIN_USER/ADMIN_PASS/SESSION_SECRET`，HMAC-SHA256 签名 Cookie（7 天）。`_middleware.js` 校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开），再查 `sessions` 表确认 sid。
+- Cloudflare Pages（静态 `./public`）+ Functions（`./functions`）+ D1 `shuzishenghuo` + R2。**非资料库托管**。仓库 `zwjdujin/shuzishenghuo`。
+- 认证：`ADMIN_USER/ADMIN_PASS/SESSION_SECRET` + HMAC-SHA256 签名 Cookie（7 天）；`_middleware.js` 校验 `/api/*`（仅 `/api/auth/login`、`/api/health` 公开）再查 `sessions`。
 - 部署：`export PATH="$HOME/.bun/bin:$PATH"` → `wrangler pages deploy ./public --project-name=shuzishenghuo --branch=main --commit-dirty=true`；迁移 `wrangler d1 execute shuzishenghuo --remote --file=./migrate-vX.Y.Z.sql`。
-- **Git 用 SSH 推送**（约 4 秒）。仓库级 `core.sshCommand` **必须保留**：`ssh -F "<abs>/.ssh-keys/ssh_config" -i "<abs>/.ssh-keys/id_ed25519" -o IdentitiesOnly=yes -o UserKnownHostsFile="<abs>/.ssh-keys/known_hosts" -o GlobalKnownHostsFile=NUL`。`~/.ssh/` 是受保护路径（「始终允许」无效）→ 全部放项目内 `.ssh-keys/`（已 gitignore）；新机器需加 pub key 到 GitHub 并 `ssh-keyscan github.com > .ssh-keys/known_hosts`。
-- **commit message 含反引号会被 bash 执行** → 必须 `git commit -F _msg.txt`（已 gitignore）。
-- ⚠️ **本仓库有另一个会话在并发提交/部署**（曾自动提交掉我的 app.js 改动）。**发版前先 `git status` + `git diff --stat` 复核改动是否还在**。
+- **Git 走 SSH**（仓库级 `core.sshCommand` 必须保留，指向项目内 `.ssh-keys/`；`~/.ssh/` 是受保护路径）→ `git push`。**commit message 含反引号会被 bash 执行** → 一律 `git commit -F _msg.txt`（已 gitignore）。
+- ⚠️ **有另一个会话在并发提交/部署** → **发版前先 `git status` + `git diff --stat` 复核改动还在**。
 
 ## 前端约定
-- 风格：暖色纸感背景、左侧 `.sidebar`、卡片仪表盘、移动端 `.mobile-nav` 底部 Tab；纯内联 CSS/JS 零依赖；图标用 `#i-*` SVG sprite。
-- **版本号** `主.次.修订`：主版本由用户指定才改；次版本每新增功能页 +1；**修订号每次修改 +1**。
-- 脚本顺序：`lunar.js` → `profile.js` → `medicine.js` → `app.js`。非 ES module，**跨文件不能用 export/import，必须 `window.xxx = xxx`**（曾致 `lunarLabel is not defined` 整页空白）。
-- 样式表顶部必须有 `[hidden]{display:none!important}`，否则作者样式 `display` 会盖掉 `el.hidden=true`。
-- **重复调用的 `build*()` 里别用 `addEventListener`**（会成倍累积，`buildModeOpts` 曾导致 toast 越弹越多）→ 用 `el.onclick = ...` 赋值（幂等）。
+- 暖色纸感、左侧 `.sidebar`、卡片仪表盘、移动端 `.mobile-nav`；纯内联 CSS/JS 零依赖；图标 `#i-*` sprite。
+- **版本号 `主.次.修订`**：主版本用户指定才改；次版本每新增功能页 +1；**修订号每次修改 +1**。发版同步改 `js/app.js` 的 `VERSION`/`__BUILD_ID__`/`__BUILD_TIME__` + `js/sw.js` 的 `const CACHE`（每次必改）。
+- 脚本顺序 `lunar.js`→`profile.js`→`medicine.js`→`app.js`；**非 ES module，跨文件必须 `window.xxx = xxx`**。
+- 样式表顶部必须有 `[hidden]{display:none!important}`。
+- **重复调用的 `build*()` 里别用 `addEventListener`**（成倍累积）→ 用 `el.onclick=`。
 
-### 🔴 全局模块间距（用户强调过多次，严禁再犯）
-**页面内模块之间必须 22px 间隔。** 通用规则 `.view.active>*{margin-bottom:22px}` + `:last-child{margin-bottom:0}` **只作用于 `.view` 直接子元素**；若结构为 `.view > #container > .panel`（多包一层）**必须为该容器单独加规则**（`#relListView>*`、`#view-settings .profile-page>*`）。已两次踩坑 → **加嵌套容器时顺手 grep 同类容器一次性补全**。`display:flex;gap` 容器会与通用规则叠加 → 改 `display:block` 或子项 margin 归零；容器 `margin:0` 时其后兄弟会贴住，需补 `margin-top`。
+### 🔴 全局模块间距（用户强调多次）
+**页面内模块之间必须 22px。** 通用规则 `.view.active>*{margin-bottom:22px}` 只作用于 `.view` **直接子元素**；多包一层（`.view>#container>.panel`）**必须为该容器单独加规则**。`display:flex;gap` 容器会与之叠加 → 改 `display:block` 或子项 margin 归零。
 
-### 🔴 前端 JS/CSS 验证方法（`node --check` 不够）
-1. `node --check` 只查语法，**查不出运行时未定义引用**（`FONTS is not defined` 能过检查却全崩），也查不出 `const/let` 块级可见性错误。改完必须 grep 关键常量确认定义还在。
-2. **Edit 的 old_string 必须足够唯一**（带上下文行）——曾因不唯一连带删掉上方 const。
-3. **样式计算值验证**：起本地静态服务 + 页面内 `getComputedStyle()` + Edge headless `--dump-dom` 取 `id="report2"` 的值。测试页必须复刻真实祖先结构。
-4. **Edge 用 `--headless=old`**：`--headless=new` 截图/多实例**频繁卡死**。配 `--no-first-run --disable-extensions --user-data-dir=<tmp>` + `timeout 60`。
-5. 「改了没生效」先怀疑 CSS 过渡：探测前注入 `*{transition:none!important}`，否则取到动画中间帧。
-6. **Node 里 `str.replace(a, inject)` 会吃掉替换串的 `$`**（`$$(...)`→`$(...)`）→ **必须用函数形式 `replace(a, () => inject)`**。
-7. **改字段名必须全局 grep** 全部引用处一并改（`nb.date`→`nb.full` 曾漏列表页 `b.date`）。
+### 🔴 验证方法（`node --check` 远远不够）
+1. `node --check` 只查语法，**查不出运行时未定义引用**（`FONTS is not defined` 能过检查却全崩）。改完 grep 关键常量确认定义还在。
+2. **Edit 的 `old_string` 必须足够唯一**（曾因不唯一连带删掉上方 const）。
+3. 「改了没生效」先怀疑 **CSS 过渡**（探测前注入 `*{transition:none!important}`）与**预览页自己注入的 `!important`**（曾用 `.view.active{display:block!important}` 盖掉 `#view-calendar.active{display:flex}`，误判自适应没生效）。
+4. **Node 里 `str.replace(a, inject)` 会吃掉替换串的 `$`** → 必须 `replace(a, () => inject)`。**模板字符串（反引号）里写正则必须 `\\d`**，单个 `\d` 反斜杠被吞成 `d`（生成页里的正则静默失效）。
+5. **改字段名必须全局 grep 所有引用处**。
 
 ## 🎨 主题与夜间模式（v0.3.8 架构 + v0.3.9 令牌化；勿参考旧 23 色方案）
 - 页面：个人中心子页「**主题风格**」（`PROFILE_TITLES.style`），`#page-style`。
-- `CN_COLORS` 共 **18 种中国传统色**，只存 `{key,label,base}`；`THEMES` 由 `dayPalette(base)`/`nightPalette(base)` 运行时派生（数据源 https://api.dujin.org/colors/cn-colors/）。
-- 派生（`hexToHsl`/`hslToHex`/`relLum`/`lumToLightness`）**必须用 WCAG 相对亮度约束对比度**，不能用 HSL 明度。日间主色 `= min(原明度, 达到 relLum .145 的明度)`；夜间主色 `= 达到 relLum .20 的明度`。**`nightPalette().surface = hsl(h, min(s*.46,24), 14.5)`**，比 card(L=10) 亮一档。
-- **CSS 令牌映射**：`:root` 声明 `--t-day-*`/`--t-night-*`（`applyTheme()` 写 inline，CSS 给默认主题兜底），再由 `:root` 与 `html[data-mode="night"]` 映射到 `--paper/--card/--ink/--muted/--line/--side/--plum/--plum-soft/--plum-deep/--accent/--tint`。**切明暗无需重选主题**。
-- **`--surface`（核心约定）**：日间固定 `#fffdfa`，夜间 `var(--t-night-surface)`。**所有「次级容器」——列表行/输入框/次级按钮/分段按钮/标签/日历单元格——一律 `var(--surface)`**，不写死近白、也不加进夜间白名单。
-- 语义令牌：`--danger-soft/--danger-line/--danger-tint/--warn-soft/--warn-ink`；六色图标底 `--terra/sage/sand/clay-soft` 夜间统一压到与卡片同档暗色，只靠色相区分。
-- **夜间白名单只留一级面板**：`.sidebar/.side/.panel/.pf-hero/.modal-card/.local-card/.habit-card/.stat-card` → `background:var(--card)!important`。**新增二级容器不要再加**（这是「夜间发亮」的根因）。
-  - **`.hero-card` 故意不在白名单**：它自带主题渐变 `var(--hero)`（`--t-day-hero`/`--t-night-hero`；日=主色→突显色，夜=night soft→card）。
-  - 六色图标 `.stat-icon.*` 一律用 `--*-soft` 令牌；「有逾期」提醒态用 `.stat-icon.alert`（`--danger-tint`），**禁止再用 JS 写内联 `style.background`**。
-- 坑：`.seg-item.active` 需 `background:var(--plum);color:#fff`；夜间 `.toast` 用 `surface`+`ink`（不可用 `--ink`+白字翻转，夜间 `--ink` 本身浅）；`.field textarea` 原无样式会露默认白底，已补。
-- **字体**：`FONTS` 只有 default / lxgwwk(霞鹜文楷, Google Fonts)；`applyFont()` 写 `--f-ui/--f-serif/--font-ui/--font-serif`。字体卡预览字样必须 `el.style.setProperty('font-family', stack, 'important')`。主题页类名 `.ts-*/.tf*/.tc*`。
-- **外观多端同步（v0.3.10）：服务端是权威源**。`app_settings` 存 `theme/font/mode`，`GET /api/home` 返回 `appearance{theme,font,mode}`；`renderHome()` 用 `applyAppearanceFromServer()` 覆盖本机，**localStorage 只是首屏缓存**（`restoreAppearance()` 先渲染避免闪默认色）。用户显式切换时 `pushAppearance(patch)` 即时 PUT `/api/settings`。**改外观逻辑务必保持这条链路**。
-- `sunTimes()` 日出日落估算 + `uiMode`(light/night/auto) 每分钟检查。localStorage：`pf_theme`/`pf_font`/`pf_mode`。
+- `CN_COLORS` **18 种中国传统色**（只存 `{key,label,base}`）；`THEMES` 由 `dayPalette()`/`nightPalette()` 运行时派生（https://api.dujin.org/colors/cn-colors/）。
+- 派生必须用 **WCAG 相对亮度**约束对比度（不能用 HSL 明度）。日间主色 `= min(原明度, 达到 relLum .145 的明度)`；夜间主色 `= 达到 relLum .20 的明度`；`nightPalette().surface = hsl(h, min(s*.46,24), 14.5)`，比 card 亮一档。
+- **令牌映射**：`:root` 声明 `--t-day-*`/`--t-night-*`（`applyTheme()` 写 inline），再由 `:root` / `html[data-mode="night"]` 映射到 `--paper/--card/--ink/--muted/--line/--side/--plum/--plum-soft/--plum-deep/--accent/--tint`。**切明暗不用重选主题**。
+- **`--surface`（核心约定）**：日间固定 `#fffdfa`，夜间 `var(--t-night-surface)`。**所有次级容器（列表行/输入框/次级按钮/分段按钮/标签/日历单元格）一律 `var(--surface)`**，不写死近白、也不加进夜间白名单。
+- **夜间白名单只留一级面板**：`.sidebar/.side/.panel/.pf-hero/.modal-card/.local-card/.habit-card/.stat-card` → `background:var(--card)!important`。**新增二级容器不要再加**（这是「夜间发亮」的根因）。`.hero-card` 故意不在白名单（自带 `var(--hero)` 主题渐变）。
+- 语义令牌 `--danger-soft/--danger-line/--danger-tint/--warn-soft/--warn-ink`；六色图标底 `--terra/sage/sand/clay-soft` 夜间统一压暗。`.stat-icon.alert` 表达「有逾期」，**禁止 JS 写内联 `style.background`**。
+- 坑：`.seg-item.active` 需 `background:var(--plum);color:#fff`；夜间 `.toast` 用 `surface`+`ink`（不可 `--ink`+白字翻转）；`.field textarea` 已补样式。
+- **字体**：`FONTS` 只有 default / lxgwwk(霞鹜文楷)；`applyFont()` 写 `--f-ui/--f-serif/--font-ui/--font-serif`；字体卡预览必须 `el.style.setProperty('font-family', stack, 'important')`。主题页类名 `.ts-*/.tf*/.tc*`。
+- **外观多端同步（v0.3.10）：服务端是权威源**。`app_settings` 存 `theme/font/mode`，`GET /api/home` 返回 `appearance{}`；`renderHome()` 用 `applyAppearanceFromServer()` 覆盖本机，localStorage 只是首屏缓存（`restoreAppearance()` 先渲染防闪）。显式切换时 `pushAppearance(patch)` 即时 PUT `/api/settings`。**改外观逻辑务必保持这条链路**。localStorage：`pf_theme`/`pf_font`/`pf_mode`。
 
 ## 验证脚本（优先复用）
-- `scripts/test-theme.mjs`：抽 app.js 真实色板跑对比度自检，18 色 + 夜间容器面断言。
-- `scripts/gen-nightcheck.mjs`：**夜间亮底核查页**。复用真实 `index.html`（去 script）+ `style.css`，注入样例数据与探测脚本，输出逐元素计算样式/WCAG 对比度 + Hero 背景 + 移动端菜单几何 + 自动巡检「夜间仍亮底」元素（相对亮度 ≥0.28 报异常）。hash：`#<light|night>-view-<view>[-ptab-<子页>][-modal-clear]`。
-- `scripts/gen-relpreview.mjs` + `scripts/shot-el.mjs` / `shot-scroll.mjs`：**移动端排版体检**。复用真实 index.html/style.css/**profile.js**，stub `api()` 喂样例数据（`/api/profile/list`、`/api/vocab`，`pfLoadOptions()` 必须 await，否则 `PF.vocab.edu` 未定义 → `pfModEdu()` 抛错、面板空白）。hash：`#list | #edit-<base|rel|edu|work|family|pref|trait|dates|files>`。
-  - 截图走 **playwright-core**（`~/.workbuddy/binaries/node/workspace/node_modules`；ESM 必须 `file:///` 绝对路径 import，`NODE_PATH` 对 ESM 无效）。`W=390` 真机视口、`NIGHT=1` 切夜间、`TAG=` 命名、`SEL=` 元素截图。
-  - ⚠️ **Edge `--headless=old` 的 `--window-size` 有 ~500px 最小宽度**（390 实测 innerWidth=492）→ 窄屏必须用 playwright viewport。
-  - ⚠️ **`elementHandle.screenshot()` 截长元素会被 `position:fixed` 底栏拼接错位**（看着像内容重叠）→ 用逐屏滚动截图判断，别据此下结论。
-- 两个生成页都输出到**仓库根 `_preview/`**（不是 `public/`），资源改为 `../public/...`。用法：`cd 仓库根 && python -m http.server 8899` → `http://localhost:8899/_preview/xxx.html`。
-- `scripts/test-medicines.mjs`(20 项) / `scripts/test-data-api.mjs`(27 项)：mock D1 跑后端断言。
+- 起服务：`cd 仓库根 && python -m http.server 8899`；页面在 `http://localhost:8899/_preview/xxx.html`（**生成页一律输出到仓库根 `_preview/`，绝不能放 `public/`**，`.gitignore` 对 wrangler 无效）。
+- 截图一律用 **playwright-core**（`~/.workbuddy/binaries/node/workspace/node_modules`，ESM 必须 `file:///` 绝对路径 import，`NODE_PATH` 对 ESM 无效）；`W=390` 真机视口、`NIGHT=1` 夜间、`TAG=` 命名、`SEL=` 元素截图。⚠️ **Edge `--headless=old` 的 `--window-size` 最小 ~500px**（设 390 实测 492）→ 窄屏必须用 playwright viewport。
+- `scripts/test-theme.mjs`：色板对比度自检（18 色 + 夜间容器面）。
+- `scripts/test-medicines.mjs`(20 项) / `scripts/test-data-api.mjs`(27 项)：mock D1 后端断言。
+- `scripts/gen-nightcheck.mjs`：夜间亮底核查页。复刻真实 index.html + style.css，输出逐元素计算样式/WCAG + **自动巡检「夜间仍亮底」元素（相对亮度 ≥0.28 报异常）**。hash `#<light|night>-view-<view>[-ptab-<子页>]`。
+- `scripts/gen-relpreview.mjs` + `shot-el.mjs`/`shot-scroll.mjs`：人际关系移动端体检。stub `api()` 喂样例（`pfLoadOptions()` 必须 await，否则 `PF.vocab.edu` 未定义 → 面板空白）。hash `#list|#edit-<模块>`。
+- `scripts/gen-calpreview.mjs` + `shot-cal.mjs` + `test-calendar.mjs`：日历体检（25 项断言）。加载真实全套脚本，只换 `window.fetch`。hash `#week|#month|#week-2026-10|#month-2026-8`；可用全局 `calState` 指定锚点。
 - `_preview/`、`_probe/`、`demo/_*.png` 已 gitignore。
 
 ## Cloudflare Pages 坑
-- ⚠️ **`wrangler pages deploy ./public` 会把 `public/` 下所有文件原样上传，`.gitignore` 完全无关** → 本地验证页/临时页**绝不能放 `public/`**（v0.3.11 发现 `public/_relpreview.html` 真被发布到 `/_relpreview`）。统一放仓库根 `_preview/`。
+- ⚠️ **`wrangler pages deploy ./public` 会原样上传 `public/` 下所有文件，`.gitignore` 完全无关** → 验证页绝不能放 `public/`。
 - **文件/目录同名冲突 → error 1101**（`profile.js` 与 `profile/` 不能并存，已用 `profile/detail.js` + `/api/profile/detail?id=`）。
-- **下划线 helper 放错目录 → esbuild `Could not resolve`**：共享 helper 必须在与调用方同级目录（如 `functions/api/_helpers.js`）。
-- **删除路由**：`onRequestDelete` + `[id].js` 拿不到 `context.params.id` → **必须导出 `onRequest()` 并用 `url.pathname.match(/\/events\/(\d+)/)` 解析**。
-- `signToken` 必须把 JSON 字符串先 `TextEncoder().encode` 再 base64url，否则 payload 为空。
-- 未知路径返回 200（SPA 回退），**不能靠状态码判断文件是否存在**，要校验内容特征串。
-- **SQLite `LIKE` 里 `_` 是单字符通配符**：别用 `name NOT LIKE '_cf_%'`（会误伤），改为 SQL 只取 `type='table'`，再在 JS 里 `startsWith('sqlite_')/('_cf_')` 白名单化。
+- **下划线 helper 必须与调用方同级**，否则 esbuild `Could not resolve`。
+- **删除路由**：`[id].js` 里 `onRequestDelete` 拿不到 `context.params.id` → **必须导出 `onRequest()` 并用 `url.pathname.match(/\/(\d+)/)` 解析**。
+- `signToken` 必须先把 JSON 字符串 `TextEncoder().encode` 再 base64url。
+- 未知路径返回 200（SPA 回退）→ **不能靠状态码判断文件存在**，要校验内容特征串。
+- **SQLite `LIKE` 里 `_` 是通配符** → 别用 `NOT LIKE '_cf_%'`，改为 SQL 取 `type='table'` 后 JS `startsWith('sqlite_')/('_cf_')`。
 
 ## 数据表
-`app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts, sessions` + 人际关系 11 张 `contact_*` 表 + `vocab`、`push_subscriptions`。建表 `schema.sql`，示例 `seed.sql`。
-- `medicines`：name/efficacy/spec/dosage/form/expiry/category/location/manufacturer/stock/stock_min/for_whom/rx/open_date/price/quantity/note。原 `quantity` 语义模糊已弃用，新数据走 dosage+stock。
+`app_settings, habits, habit_logs, todos, transactions, medicines, events, contacts, sessions` + 人际关系 11 张 `contact_*` + `vocab`、`push_subscriptions`。建表 `schema.sql`，示例 `seed.sql`。
 
 ## 模块实现要点
-- **家庭药箱（v0.3.7）**：`public/js/medicine.js` + `functions/api/medicines.js` + `medicines/[id].js`。**临期=6 个自然月**（`new Date(y, m+6, d)`，**不用 180/184 天**）；四态 `expired/soon/safe/none`（`none` 不进临期/过期表）。暴露 `window.medRenderMedicine`/`window.medBindEvents`。迁移 `migrate-v0.3.7.sql` 含 16 条示例。
-- **人际关系（v0.3.1）**：`public/js/profile.js` + `functions/api/profile/*`。`_profile.js` 提供农历换算(1900-2100)/`nextBirthday()`/`birthdayFromIdcard()`/`ageOf()`。三端联动：承诺→`todos`(list='人际关系',person_id)、人情→`transactions`(category='人情')、互动可同步 `events`。`contacts` 扩展 alias/gender/province/city/idcard/idcard_birthday/show_lunar/level/job/company/status/native/page；7 维筛选 + 搜索；`DELETE /api/profile/delete?id=N` 级联清 11 表 + R2。**字段坑**：列表与详情的 `nextBirthday` **都返回 `full`**（不是 `date`），列表另返 `phone`；渲染用缓存 `PF.lastList`；`PF.mode` = `detail`|`simple`（全部联系人右侧的详细/精简）。
-- **个人中心（v0.2.5 / v0.3.10）**：**子菜单是唯一入口**，页顶无标题无页签。侧栏 `#profileBtn`→`#profilePopover`、移动端 `#profileBtnMobile`→`#profilePopoverMobile`；`PROFILE_MENUS` + `closeAllProfilePopovers()` + `openProfileTab()`。
-  - **5 个子页顺序** site→style→**data(v0.3.10)**→security→sysinfo；`PROFILE_TITLES`、两处菜单 HTML、`#page-*` 必须同步。
-  - **坑**：`switchView('settings')` 内不可无条件 `switchProfileTab('site')`（会重置带参进入的子页）→ 用 `currentProfileTab` + `switchView(name,{keepTab:true})`，导航委托里排除 `navEl.id !== 'profileBtnMobile'`。
-  - **坑（手机端子菜单被压窄）**：`.mnav-popover` 必须 `position:fixed`（`left/right:14px; bottom:calc(82px + env(safe-area-inset-bottom))`），否则以 6 列栅格一格为包含块只剩几十像素宽。
-  - 站点信息 `GET/PUT /api/settings`；账户安全 `renderSessions()`+`DELETE /api/sessions/[sid]`（当前设备排最前 + `.dev-current-tag` 主色药丸）；系统信息 `GET /api/sysinfo`+`collectClientInfo()`。
-- **数据处理（v0.3.10）**：`functions/api/data/{_tables,stats,export,clear}.js`（`_tables.js` 为共享 helper，下划线前缀不路由）。表清单**动态取自 `sqlite_master`**，排除 `sqlite_*`/`_cf_*` + `EXCLUDE={sessions,app_settings}`。
-  - `GET /api/data/stats` 计数；`GET /api/data/export` 附件流下载全量 JSON；`POST /api/data/clear` 需 `{confirm:'CLEAR_ALL_DATA'}` 否则 400。**清空保留 `sessions` 与 `app_settings`**，管理员账号密码在环境变量不在库中；清空后重置 `sqlite_sequence`（失败可忽略）。
-  - 前端：勾选 `#ackBackup` 才解禁 `#clearDataBtn` → `#clearModal` 内输入「清空」才解禁 `#clearConfirmBtn`。
-- **成长打卡（v0.2.1）**：`habits`(category/type normal|sleep/method count|duration/target&unit/bed_time&rise_time&nap_time) + `habit_logs`(done/done_bed/done_rise/done_nap，UNIQUE(habit_id,log_date))。API：`/api/habits`(GET/POST)、`/api/habits/[id]`(PUT/DELETE)、`POST /api/habits/[id]/check`({field})、`GET /api/habits/heatmap?days=60`。unit 存「次/秒/分钟/小时」，快捷按钮与标签必须跟随 unit（`UNIT_STEPS`）；helper `progressOf`/`parseHabitBody`。`.ci-actions` 固定 `210px`，睡眠三件套 `.tri` flex:1；首页 `.habit-panel` 仅 1 列宽，v0.3.9 起面板内纵向堆叠。
-- **日历/待办/账本（v0.2.7）**：`lunar.js`（`lunarLabel()`/`lunarFull()`，1900–2100 压缩表已校验）。日历 `CAL_COLOR` 四类配色、周历 8–22 点时间轴 + 月历整月网格。账本 `renderDonut()` 内联 SVG 环图，**支出红收入绿**。
-- **待办优先级（v0.2.8）**：`priority`(P0-P3) 由 `important`/`urgent` 推导。后端 `PRIORITY_META`+`priorityOf()`；GET 支持 `priority` 逗号多选 + `list` 单选，按 `CASE priority` 排序，响应含 `counts`。
-- **十二时辰经络（v0.2.2）**：`SHICHEN` 12 项，`shichenOf(hour)=Math.floor(((hour+1)%24)/2)`；`renderShichen()` 写 `#dayBadge`/`.score-orbit`/`#heroGreeting`/`#heroSummary`。
-- **会话/设备（v0.2.2）**：`sessions`(sid PK/user/ip/user_agent/created_at/last_seen_at)；`decodeToken()` 取**第一段 payload**（格式 `payload.sig`）；IP 取 `cf-connecting-ip` 或 `x-forwarded-for`。
+- **日历中心（v0.2.7 → v0.3.12 周历改版）**：`lunar.js`（`lunarLabel()`/`lunarFull()`，1900–2100 已校验）。`CAL_COLOR` 四类配色。
+  - 🔴 **周历结构坑**：`.cal-week-grid` 必须是**纵向堆叠**容器（`display:flex;flex-direction:column`），每行 `.cal-hour` 才是 `grid-template-columns:var(--cal-hcol) repeat(7,1fr)`。旧版把 `.cal-hour` 直接塞进外层 8 列 grid → 15 个整行被当成 15 个格子横排换行，时间轴横向乱排。
+  - 时间轴 **00:00–23:00 共 24 行**；顶部 `.cal-allday` 全天行（生日/全天日程）；`.cal-week-head` `sticky top:0`；`.hh`/`.wh-corner`/`.ad-lab` `sticky left:0`（手机横滚吸附）。
+  - `--cal-hcol/--cal-gap/--cal-row/--cal-minw` 定义在 `.cal-week`：桌面 `46/6/22/0`，手机 `38/4/30/640px`（日期列加宽 → 容器内横向滚动）。
+  - ⚠️ **`.cal-week-grid` 不能加 `min-height:0`**（会被压缩到小于 24 行最小高度，12:00–23:00 既不可见也不可滚，且滚动容器不滚）。
+  - **标题**：周历 `当前为YYYY年第N周`（`weekOfYear()` 以「含 1/1 的周日那一周」为第 1 周）；月历 `YYYY年M月`；区间放副标题 `#calEyebrow`。`syncCalNavLabels()` 让上一页/下一页随视图变「上一周/下一周」或「上一月/下一月」（`calShift()` 本就按视图 ±7 天 / ±1 月）。
+  - 🔴 **`fitCalView()` 整屏自适应**：`#view-calendar` 高度由 JS 实测写入 inline style = `innerHeight − (scrollY + rect.top) − .main-content 下 padding` → 页面总高恰等于视口高，**刚好不出现滚动条**，自动适配标题栏/地址栏/收藏栏与手机动态地址栏（**不要退回写死 `100vh - N`**）。配合 `#view-calendar.active{display:flex}` + `.cal-panel/#calViewBox/.cal-month-wrap{flex:1;min-height:0}` + `.cal-month-grid{grid-auto-rows:minmax(0,1fr)}` + `.mcell{min-height:0}` 把方格平均拉高。resize 有 120ms 防抖重算。
+- **账本**：`renderDonut()` 内联 SVG 环图，**支出红收入绿**。**待办优先级**：`priority`(P0-P3) 由 `important`/`urgent` 推导，后端 `priorityOf()`；GET 支持 `priority` 多选 + `list`，响应含 `counts`。
+- **成长打卡（v0.2.1）**：`habits`(category/type normal|sleep/method count|duration/target&unit/bed|rise|nap_time) + `habit_logs`(done/done_bed/done_rise/done_nap, UNIQUE(habit_id,log_date))。unit 存「次/秒/分钟/小时」，快捷按钮与标签必须跟随 unit（`UNIT_STEPS`）。
+- **家庭药箱（v0.3.7）**：`medicine.js` + `functions/api/medicines.js` + `medicines/[id].js`。**临期=6 个自然月**（`new Date(y,m+6,d)`，**不用 180/184 天**）；四态 `expired/soon/safe/none`（`none` 不进临期/过期表）。暴露 `window.medRenderMedicine`/`medBindEvents`。
+- **人际关系（v0.3.1）**：`profile.js` + `functions/api/profile/*`。`_profile.js` 提供农历换算/`nextBirthday()`/`birthdayFromIdcard()`/`ageOf()`。三端联动：承诺→`todos`(list='人际关系')、人情→`transactions`(category='人情')、互动可同步 `events`。`contacts` 扩展 alias/gender/province/city/idcard/idcard_birthday/show_lunar/level/job/company/status/native/page；7 维筛选 + 搜索；`DELETE /api/profile/delete?id=N` 级联清 11 表 + R2。**字段坑**：列表与详情的 `nextBirthday` **都返回 `full`**（不是 `date`）；`PF.mode`=`detail`|`simple`。
+- **个人中心（v0.2.5 / v0.3.10）**：**子菜单是唯一入口**，页顶无标题无页签。`#profileBtn`/`#profileBtnMobile`→`#profilePopover(Mobile)`；`PROFILE_MENUS` + `closeAllProfilePopovers()` + `openProfileTab()`。
+  - **5 个子页** site→style→**data**→security→sysinfo；`PROFILE_TITLES`、两处菜单 HTML、`#page-*` 必须同步。
+  - **坑**：`switchView('settings')` 内不可无条件 `switchProfileTab('site')`（会重置带参进入的子页）→ 用 `currentProfileTab` + `switchView(name,{keepTab:true})`，导航委托排除 `navEl.id !== 'profileBtnMobile'`。
+  - **坑**：`.mnav-popover` 必须 `position:fixed`（`left/right:14px; bottom:calc(82px + env(safe-area-inset-bottom))`），否则以 6 列栅格一格为包含块只剩几十像素宽。
+  - 站点信息 `GET/PUT /api/settings`；账户安全 `renderSessions()`+`DELETE /api/sessions/[sid]`（当前设备排最前 + `.dev-current-tag`）；系统信息 `GET /api/sysinfo`。
+- **数据处理（v0.3.10）**：`functions/api/data/{_tables,stats,export,clear}.js`。表清单**动态取自 `sqlite_master`**，排除 `sqlite_*`/`_cf_*` + `EXCLUDE={sessions,app_settings}`。`POST /api/data/clear` 需 `{confirm:'CLEAR_ALL_DATA'}`。**清空保留 `sessions` 与 `app_settings`**（管理员密码在环境变量不在库中）。前端：勾 `#ackBackup` 解禁 `#clearDataBtn` → `#clearModal` 内输「清空」解禁 `#clearConfirmBtn`。
+- **十二时辰经络（v0.2.2）**：`SHICHEN` 12 项，`shichenOf(hour)=Math.floor(((hour+1)%24)/2)`。**会话/设备**：`sessions(sid PK/user/ip/user_agent/created_at/last_seen_at)`；`decodeToken()` 取**第一段 payload**；IP 取 `cf-connecting-ip` 或 `x-forwarded-for`。
 
-## 其他备忘
-- **邮件通知（已放弃，勿重复尝试）**：Pages Functions 无 TCP，SMTP 不可行；只能走 HTTP 邮件 API + `fetch()`。
-- **模块状态**：个人首页、成长打卡、个人中心、日历中心、待办提醒、我的账本、人际关系、家庭药箱 均已补齐，**无留白页**。
-- **PWA 缓存**：`public/js/sw.js` 静态资源「网络优先」，**每次部署改 `CACHE` 名**（以文件里 `const CACHE =` 为准，历史值不可信）。
+## 其他
+- **邮件通知已放弃**（Pages Functions 无 TCP，SMTP 不可行）。
+- 模块状态：个人首页、成长打卡、个人中心、日历中心、待办提醒、我的账本、人际关系、家庭药箱 均已补齐，无留白页。
