@@ -166,3 +166,28 @@ export function birthdayWithin30Of(c) {
   const nb = nextBirthdayOf(c);
   return !!nb && nb.days <= 30;
 }
+
+/**
+ * 删除联系人并级联清理其全部关联数据。
+ * /api/contacts/:id 与 /api/profile/delete 两个端点共用，保证行为一致。
+ * db.batch 保证原子性：要么全部清理成功，要么全部不动。
+ * 返回被删的联系人行（id 不存在时返回 null）。
+ */
+export async function deleteContactCascade(env, id) {
+  const person = await env.DB.prepare('SELECT name FROM contacts WHERE id=?').bind(id).first();
+  if (!person) return null;
+  await env.DB.batch([
+    // 先清他人指向此人的引用（引荐人 / 家庭关系跳转 / 账本往来关联）
+    env.DB.prepare('UPDATE contacts SET referrer_id=NULL WHERE referrer_id=?').bind(id),
+    env.DB.prepare('UPDATE contact_relatives SET ref_id=NULL WHERE ref_id=?').bind(id),
+    env.DB.prepare('UPDATE transactions SET contact_id=NULL WHERE contact_id=?').bind(id),
+    // 再删除该人物的档案数据
+    env.DB.prepare('DELETE FROM contact_contacts WHERE person_id=?').bind(id),
+    env.DB.prepare('DELETE FROM contact_edu WHERE person_id=?').bind(id),
+    env.DB.prepare('DELETE FROM contact_work WHERE person_id=?').bind(id),
+    env.DB.prepare('DELETE FROM contact_relatives WHERE person_id=?').bind(id),
+    env.DB.prepare('DELETE FROM rel_pets WHERE person_id=?').bind(id),
+    env.DB.prepare('DELETE FROM contacts WHERE id=?').bind(id),
+  ]);
+  return person;
+}

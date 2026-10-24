@@ -41,6 +41,16 @@ async function hmac(secret, data) {
   return bytesToB64url(sig);
 }
 
+/** 恒定时间字符串比较（防时序侧信道）。签名、密码摘要等敏感比较一律用它，不用 === */
+export function timingSafeEqual(a, b) {
+  a = String(a);
+  b = String(b);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 export async function signToken(user, secret, ttlMs = 1000 * 60 * 60 * 24 * 7, extra = {}) {
   const exp = Date.now() + ttlMs;
   const payload = bytesToB64url(new TextEncoder().encode(JSON.stringify({ user, exp, ...extra })));
@@ -52,7 +62,7 @@ export async function verifyToken(token, secret) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return false;
   const [payload, sig] = token.split('.');
   const expected = await hmac(secret, payload);
-  if (expected !== sig) return false;
+  if (!timingSafeEqual(expected, sig)) return false;
   try {
     const jsoned = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     if (!jsoned.exp || Date.now() > jsoned.exp) return false;
@@ -143,10 +153,7 @@ export async function verifyPassword(pass, stored) {
     return false;
   }
   const got = bytesToB64(await pbkdf2(String(pass), salt, iter));
-  if (got.length !== expect.length) return false;
-  let diff = 0;
-  for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ expect.charCodeAt(i);
-  return diff === 0;
+  return timingSafeEqual(got, expect);
 }
 
 /** 读取库中的自定义密码哈希；未设置过则返回 ''（此时用环境变量初始密码） */
@@ -165,7 +172,7 @@ export async function verifyAdminPassword(env, pass) {
   const custom = await readCustomPassHash(env);
   if (custom) return verifyPassword(pass, custom);
   const initial = env.ADMIN_PASS;
-  return typeof initial === 'string' && initial.length > 0 && String(pass) === initial;
+  return typeof initial === 'string' && initial.length > 0 && timingSafeEqual(String(pass), initial);
 }
 
 /** 写入自定义密码（覆盖式） */
