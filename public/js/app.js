@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.1
-const VERSION = '0.5.1';
+// 数字生活 · 前端逻辑 v0.5.2
+const VERSION = '0.5.2';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'v0.5.1 账本增强：自定义两级分类 / 转账 / 记一笔改版 / 全站统一日期时间选择器（年月滚轮）/ 联系人表单优化（名字标签·性别按钮·农历生日）';
+const __BUILD_ID__ = 'v0.5.2 界面优化：登录页主题化 / 各页移动端页头右对齐 / 记账与人脉按钮样式统一 / 人脉词库设置页（标签群组增删改排序）/ prompt 兼容修复';
 const __BUILD_TIME__ = '2026-10-24';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -1274,6 +1274,32 @@ function hashCat(name) {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h;
 }
+/* ---------- 通用文本输入弹窗（替代 prompt：TWA/WebView 环境不支持 prompt()） ---------- */
+function askText({ title = '输入', value = '', maxlen = 20, placeholder = '' } = {}) {
+  return new Promise((resolve) => {
+    const m = $('#askTextModal');
+    if (!m) { resolve(null); return; }
+    $('#askTextTitle').textContent = title;
+    const inp = $('#askTextInput');
+    inp.value = value || '';
+    inp.setAttribute('maxlength', String(maxlen));
+    inp.placeholder = placeholder;
+    m.hidden = false;
+    setTimeout(() => { try { inp.focus(); inp.select(); } catch (_) {} }, 60);
+    const done = (val) => {
+      m.hidden = true;
+      $('#askTextOk').onclick = null; $('#askTextCancel').onclick = null;
+      $('#askTextClose').onclick = null; m.onclick = null; inp.onkeydown = null;
+      resolve(val);
+    };
+    $('#askTextOk').onclick = () => done(inp.value.trim());
+    $('#askTextCancel').onclick = () => done(null);
+    $('#askTextClose').onclick = () => done(null);
+    m.onclick = (e) => { if (e.target === m) done(null); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); done(inp.value.trim()); } };
+  });
+}
+
 /** 分类 → 调色板槽位（与 CSS 的 .dc0~.dc9 对应）：优先取当前分类树中的序号，保证同屏颜色稳定 */
 function ledCatClass(name, flow) {
   const flows = flow ? [flow] : ['expense', 'income'];
@@ -2304,9 +2330,8 @@ function ledsetRow(cat, level, opt = {}) {
     } else toast('设置失败');
   };
   row.querySelector('.edit').onclick = async () => {
-    const name = prompt('修改分类名称（最多 10 字）', cat.name);
-    if (name === null) return;
-    const v = name.trim();
+    const v = await askText({ title: '修改分类名称', value: cat.name, maxlen: 10 });
+    if (v === null) return;
     if (!v) { toast('名称不能为空'); return; }
     const res = await api(`/api/txn-categories/${cat.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2426,6 +2451,7 @@ function switchView(name, opts = {}) {
   if (name === 'ledgerset') renderLedgerSet();
   if (name === 'medicine' && window.medRenderMedicine) window.medRenderMedicine();
   if (name === 'relations') { if (window.pfLoadList) pfLoadList(); }
+  if (name === 'relset') { if (window.renderRelSet) window.renderRelSet(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.addEventListener('click', (e) => {
@@ -3597,8 +3623,7 @@ bind('#itemClearBtn', 'click', () => {
   syncMetaBtns();
 });
 
-// 记账设置：入口（弹窗右上角 + 账本页头）与返回
-bind('#txnSetBtn', 'click', () => { closeTxnModal(); switchView('ledgerset'); });
+// 记账设置：入口（账本页头齿轮）与返回
 bind('#ledgerSetBtn', 'click', () => switchView('ledgerset'));
 bind('#ledsetBack', 'click', () => switchView('ledger'));
 $$('[data-lsflow]').forEach((b) => {
@@ -3654,7 +3679,7 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.1.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.2.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定

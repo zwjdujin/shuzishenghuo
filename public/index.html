@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/v0.5.1/css/style.css">
+  <link rel="stylesheet" href="./assets/v0.5.2/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -48,6 +48,8 @@
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></symbol>
     <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
     <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-9.46z"/></symbol>
   </svg>
 
   <!-- 登录遮罩 -->
@@ -174,7 +176,7 @@
       <!-- 成长打卡（v0.1.1 补齐） -->
       <section class="view" id="view-growth" data-title="成长打卡">
         <div class="growth-head">
-          <div><p class="eyebrow">成长打卡</p><h2>日拱一卒，功不唐捐</h2></div>
+          <div><p class="eyebrow">成长打卡</p><h2>持之以恒</h2></div>
           <button class="btn primary" id="addHabitBtn" type="button"><svg><use href="#i-plus"/></svg>新增习惯</button>
         </div>
 
@@ -223,13 +225,13 @@
       <section class="view" id="view-ledger" data-title="我的账本">
         <div class="growth-head">
           <div><p class="eyebrow" id="ledEyebrow">我的账本</p><h2>收支与结余</h2></div>
-          <div class="cal-actions">
-            <div class="cal-nav">
-              <button class="icon-btn" id="ledPrev" title="上月" aria-label="上月"><svg><use href="#i-left"/></svg></button>
-              <span class="led-month" id="ledMonth"></span>
-              <button class="icon-btn" id="ledNext" title="下月" aria-label="下月"><svg><use href="#i-right"/></svg></button>
-            </div>
-            <button class="icon-btn" id="ledgerSetBtn" title="记账设置" aria-label="记账设置"><svg><use href="#i-settings"/></svg></button>
+          <div class="cal-nav led-monthnav">
+            <button class="icon-btn" id="ledPrev" title="上月" aria-label="上月"><svg><use href="#i-left"/></svg></button>
+            <span class="led-month" id="ledMonth"></span>
+            <button class="icon-btn" id="ledNext" title="下月" aria-label="下月"><svg><use href="#i-right"/></svg></button>
+          </div>
+          <div class="gh-actions">
+            <button class="icon-btn" id="ledgerSetBtn" title="记账设置" aria-label="记账设置"><svg><use href="#i-gear"/></svg></button>
             <button class="btn primary" id="addTxnBtn" type="button"><svg><use href="#i-plus"/></svg>记一笔</button>
           </div>
         </div>
@@ -279,6 +281,28 @@
         </div>
       </section>
 
+      <!-- 人脉词库设置（v0.5.2：人脉标签/群组 增删改+拖动排序） -->
+      <section class="view" id="view-relset" data-title="人脉词库设置">
+        <div class="growth-head">
+          <div><p class="eyebrow">人脉词库</p><h2>标签与群组管理</h2></div>
+          <button class="btn ghost" id="relsetBack" type="button">← 返回列表</button>
+        </div>
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">词库</p><h2 id="relsetKindTitle">人脉标签</h2></div>
+            <div class="seg">
+              <button class="seg-item active" data-rsflow="rel_tag" type="button"><span>人脉标签</span></button>
+              <button class="seg-item" data-rsflow="rel_group" type="button"><span>人脉群组</span></button>
+            </div>
+          </div>
+          <p class="ts-hint">新增、重命名、删除常用的人脉标签与人脉群组；按住 <b>≡</b> 拖动可调整顺序（排序后的词在添加/编辑联系人时按此顺序显示）。删除或重命名不影响已保存到联系人身上的值。</p>
+          <div class="ledset-add">
+            <input class="inp" id="relsetName" maxlength="20" placeholder="新增标签，如：跑步">
+            <button class="btn primary" id="relsetAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加</button>
+          </div>
+          <div id="relsetList" class="ledset-list"></div>
+        </article>
+      </section>
       <!-- 记账设置（v0.5.0：分类管理 + 二级分类 + 拖动排序） -->
       <section class="view" id="view-ledgerset" data-title="记账设置">
         <div class="growth-head">
@@ -409,15 +433,21 @@
         <div id="relListView">
           <div class="growth-head">
             <div><p class="eyebrow">人际关系</p><h2>值得记住的人</h2></div>
-            <button class="btn primary" id="relAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加联系人</button>
+            <div class="cal-actions">
+              <button class="icon-btn" id="relSetBtn" type="button" title="人脉词库设置" aria-label="人脉词库设置"><svg><use href="#i-gear"/></svg></button>
+              <button class="btn primary" id="relAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加联系人</button>
+            </div>
           </div>
           <article class="panel">
             <div class="panel-head"><div><p class="eyebrow">速查</p><h2>全部联系人</h2></div>
-              <span class="muted" id="relCount"></span></div>
+              <span class="muted" id="relCount"></span>
+              <button class="btn ghost" id="relFilterBtn" type="button" aria-label="显示/隐藏筛选条件"><svg><use href="#i-filter"/></svg><span>筛选</span></button></div>
             <div class="rel-search"><input class="inp" id="relSearch" placeholder="搜索姓名 / 昵称 / 英文名 / 电话 / 备注…"></div>
-            <div class="tf-row"><span class="tf-label">性别</span><div class="tf-chips" id="relGenderChips"></div></div>
-            <div class="tf-row"><span class="tf-label">群组</span><div class="tf-chips" id="relGroupChips"></div></div>
-            <div class="tf-row"><span class="tf-label">标签</span><div class="tf-chips" id="relTagChips"></div></div>
+            <div id="relFilterPanel" hidden>
+              <div class="tf-row"><span class="tf-label">性别</span><div class="tf-chips" id="relGenderChips"></div></div>
+              <div class="tf-row"><span class="tf-label">群组</span><div class="tf-chips" id="relGroupChips"></div></div>
+              <div class="tf-row"><span class="tf-label">标签</span><div class="tf-chips" id="relTagChips"></div></div>
+            </div>
             <div id="relList" class="az-wrap"></div>
           </article>
         </div>
@@ -428,7 +458,7 @@
             <div><p class="eyebrow">联系人档案</p><h2 id="pfName">—</h2></div>
             <div class="cal-actions">
               <button class="btn ghost" id="pfBack" type="button">← 返回列表</button>
-              <button class="btn ghost danger" id="pfDelete" type="button">删除联系人</button>
+              <button class="btn ghost danger" id="pfDelete" type="button">删除</button>
               <button class="btn primary" id="pfEditBtn" type="button"><svg><use href="#i-edit"/></svg>编辑基本信息</button>
             </div>
           </div>
@@ -480,12 +510,11 @@
         <button class="icon-btn" id="contactEditClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
       <form id="contactEditForm">
-        <!-- 名字六字段：6 个标签单选切换，默认显示「姓名」，点标签在下方输入框填写 -->
+        <!-- 名字标签：5 个标签单选切换，默认显示「姓名」，点标签在下方输入框填写 -->
         <label class="field"><span>名字（任选其一填写，至少一项）</span>
           <div class="name-chips" id="nameChips">
             <button type="button" class="cat-chip sm" data-nm="firstName">姓名</button>
             <button type="button" class="cat-chip sm" data-nm="nickname">昵称</button>
-            <button type="button" class="cat-chip sm" data-nm="childhoodName">小名</button>
             <button type="button" class="cat-chip sm" data-nm="formerName">曾用名</button>
             <button type="button" class="cat-chip sm" data-nm="alias">别名</button>
             <button type="button" class="cat-chip sm" data-nm="englishName">英文名</button>
@@ -493,7 +522,7 @@
           <div class="name-extra" id="nameExtra"></div>
         </label>
         <label class="field"><span>性别</span>
-          <div class="seg">
+          <div class="seg" id="genderSeg">
             <label class="seg-item"><input type="radio" name="gender" value="未知" checked><span>未知</span></label>
             <label class="seg-item"><input type="radio" name="gender" value="男"><span>男</span></label>
             <label class="seg-item"><input type="radio" name="gender" value="女"><span>女</span></label>
@@ -822,14 +851,13 @@
       </div>
       <form id="txnForm" novalidate>
         <input type="hidden" name="id" id="txnEditId" value="">
-        <!-- 三选项靠左，最右侧进入记账设置 -->
+        <!-- 支出/收入/转账 三选项 -->
         <div class="txn-topbar">
           <div class="seg txn-flow-seg">
             <label class="seg-item"><input type="radio" name="flow" value="expense" checked><span>支出</span></label>
             <label class="seg-item"><input type="radio" name="flow" value="income"><span>收入</span></label>
             <label class="seg-item"><input type="radio" name="flow" value="transfer"><span>转账</span></label>
           </div>
-          <button class="icon-btn" id="txnSetBtn" type="button" title="记账设置" aria-label="记账设置"><svg><use href="#i-settings"/></svg></button>
         </div>
 
         <div class="field txn-amount">
@@ -935,6 +963,21 @@
       </div>
       <input class="inp cp-search" id="contactPickSearch" type="search" placeholder="搜索姓名 / 昵称…">
       <div class="cp-list" id="contactPickList"></div>
+    </div>
+  </div>
+
+  <!-- 通用文本输入弹窗（替代 prompt：TWA/WebView 不支持 prompt()） -->
+  <div class="modal-overlay picker-overlay" id="askTextModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="askTextTitle">修改名称</h3>
+        <button class="icon-btn" id="askTextClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <input class="inp" id="askTextInput" maxlength="20" autocomplete="off">
+      <div class="data-actions" style="margin-top:6px">
+        <button class="btn ghost" id="askTextCancel" type="button">取消</button>
+        <button class="btn primary" id="askTextOk" type="button">确定</button>
+      </div>
     </div>
   </div>
 
@@ -1048,9 +1091,9 @@
     </div>
   </div>
 
-  <script src="./assets/v0.5.1/js/lunar.js"></script>
-  <script src="./assets/v0.5.1/js/profile.js"></script>
-  <script src="./assets/v0.5.1/js/medicine.js"></script>
-  <script src="./assets/v0.5.1/js/app.js"></script>
+  <script src="./assets/v0.5.2/js/lunar.js"></script>
+  <script src="./assets/v0.5.2/js/profile.js"></script>
+  <script src="./assets/v0.5.2/js/medicine.js"></script>
+  <script src="./assets/v0.5.2/js/app.js"></script>
 </body>
 </html>

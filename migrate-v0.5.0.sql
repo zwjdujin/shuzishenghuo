@@ -184,3 +184,6 @@ WHERE NOT EXISTS (SELECT 1 FROM vocab WHERE kind = 'rel_group' AND word = '同�
 INSERT INTO vocab (kind, word)
 SELECT 'rel_group', '客户'
 WHERE NOT EXISTS (SELECT 1 FROM vocab WHERE kind = 'rel_group' AND word = '客户');
+
+-- ===== 5. 词库排序字段（v0.5.2：人脉标签/群组设置页拖动排序；只执行一次） =====
+ALTER TABLE vocab ADD COLUMN sort_order INTEGER;

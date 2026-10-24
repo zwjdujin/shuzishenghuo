@@ -1379,3 +1379,64 @@ body.ledset-dragging *{cursor:grabbing!important}
 .tp-ym-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 /* 确定按钮靠右 */
 .tp-bottom .btn.primary{margin-left:auto}
+
+/* ================= v0.5.2 待发：登录页主题化 / 人际列表筛选折叠 / 表单细节修复 ================= */
+
+/* --- 登录页跟随主题色（原写死紫红渐变） --- */
+.login-overlay{background:radial-gradient(circle at 30% 20%, var(--plum), var(--accent))}
+html[data-mode="night"] .login-overlay{background:radial-gradient(circle at 30% 20%, var(--plum-soft), var(--card))}
+.login-card{border:1px solid var(--line)}
+.login-card h1{color:var(--ink)}
+
+/* --- 人际关系列表（移动端）：标题与「添加联系人」同行右对齐 --- */
+@media (max-width:860px){
+  #relListView .growth-head{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  #relListView .growth-head h2{font-size:19px;white-space:nowrap}
+  #relListView .growth-head .eyebrow{white-space:nowrap}
+  #relListView .growth-head .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
+  /* 全局移动端规则 .cal-actions{width:100%} 会把按钮组挤到第二行，人际页头需要同行右对齐 */
+  #relListView .cal-actions{width:auto;flex:0 0 auto}
+  #relProfileView .growth-head{flex-direction:row;align-items:center;justify-content:space-between;gap:8px}
+  #relProfileView .growth-head h2{font-size:19px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #relProfileView .cal-actions{flex-wrap:nowrap}
+  #relProfileView .cal-actions .btn{padding:7px 10px;font-size:12.5px;flex:0 0 auto}
+}
+/* 筛选按钮激活态 */
+#relFilterBtn.on{background:var(--plum);border-color:var(--plum);color:#fff}
+
+/* --- 性别三按钮两边对齐 --- */
+#genderSeg{width:100%}
+#genderSeg .seg-item{flex:1;justify-content:center}
+
+/* --- 弹窗内复选框修复：.modal-card input{width:100%} 会把 checkbox 拉满整行 --- */
+.modal-card .check-line input,.modal-card .ack-line input{width:16px;height:16px;flex:0 0 auto}
+.check-line{flex-wrap:wrap}
+.check-line span{flex:1;min-width:0}
+
+/* ================= v0.5.2 待发 2：性别/收支按钮 chip 化 / 人脉词库设置页 ================= */
+/* 性别（联系人表单）与 支出/收入/转账（记一笔）：与标签/chips 统一的圆角按钮外观，去掉单选点 */
+#genderSeg{width:100%}
+#genderSeg .seg-item,.txn-flow-seg .seg-item{flex:1;justify-content:center;position:relative;
+  border-radius:11px;font-size:13.5px;font-weight:600;padding:9px 10px}
+#genderSeg .seg-item input[type="radio"],.txn-flow-seg .seg-item input[type="radio"]{
+  position:absolute;opacity:0;pointer-events:none;width:0;height:0;margin:0;padding:0}
+#genderSeg .seg-item:has(input:checked),.txn-flow-seg .seg-item:has(input:checked){
+  background:var(--plum)!important;border-color:var(--plum)!important;color:#fff!important}
+html[data-mode="night"] #genderSeg .seg-item:has(input:checked),
+html[data-mode="night"] .txn-flow-seg .seg-item:has(input:checked){color:#fff!important}
+.txn-flow-seg{width:100%}
+
+/* ================= v0.5.2 待发 3：各功能页移动端页头（标题与操作按钮同行右对齐） ================= */
+/* 桌面端：账本月份导航靠右成组（与右侧动作组相邻） */
+#view-ledger .led-monthnav{margin-left:auto}
+@media (max-width:860px){
+  /* 通用：标题左、操作按钮同行右对齐（待办 / 成长打卡 / 人际关系 / 账本） */
+  #view-todos .growth-head,#view-growth .growth-head,#relListView .growth-head,#view-ledger .growth-head{
+    flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+  #view-todos .growth-head h2,#view-growth .growth-head h2,#relListView .growth-head h2,#view-ledger .growth-head h2{font-size:19px}
+  #view-todos .growth-head .btn,#view-growth .growth-head .btn,#relListView .growth-head .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
+  /* 账本：齿轮+记一笔为右侧动作组；月份导航换行独占一行 */
+  #view-ledger .gh-actions{display:flex;align-items:center;gap:8px;order:2}
+  #view-ledger .gh-actions .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
+  #view-ledger .led-monthnav{order:3;flex:0 0 100%;justify-content:flex-start}
+}

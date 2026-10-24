@@ -224,7 +224,7 @@ function pfRenderHero() {
 function pfRenderBasic() {
   const b = PF.data.base;
   const nameRows = [
-    ['姓名', b.firstName], ['昵称', b.nickname], ['小名', b.childhoodName],
+    ['姓名', b.firstName], ['昵称', b.nickname],
     ['曾用名', b.formerName], ['英文名', b.englishName], ['别名', b.alias],
   ].filter(([, v]) => v);
   const bdLine = b.birthdayType
@@ -499,7 +499,7 @@ async function pfOpenEditModal() {
   pfEl('contactEditTitle').textContent = b ? `编辑「${b.name}」` : '添加联系人';
   pfEl('contactEditError').hidden = true;
   pfBuildNameFields();
-  ['firstName', 'nickname', 'childhoodName', 'formerName', 'englishName', 'alias']
+  ['firstName', 'nickname', 'formerName', 'englishName', 'alias']
     .forEach((k) => { f[k].value = b ? (b[k] || '') : ''; });
   // 名字标签行：默认显示「姓名」标签页（其余字段值保留，靠标签上的「·」提示）
   pfShowNameField('firstName');
@@ -553,7 +553,6 @@ function pfCloseEditModal() { pfEl('contactEditModal').hidden = true; }
 const NM_FIELDS = [
   ['firstName', '姓名', 20, '姓名，如：张三'],
   ['nickname', '昵称', 20, '昵称'],
-  ['childhoodName', '小名', 20, '小名'],
   ['formerName', '曾用名', 20, '曾用名'],
   ['alias', '别名', 20, '别名'],
   ['englishName', '英文名', 30, '英文名'],
@@ -609,13 +608,13 @@ async function pfSubmitEdit(e) {
   const err = (m) => { errEl.textContent = m; errEl.hidden = false; };
   const val = (k) => String(f[k].value || '').trim();
 
-  const names = ['firstName', 'nickname', 'childhoodName', 'formerName', 'englishName', 'alias'].map(val).filter(Boolean);
-  if (!names.length) return err('姓名、昵称、小名、曾用名、英文名、别名至少填一项');
+  const names = ['firstName', 'nickname', 'formerName', 'englishName', 'alias'].map(val).filter(Boolean);
+  if (!names.length) return err('姓名、昵称、曾用名、英文名、别名至少填一项');
   const genderEl = f.querySelector('[name=gender]:checked');
   const gender = genderEl ? genderEl.value : '未知';
 
   const payload = {
-    firstName: val('firstName'), nickname: val('nickname'), childhoodName: val('childhoodName'),
+    firstName: val('firstName'), nickname: val('nickname'),
     formerName: val('formerName'), englishName: val('englishName'), alias: val('alias'),
     gender,
     birthdayRemind: f.birthdayRemind.checked,
@@ -708,6 +707,28 @@ async function pfDeletePerson() {
 function pfBindEvents() {
   // 名字标签行（一次性绑定）
   pfBindNameChips();
+  // 筛选按钮：默认只显示联系人列表 + 搜索框，点按才展开筛选条件
+  const filterBtn = pfEl('relFilterBtn');
+  if (filterBtn) {
+    filterBtn.addEventListener('click', () => {
+      const panel = pfEl('relFilterPanel');
+      if (!panel) return;
+      panel.hidden = !panel.hidden;
+      filterBtn.classList.toggle('on', !panel.hidden);
+    });
+  }
+  // 人脉词库设置页（标签/群组：增删改+拖动排序）
+  const setBtn = pfEl('relSetBtn');
+  if (setBtn) setBtn.addEventListener('click', () => switchView('relset'));
+  const setBack = pfEl('relsetBack');
+  if (setBack) setBack.addEventListener('click', () => switchView('relations'));
+  $$('#view-relset [data-rsflow]').forEach((b) => {
+    b.addEventListener('click', () => { relset.kind = b.dataset.rsflow || 'rel_tag'; renderRelSet(); });
+  });
+  const setAdd = pfEl('relsetAddBtn');
+  if (setAdd) setAdd.addEventListener('click', relsetAdd);
+  const setName = pfEl('relsetName');
+  if (setName) setName.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); relsetAdd(); } });
   // 生日：统一月历（date 模式，可清除 = 不知道年龄；点标题年月可换年份）+ 农历按钮
   const bdayDtBtn = document.querySelector('[data-dt=bdayDate]');
   if (bdayDtBtn) {
@@ -920,6 +941,137 @@ function pfBindEvents() {
 
 // 交给 app.js
 window.PF = PF;
+/* ---------- 人脉词库设置（v0.5.2：标签/群组 增删改 + 拖动排序） ---------- */
+let relset = { kind: 'rel_tag', words: [] };
+
+async function renderRelSet() {
+  const box = pfEl('relsetList');
+  if (!box) return;
+  const isTag = relset.kind === 'rel_tag';
+  pfEl('relsetKindTitle').textContent = isTag ? '人脉标签' : '人脉群组';
+  $$('#view-relset [data-rsflow]').forEach((b) => b.classList.toggle('active', b.dataset.rsflow === relset.kind));
+  const nameInput = pfEl('relsetName');
+  if (nameInput) nameInput.placeholder = isTag ? '新增标签，如：跑步' : '新增群组，如：球友';
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  try {
+    const res = await api('/api/vocab?kind=' + relset.kind);
+    const d = await res.json();
+    relset.words = d.words || [];
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+    relset.words = [];
+  }
+  box.innerHTML = '';
+  if (!relset.words.length) {
+    box.innerHTML = '<div class="empty-hint">还没有内容，在上方输入添加。</div>';
+    return;
+  }
+  relset.words.forEach((w) => box.appendChild(relsetRow(w)));
+  bindRelsetDrag();
+}
+
+function relsetRow(w) {
+  const row = document.createElement('div');
+  row.className = 'ls-row sub';
+  row.dataset.word = w.word;
+  row.innerHTML = `
+    <span class="ls-handle" title="拖动排序"><i></i><i></i><i></i></span>
+    <span class="ls-name">${pfEsc(w.word)}</span>
+    <span class="ls-actions">
+      <button class="icon-btn edit" title="重命名" aria-label="重命名"><svg><use href="#i-edit"/></svg></button>
+      <button class="icon-btn del" title="删除" aria-label="删除"><svg><use href="#i-trash"/></svg></button>
+    </span>`;
+  row.querySelector('.edit').onclick = async () => {
+    const v = await askText({ title: '修改名称', value: w.word, maxlen: 20 });
+    if (v === null) return;
+    if (!v) { toast('名称不能为空'); return; }
+    const res = await api('/api/vocab', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: w.id, word: v }),
+    });
+    if (res.ok) { toast('已重命名'); markSynced(); renderRelSet(); }
+    else toast((await res.json().catch(() => ({}))).error || '修改失败');
+  };
+  row.querySelector('.del').onclick = async () => {
+    if (!confirm(`删除「${w.word}」？已保存到联系人身上的该${relset.kind === 'rel_tag' ? '标签' : '群组'}不受影响。`)) return;
+    const res = await api('/api/vocab?id=' + w.id, { method: 'DELETE' });
+    if (res.ok) { toast('已删除'); markSynced(); renderRelSet(); }
+    else toast('删除失败');
+  };
+  return row;
+}
+
+async function relsetAdd() {
+  const inp = pfEl('relsetName');
+  const word = (inp.value || '').replace(/[,，]/g, '').trim();
+  if (!word) { toast('请填写名称'); return; }
+  const res = await api('/api/vocab', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: relset.kind, word }),
+  });
+  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); renderRelSet(); }
+  else toast((await res.json().catch(() => ({}))).error || '添加失败');
+}
+
+/** 同级拖动排序（与账本分类管理同一套交互）：松手写回 sort_order */
+function bindRelsetDrag() {
+  const scope = pfEl('relsetList');
+  if (!scope || scope.dataset.dragBound) return;
+  scope.dataset.dragBound = '1';
+  scope.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('.ls-handle');
+    if (!handle) return;
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    const row = handle.closest('.ls-row');
+    if (!row) return;
+    const rows = Array.from(scope.children).filter((el) => el.classList.contains('ls-row'));
+    const rect = row.getBoundingClientRect();
+    const holder = document.createElement('div');
+    holder.className = 'ls-holder';
+    holder.style.height = rect.height + 'px';
+    row.parentElement.insertBefore(holder, row);
+    Object.assign(row.style, {
+      position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+      width: rect.width + 'px', zIndex: 60, pointerEvents: 'none',
+    });
+    const grabDy = e.clientY - rect.top;
+    const moveTo = (y) => {
+      row.style.top = (y - grabDy) + 'px';
+      for (const r of rows) {
+        if (r === row) continue;
+        const rr = r.getBoundingClientRect();
+        if (y < rr.top + rr.height / 2) {
+          if (holder.nextElementSibling !== r) r.parentElement.insertBefore(holder, r);
+          return;
+        }
+      }
+      const last = rows[rows.length - 1];
+      if (last !== row && last.nextElementSibling !== holder) last.parentElement.insertBefore(holder, last.nextElementSibling);
+    };
+    moveTo(e.clientY);
+    const onMove = (ev) => moveTo(ev.clientY);
+    const onUp = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      holder.parentElement.insertBefore(row, holder);
+      holder.remove();
+      row.style.cssText = '';
+      const order = Array.from(scope.querySelectorAll('.ls-row')).map((r) => r.dataset.word);
+      api('/api/vocab', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: relset.kind, order }),
+      }).then((res) => {
+        if (res.ok) { toast('排序已保存'); markSynced(); }
+        else toast('排序保存失败');
+      }).catch(() => {});
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+  });
+}
+window.renderRelSet = renderRelSet;
+
 window.pfLoadList = pfLoadList;
 window.pfOpenProfile = pfOpenProfile;
 window.pfBindEvents = pfBindEvents;
