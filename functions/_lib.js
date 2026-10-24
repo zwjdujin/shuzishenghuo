@@ -13,7 +13,12 @@ export function parseCookie(header = '') {
     if (idx < 0) return;
     const k = c.slice(0, idx).trim();
     const v = c.slice(idx + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
+    if (!k) return;
+    try {
+      out[k] = decodeURIComponent(v);
+    } catch (_) {
+      out[k] = v; // 非法百分号序列等畸形值按原文保留，避免整个请求 500
+    }
   });
   return out;
 }
@@ -68,14 +73,25 @@ export function decodeToken(token) {
   }
 }
 
-// 本地日期 YYYY-MM-DD（避免 toISOString 的 UTC 偏移问题）
-export function todayStr(d = new Date()) {
-  const z = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+// ===== 时区 =====
+// Cloudflare Workers 运行时的 new Date() 是 UTC，而用户在中国（UTC+8）。
+// 统一 +8h 后用 UTC 取值器读「北京墙钟」，否则北京时间 0:00-8:00 之间
+// 打卡 / 待办 / 记账的「今天」都会错位到前一天。
+export const TZ_CN_MS = 8 * 3600 * 1000;
+export function cnNow() {
+  return new Date(Date.now() + TZ_CN_MS);
 }
 
-export function weekdayCN(d = new Date()) {
-  return '日一二三四五六'[d.getDay()];
+// 北京日期 YYYY-MM-DD（不传 d 取当前）
+export function todayStr(d) {
+  const t = d ? new Date(d.getTime() + TZ_CN_MS) : cnNow();
+  const z = (n) => String(n).padStart(2, '0');
+  return `${t.getUTCFullYear()}-${z(t.getUTCMonth() + 1)}-${z(t.getUTCDate())}`;
+}
+
+export function weekdayCN(d) {
+  const t = d ? new Date(d.getTime() + TZ_CN_MS) : cnNow();
+  return '日一二三四五六'[t.getUTCDay()];
 }
 
 // ===== 管理员密码 =====

@@ -7,9 +7,11 @@ function pad(n) { return String(n).padStart(2, '0'); }
 
 export default {
   async scheduled(event, env, ctx) {
-    const now = new Date();
-    const hhmm = pad(now.getHours()) + ':' + pad(now.getMinutes());
-    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    // Workers 运行时是 UTC；用户按北京时间填 todo_time，统一 +8h 后取「北京墙钟」，
+    // 否则所有到点提醒都会偏移 8 小时。
+    const now = new Date(Date.now() + 8 * 3600 * 1000);
+    const hhmm = pad(now.getUTCHours()) + ':' + pad(now.getUTCMinutes());
+    const today = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
 
     if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE || !env.VAPID_MAILTO) {
       console.warn('VAPID 未配置，跳过推送');
@@ -30,9 +32,19 @@ export default {
       (rows.length > 8 ? `\n…等 ${rows.length} 项` : '');
     const payload = JSON.stringify({ title, body, tag: 'szsh-push', url: './' });
 
-    await Promise.all(subs.map((s) => {
+    await Promise.all(subs.map(async (s) => {
       const sub = { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } };
-      return webpush.sendNotification(sub, payload).catch((e) => console.error('push fail', e && e.message));
+      try {
+        await webpush.sendNotification(sub, payload);
+      } catch (e) {
+        // 订阅已失效（清浏览器数据 / 重新注册等）→ 从库中清理，避免死订阅累积
+        const code = e && (e.statusCode || e.status);
+        if (code === 404 || code === 410) {
+          try { await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(s.endpoint).run(); } catch (_) {}
+        } else {
+          console.error('push fail', e && e.message);
+        }
+      }
     }));
   },
 

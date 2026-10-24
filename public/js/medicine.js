@@ -282,7 +282,9 @@
   // ===== 弹窗 =====
   function fillSelect(sel, opts, cur) {
     if (!sel) return;
-    sel.innerHTML = opts.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
+    // 当前值不在选项里时追加为选项，避免保存时被静默改写成第一项（如旧数据的自定义剂型）
+    const list = cur && !opts.includes(cur) ? opts.concat([cur]) : opts;
+    sel.innerHTML = list.map((o) => `<option value="${esc(o)}"${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('');
   }
 
   function openMedModal(item) {

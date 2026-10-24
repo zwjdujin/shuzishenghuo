@@ -58,10 +58,10 @@ export async function onRequestPut(context) {
   const done = (status === '已完成' || b.action === 'done') ? 1 : 0;
   await env.DB.prepare('UPDATE contact_promises SET status=?, done=? WHERE id=?').bind(status, done, id).run();
 
-  // 同步待办状态
+  // 同步待办状态（todos 表没有 status 列，只更新 done）
   if (row.todo_id) {
-    await env.DB.prepare('UPDATE todos SET done=?, status=? WHERE id=?')
-      .bind(done, done ? 1 : 0, row.todo_id).run();
+    await env.DB.prepare('UPDATE todos SET done=? WHERE id=?')
+      .bind(done, row.todo_id).run();
   } else if (b.pushTodo) {
     const person = await env.DB.prepare('SELECT name FROM contacts WHERE id=?').bind(row.person_id).first();
     const t = await env.DB.prepare(

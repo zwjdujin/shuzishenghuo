@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.3.12
-const VERSION = '0.3.14';
+// 数字生活 · 前端逻辑 v0.3.15
+const VERSION = '0.3.15';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '我的账本增强：预算 / 趋势 / 构成排行 / 流水筛选与编辑 v0.3.14';
-const __BUILD_TIME__ = '2026-10-10 19:46';
+const __BUILD_ID__ = 'v0.3.15 全量修复：档案保存不再丢字段 / 承诺待办同步 / 北京时区对齐 / 热力图目标值 / 附件上传 / PWA 修复';
+const __BUILD_TIME__ = '2026-10-24';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -294,7 +294,13 @@ function updateModeTip(actual) {
     return;
   }
   const t = sunTimes(30.5, new Date());
-  const fmt = (x) => `${String(Math.floor(x)).padStart(2, '0')}:${String(Math.round((x % 1) * 60)).padStart(2, '0')}`;
+  // 分钟取整到 60 时进位到小时，避免出现「07:60」
+  const fmt = (x) => {
+    let h = Math.floor(x);
+    let m = Math.round((x - h) * 60);
+    if (m >= 60) { h = (h + 1) % 24; m = 0; }
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
   tip.textContent = `跟随日出日落自动切换，当前为${now} · 今日日出约 ${fmt(t.sunrise)}，日落约 ${fmt(t.sunset)}`;
 }
 
@@ -1695,83 +1701,8 @@ async function submitTxn(e) {
   } catch { /* 401 已处理 */ }
 }
 
-// ===== 人际关系（联系人 + 生日） =====
-let contactRelations = ['家人', '亲戚', '朋友', '同事', '同学', '其他'];
+// ===== 人际关系（联系人弹窗；列表与生日卡片由 profile.js 的 pfLoadList 渲染） =====
 let editingContactId = null;
-
-async function renderContacts() {
-  const listBox = $('#contactList');
-  if (!listBox) return;
-  listBox.innerHTML = '<div class="empty-hint">加载中…</div>';
-  try {
-    const res = await api('/api/contacts');
-    const data = await res.json();
-    contactRelations = data.relations || contactRelations;
-    fillCalendarSel('#contactRelSel', contactRelations);
-    renderContactsList(data.contacts || []);
-    markSynced();
-  } catch (err) {
-    if (!String(err.message).includes('unauthorized')) listBox.innerHTML = '<div class="empty-hint">加载联系人失败</div>';
-  }
-}
-
-function renderContactsList(list) {
-  const box = $('#contactList');
-  $('#contactCount').textContent = list.length ? `共 ${list.length} 人` : '';
-  box.innerHTML = '';
-  if (!list.length) {
-    box.innerHTML = '<div class="empty-hint">还没有联系人，点右上角添加</div>';
-    renderBirthdays([]);
-    return;
-  }
-  list.forEach((c) => {
-    const row = document.createElement('div');
-    row.className = 'contact-row';
-    const color = catColor(CAT_ORDER[c.name.length % CAT_ORDER.length]);
-    row.innerHTML = `
-      <span class="contact-avatar" style="background:${color}"></span>
-      <div class="contact-main"><b></b><div class="contact-meta"></div></div>
-      ${c.phone ? '<span class="contact-phone"></span>' : ''}`;
-    row.querySelector('.contact-avatar').textContent = c.name.slice(0, 1);
-    row.querySelector('b').textContent = c.name;
-    const meta = row.querySelector('.contact-meta');
-    meta.innerHTML =
-      (c.relation ? `<span class="contact-badge">${c.relation}</span>` : '') +
-      (c.showInCalendar ? '<span class="contact-badge cal">日历显示</span>' : '') +
-      (c.note ? `<span>${c.note}</span>` : '');
-    if (c.phone) row.querySelector('.contact-phone').textContent = c.phone;
-    row.addEventListener('click', () => openContactModal(c));
-    box.appendChild(row);
-  });
-  renderBirthdays(list);
-}
-
-// 生日卡片：60 天内 + 已勾选日历显示
-function renderBirthdays(list) {
-  const box = $('#bdayList');
-  if (!box) return;
-  const items = list
-    .filter((c) => c.daysLeft !== null && (c.daysLeft <= 60 || c.showInCalendar))
-    .sort((a, b) => a.daysLeft - b.daysLeft)
-    .slice(0, 12);
-  if (!items.length) {
-    box.innerHTML = '<div class="empty-hint">还没有设置生日的联系人</div>';
-    return;
-  }
-  box.innerHTML = items
-    .map((c) => {
-      const soon = c.daysLeft <= 7;
-      const when = c.daysLeft === 0 ? '就是今天' : `还有 ${c.daysLeft} 天`;
-      const ageTxt = c.age !== null && c.age !== undefined ? ` · 满 ${c.age} 岁` : '';
-      return `<div class="bday-card${c.showInCalendar ? ' in-cal' : ''}">
-        <div class="bday-top"><span class="bday-name">${c.name}</span>
-          <span class="bday-days${soon ? ' soon' : ''}">${when}</span></div>
-        <div class="bd">下次生日 <b>${c.nextBirthday}</b>${ageTxt}</div>
-        ${c.showInCalendar ? '<div class="bd" style="font-size:11px">已同步到日历</div>' : ''}
-      </div>`;
-    })
-    .join('');
-}
 
 function openContactModal(c) {
   editingContactId = c ? c.id : null;
@@ -2946,8 +2877,10 @@ $('#contactForm').addEventListener('submit', async (e) => {
 });
 
 // ===== PWA =====
+// sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
+// 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./js/sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定

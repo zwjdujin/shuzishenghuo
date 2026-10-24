@@ -57,6 +57,7 @@ check('弹窗可见', mondayDate.hidden === false);
 await page.evaluate(() => document.getElementById('eventModalClose').click());
 
 // 下一周 → 标题周序 +1，星期表头日期 +7 天
+const startTitle = await page.evaluate(() => document.getElementById('calTitle').textContent);
 const before = await page.evaluate(() => document.querySelector('.cal-week-head .wh small').textContent);
 await page.click('#calNext');
 await page.waitForTimeout(500);
@@ -66,13 +67,14 @@ const after = await page.evaluate(() => ({
 }));
 const d = (s) => { const m = s.match(/(\d+)\/(\d+)/); return new Date(2026, Number(m[1]) - 1, Number(m[2])); };
 check('下一周：表头日期 +7 天', d(after.head) - d(before) === 7 * 86400000, before + ' → ' + after.head);
-check('下一周：周序变为第 42 周', /第42周/.test(after.title), after.title);
+const weekNum = (t) => Number((t.match(/第(\d+)周/) || [])[1]);
+check('下一周：周序 +1（动态断言，不写死周数）', weekNum(after.title) === weekNum(startTitle) + 1, startTitle + ' → ' + after.title);
 
 // 上一周 / 今天
 await page.click('#calPrev');
 await page.waitForTimeout(400);
 const back = await page.evaluate(() => document.getElementById('calTitle').textContent);
-check('上一周回到第 41 周', /第41周/.test(back), back);
+check('上一周回到原周序（动态断言）', weekNum(back) === weekNum(startTitle), startTitle + ' → ' + back);
 
 // ---------- 月历 ----------
 await page.goto(BASE + '#month', { waitUntil: 'load' });

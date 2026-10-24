@@ -2,14 +2,17 @@
   "name": "数字生活",
   "short_name": "数字生活",
   "description": "个人数字工作台：成长打卡、待办提醒、账本、药箱、日历与人际关系。",
-  "id": "/",
-  "start_url": "https://shuzishenghuo.example.com/index.html",
-  "scope": "https://shuzishenghuo.example.com/",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f5f0e8",
   "theme_color": "#4d3045",
-  "categories": ["productivity", "lifestyle"],
+  "categories": [
+    "productivity",
+    "lifestyle"
+  ],
   "icons": [
     {
       "src": "./icons/icon-192.png",

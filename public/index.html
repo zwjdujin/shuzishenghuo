@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#4d3045">
   <meta name="description" content="数字生活——把成长打卡、待办提醒、账本、药箱、日历与人际关系安放在一个地方。">
   <link rel="manifest" href="./manifest.webmanifest">
-  <!-- 免费商用字体：霞鹜文楷（OFL 协议，可商用） -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+Regular&family=LXGW+WenKai+Lite&display=swap">
+  <!-- 免费商用字体：霞鹜文楷（OFL 协议，可商用）
+       经 jsDelivr 加载 webfont 版（Google Fonts 未收录该字体，原链接恒 400） -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
   <link rel="stylesheet" href="./css/style.css">
   <title>数字生活 · 个人工作台</title>
@@ -910,7 +910,7 @@
         </div>
         <label class="field"><span>用量（用法用量）</span><input name="dosage" maxlength="60" placeholder="例如：每次1片，每日3次，饭后服用"></label>
         <div class="field-row">
-          <label class="field"><span>有效期至 *</span><input name="expiry" type="date"></label>
+          <label class="field"><span>有效期至</span><input name="expiry" type="date"></label>
           <label class="field"><span>分类</span><select name="category" id="medCatSel"></select></label>
         </div>
         <div class="field-row">

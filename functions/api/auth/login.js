@@ -38,6 +38,10 @@ export async function onRequestPost(context) {
     )
       .bind(sid, user, ip, ua)
       .run();
+    // 顺手清理 30 天未活跃的会话（token 本身 7 天过期，这些行已无意义），避免表无限增长
+    await env.DB.prepare(
+      "DELETE FROM sessions WHERE COALESCE(last_seen_at, created_at) < datetime('now', '-30 days')"
+    ).run();
   } catch (_) {
     // sessions 表未迁移时不应阻断登录
   }

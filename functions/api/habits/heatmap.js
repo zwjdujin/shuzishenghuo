@@ -1,13 +1,11 @@
 import { json, todayStr } from '../../_lib.js';
 
-function z(n) { return String(n).padStart(2, '0'); }
-function fmt(d) { return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
-
 // GET /api/habits/heatmap?days=30
 // 返回每个分类最近 days 天里「每日完成比例」(0~1) 的热力图数据
 export async function onRequestGet(context) {
   const { env } = context;
-  const days = Math.min(Math.max(Number(context.request.url.split('days=')[1]) || 30, 14), 365);
+  const rawDays = Number(new URL(context.request.url).searchParams.get('days'));
+  const days = Math.min(Math.max(Number.isFinite(rawDays) ? rawDays : 30, 14), 365);
   const today = todayStr();
 
   const habits = await env.DB.prepare('SELECT id, name, category, type, color, target FROM habits').all();
@@ -22,14 +20,14 @@ export async function onRequestGet(context) {
     catMap[c].habits.push({ id: h.id, type: h.type || 'normal', target: Number(h.target) || 1 });
   });
 
-  // 取区间内的打卡记录
-  const start = new Date();
-  start.setDate(start.getDate() - (days - 1));
-  const startStr = fmt(start);
+  // 日期序列：以北京「今天」为锚点做纯日期运算（ Workers 是 UTC，直接 setDate 会差 8 小时）
+  const anchor = new Date(today + 'T00:00:00Z');
+  const start = new Date(anchor.getTime() - (days - 1) * 86400000);
+  const startStr = start.toISOString().slice(0, 10);
   const logRows =
     (
       await env.DB.prepare(
-        `SELECT hl.habit_id, hl.log_date, hl.done, hl.done_bed, hl.done_rise, hl.done_nap, h.category, h.type
+        `SELECT hl.habit_id, hl.log_date, hl.done, hl.done_bed, hl.done_rise, hl.done_nap, h.category, h.type, h.target
          FROM habit_logs hl JOIN habits h ON h.id = hl.habit_id
          WHERE hl.log_date BETWEEN ? AND ?`
       )
@@ -61,9 +59,7 @@ export async function onRequestGet(context) {
   // 生成日期序列
   const dayList = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    dayList.push(fmt(d));
+    dayList.push(new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10));
   }
 
   const categories = Object.keys(catMap).map((name) => {

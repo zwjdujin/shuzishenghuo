@@ -1,5 +1,11 @@
 // 数字生活 · 人物档案公共帮助
 
+// 北京时区（Workers 运行时是 UTC，统一 +8h 后用 UTC 取值器读「北京墙钟」）
+const TZ_CN_MS = 8 * 3600 * 1000;
+function cnNow() {
+  return new Date(Date.now() + TZ_CN_MS);
+}
+
 // ===== 农历换算（1900-2100，与前端 lunar.js 算法一致） =====
 const LUNAR_INFO = [
   0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
@@ -47,11 +53,11 @@ function _dayName(d) {
   return pre + (CN_NUM[d % 10] || '');
 }
 
-/** 公历 → 农历 */
+/** 公历 → 农历（入参约定为 Date.UTC 构造的日期，统一用 UTC 取值器） */
 export function toLunar(date) {
-  const y = date.getFullYear();
+  const y = date.getUTCFullYear();
   if (y < 1900 || y > 2100) return null;
-  let off = Math.floor((Date.UTC(y, date.getMonth(), date.getDate()) - Date.UTC(1900, 0, 31)) / 86400000);
+  let off = Math.floor((Date.UTC(y, date.getUTCMonth(), date.getUTCDate()) - Date.UTC(1900, 0, 31)) / 86400000);
   let ly = 1900, tmp = 0;
   for (; ly < 2101 && off > 0; ly++) { tmp = _yearDays(ly); off -= tmp; }
   if (off < 0) { off += tmp; ly--; }
@@ -89,20 +95,22 @@ export function lunarBirthday(birthday) {
   };
 }
 
-/** 下一次生日：每年都有，取今年或明年 */
+/** 下一次生日：每年都有，取今年或明年（按北京「今天」计算） */
 export function nextBirthday(birthday) {
   if (!birthday) return null;
   const [Y, M, D] = String(birthday).split('-').map(Number);
   if (!M || !D) return null;
-  const now = new Date();
-  let n = new Date(now.getFullYear(), M - 1, D);
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (n < today) n = new Date(now.getFullYear() + 1, M - 1, D);
+  const now = cnNow();
+  const y = now.getUTCFullYear();
+  const today = Date.UTC(y, now.getUTCMonth(), now.getUTCDate());
+  let n = Date.UTC(y, M - 1, D);
+  if (n < today) n = Date.UTC(y + 1, M - 1, D);
+  const nd = new Date(n);
   const days = Math.round((n - today) / 86400000);
   const p2 = (x) => String(x).padStart(2, '0');
   return {
-    days, age: n.getFullYear() - Y,
-    full: `${n.getFullYear()}-${p2(M)}-${p2(D)}`,
+    days, age: nd.getUTCFullYear() - Y,
+    full: `${nd.getUTCFullYear()}-${p2(M)}-${p2(D)}`,
     lunar: lunarBirthday(birthday),
   };
 }
@@ -113,14 +121,14 @@ export function birthdayFromIdcard(idcard) {
   return `${idcard.slice(6, 10)}-${idcard.slice(10, 12)}-${idcard.slice(12, 14)}`;
 }
 
-/** 年龄 */
+/** 年龄（按北京「今天」计算） */
 export function ageOf(birthday) {
   if (!birthday) return null;
   const [Y] = String(birthday).split('-').map(Number);
   if (!Y) return null;
-  const now = new Date();
-  let a = now.getFullYear() - Y;
-  const m = now.getMonth() + 1, d = now.getDate();
+  const now = cnNow();
+  let a = now.getUTCFullYear() - Y;
+  const m = now.getUTCMonth() + 1, d = now.getUTCDate();
   const [, bm, bd] = String(birthday).split('-').map(Number);
   if (m < bm || (m === bm && d < bd)) a--;
   return a >= 0 && a < 130 ? a : null;

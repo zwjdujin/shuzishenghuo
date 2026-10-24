@@ -71,6 +71,8 @@ export async function onRequestGet(context) {
 }
 
 // PUT /api/profile —— 保存核心字段（生日/身份证/别名等）
+// 只更新 body 中出现的字段，未传的保持原值：
+// 此前是整行 UPDATE，「关系属性」等局部保存会把生日/别名/备注等全部清空。
 export async function onRequestPut(context) {
   const { env, request } = context;
   let body = {};
@@ -80,45 +82,54 @@ export async function onRequestPut(context) {
   const name = String(body.name || '').trim();
   if (!name) return json({ error: '请填写姓名' }, 400);
 
-  const idcard = String(body.idcard || '').trim();
+  const sets = { name };
+  const trimOrNull = (v) => (String(v === undefined ? '' : v).trim() || null);
+  if (body.alias !== undefined) sets.alias = trimOrNull(body.alias);
+  if (body.gender !== undefined) sets.gender = ['男', '女', '其他'].includes(body.gender) ? body.gender : null;
+  if (body.province !== undefined) sets.province = trimOrNull(body.province);
+  if (body.city !== undefined) sets.city = trimOrNull(body.city);
+  if (body.job !== undefined) sets.job = trimOrNull(body.job);
+  if (body.company !== undefined) sets.company = trimOrNull(body.company);
+  if (body.relation !== undefined) sets.relation = trimOrNull(body.relation);
+  if (body.level !== undefined) sets.level = LEVELS.includes(body.level) ? body.level : '普通';
+  if (body.status !== undefined) sets.status = STATUS.includes(body.status) ? body.status : '活跃';
+  if (body.note !== undefined) sets.note = trimOrNull(body.note);
+  if (body.native !== undefined) sets.native = trimOrNull(body.native);
+  if (body.page !== undefined) sets.page = trimOrNull(body.page);
+  if (body.showLunar !== undefined) sets.show_lunar = body.showLunar ? 1 : 0;
+
+  // 身份证 / 生日：传了哪个更新哪个；生日优先级仍是 手动填写 > 身份证解析
   let idcardBday = '';
-  if (idcard) {
-    idcardBday = birthdayFromIdcard(idcard) || '';
-    if (!idcardBday) return json({ error: '身份证格式不正确（应为 18 位）' }, 400);
+  if (body.idcard !== undefined) {
+    const idcard = String(body.idcard || '').trim();
+    if (idcard) {
+      idcardBday = birthdayFromIdcard(idcard) || '';
+      if (!idcardBday) return json({ error: '身份证格式不正确（应为 18 位）' }, 400);
+      sets.idcard = idcard;
+      sets.idcard_birthday = idcardBday;
+    } else {
+      sets.idcard = null;
+      sets.idcard_birthday = null;
+    }
   }
-  // 生日优先级：手动填写 > 身份证解析
-  const birthday = String(body.birthday || '').trim() || idcardBday || '';
+  if (body.birthday !== undefined) {
+    const manual = String(body.birthday || '').trim();
+    // 手动填了生日用手动值；否则仅当本次也传了身份证时才用身份证解析结果
+    sets.birthday = manual || (body.idcard !== undefined ? (idcardBday || null) : null);
+  }
+  // 主手机号冗余字段：只有显式传了 phones 才同步，局部保存不动它
+  if (body.phones !== undefined) sets.phone = firstArrVal(body.phones) || null;
 
+  const cols = Object.keys(sets);
   await env.DB.prepare(
-    `UPDATE contacts SET name=?, alias=?, gender=?, birthday=?, province=?, city=?, idcard=?, idcard_birthday=?,
-     show_lunar=?, job=?, company=?, relation=?, level=?, status=?, note=?, native=?, page=?
-     WHERE id=?`
-  ).bind(
-    name,
-    String(body.alias || '').trim() || null,
-    body.gender === '男' || body.gender === '女' ? body.gender : null,
-    birthday || null,
-    String(body.province || '').trim() || null,
-    String(body.city || '').trim() || null,
-    idcard || null,
-    idcardBday || null,
-    body.showLunar ? 1 : 0,
-    String(body.job || '').trim() || null,
-    String(body.company || '').trim() || null,
-    String(body.relation || '').trim() || null,
-    LEVELS.includes(body.level) ? body.level : '普通',
-    STATUS.includes(body.status) ? body.status : '活跃',
-    String(body.note || '').trim() || null,
-    String(body.native || '').trim() || null,
-    String(body.page || '').trim() || null,
-    id
-  ).run();
+    `UPDATE contacts SET ${cols.map((k) => `${k}=?`).join(', ')} WHERE id=?`
+  ).bind(...cols.map((k) => sets[k]), id).run();
 
-  // 同步多联系方式的主项到 contacts 冗余字段（便于列表搜索）
-  const phone = firstArrVal(body.phones) || null;
-  await env.DB.prepare('UPDATE contacts SET phone=? WHERE id=?').bind(phone, id).run();
-
-  return json({ ok: true, id, birthday, fromIdcard: !String(body.birthday || '').trim() && !!idcardBday });
+  return json({
+    ok: true, id,
+    birthday: sets.birthday !== undefined ? (sets.birthday || '') : '',
+    fromIdcard: !String(body.birthday || '').trim() && !!idcardBday,
+  });
 }
 
 function firstOf(rows, kind) {

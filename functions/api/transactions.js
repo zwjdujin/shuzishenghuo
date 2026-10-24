@@ -133,6 +133,9 @@ export async function onRequestGet(context) {
   });
 
   const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  // 日均按「已经过的天数」算才真实：当月取今天几号，历史/未来月份取整月天数
+  const todayFull = todayStr();
+  const effDays = month === todayFull.slice(0, 7) ? Number(todayFull.slice(8, 10)) : daysInMonth;
 
   return json({
     month,
@@ -142,7 +145,7 @@ export async function onRequestGet(context) {
       expense,
       balance: income - expense,
       count: list.length,
-      avgDaily: expense / daysInMonth,
+      avgDaily: expense / Math.max(1, effDays),
       maxExpense: list.filter((t) => t.flow === 'expense').reduce((a, t) => Math.max(a, t.amount), 0),
     },
     catStats,

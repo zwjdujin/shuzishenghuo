@@ -1,4 +1,4 @@
-import { json, todayStr } from '../_lib.js';
+import { json, todayStr, cnNow } from '../_lib.js';
 
 const RELATIONS = ['家人', '亲戚', '朋友', '同事', '同学', '其他'];
 
@@ -19,26 +19,23 @@ function nextBirthday(birthday) {
   }
   if (!md) return null;
 
-  const now = new Date();
-  const y = now.getFullYear();
-  const mk = (year) => {
-    const [mm, dd] = md.split('-').map(Number);
-    return new Date(year, mm - 1, dd);
-  };
-  let nxt = mk(y);
-  if (nxt < new Date(y, now.getMonth(), now.getDate())) nxt = mk(y + 1);
+  const [mm, dd] = md.split('-').map(Number);
+  if (!mm || !dd) return null;
+  // 以北京「今天」为基准做纯日期运算（Workers 运行时是 UTC，直接用本地取值器会差 8 小时）
+  const now = cnNow();
+  const y = now.getUTCFullYear();
+  const today = Date.UTC(y, now.getUTCMonth(), now.getUTCDate());
+  let nxt = Date.UTC(y, mm - 1, dd);
+  if (nxt < today) nxt = Date.UTC(y + 1, mm - 1, dd);
 
   // 距今天数
-  const today = new Date(y, now.getMonth(), now.getDate());
   const days = Math.round((nxt - today) / 86400000);
+  const nd = new Date(nxt);
+  const p2 = (x) => String(x).padStart(2, '0');
+  const nxtDate = `${nd.getUTCFullYear()}-${p2(nd.getUTCMonth() + 1)}-${p2(nd.getUTCDate())}`;
 
-  let age = null;
-  if (birthYear) {
-    age = nxt.getFullYear() - birthYear;
-    // 若今年生日还没到，明年的年龄应为今年年龄
-    if (nxt.getFullYear() === y && nxt < today) age = y - birthYear;
-  }
-  return { date: `${nxt.getFullYear()}-${String(nxt.getMonth() + 1).padStart(2, '0')}-${String(nxt.getDate()).padStart(2, '0')}`, days, age, md };
+  const age = birthYear ? nd.getUTCFullYear() - birthYear : null;
+  return { date: nxtDate, days, age, md };
 }
 
 // GET /api/contacts —— 联系人列表（含生日倒计时），或?birthdays=1 只返回近期生日

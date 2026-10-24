@@ -181,7 +181,7 @@ function pfRenderList(list) {
     const b = p.nextBirthday;
     const lun = b && b.lunar ? b.lunar.short : '';
     return `<button class="contact-row" onclick="pfOpenProfile(${p.id})">
-      <span class="contact-avatar" style="background:${pfColorOf(p.id)}">${p.name[0]}</span>
+      <span class="contact-avatar" style="background:${pfColorOf(p.id)}">${pfEsc(p.name[0])}</span>
       <div class="contact-main">
         <b>${pfEsc(p.name)}${p.alias ? ' <small class="rel-alias">' + pfEsc(p.alias) + '</small>' : ''}</b>
         <div class="contact-meta">
@@ -579,6 +579,8 @@ function pfBindEvents() {
   // 通用处理弹窗
   const hc = pfEl('handleClose'); if (hc) hc.addEventListener('click', pfCloseHandle);
   const hcan = pfEl('handleCancel'); if (hcan) hcan.addEventListener('click', pfCloseHandle);
+  // 联系人弹窗的「关系」下拉需要联系人接口的 relations 列表
+  pfLoadRelations();
 }
 
 function pfFillSelect(id, words) {
@@ -587,10 +589,29 @@ function pfFillSelect(id, words) {
   el.innerHTML = (words || []).map((w) => `<option>${pfEsc(w)}</option>`).join('');
 }
 
+// 本地日期 YYYY-MM-DD（不能用 toISOString()：那是 UTC，早 8 点前会默认成昨天）
+function pfTodayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// 联系人弹窗的「关系」下拉（原由 app.js 已删除的死代码填充，导致下拉一直是空的）
+async function pfLoadRelations() {
+  try {
+    const res = await api('/api/contacts');
+    const d = await res.json();
+    const sel = pfEl('contactRelSel');
+    if (sel && Array.isArray(d.relations)) {
+      sel.innerHTML = d.relations.map((r) => `<option value="${pfEsc(r)}">${pfEsc(r)}</option>`).join('');
+    }
+  } catch (_) { /* 未登录忽略 */ }
+}
+
 function pfOpenInteractModal() {
   const f = pfEl('interactForm');
   f.reset();
-  f.date.value = new Date().toISOString().slice(0, 10);
+  f.date.value = pfTodayLocal();
   pfEl('interactModal').hidden = false;
 }
 function pfOpenPromiseModal() {
@@ -600,7 +621,7 @@ function pfOpenPromiseModal() {
 }
 function pfOpenMoneyModal() {
   const f = pfEl('moneyForm');
-  f.reset(); f.date.value = new Date().toISOString().slice(0, 10);
+  f.reset(); f.date.value = pfTodayLocal();
   pfEl('moneyModal').hidden = false;
 }
 
@@ -681,7 +702,8 @@ async function pfDoDelPerson() {
   const res = await api(`/api/profile/delete?id=${PF.pid}`, { method: 'DELETE' });
   pfCloseHandle();
   if (res.ok) {
-    toast(`已删除「${res.name}」及关联数据`);
+    const d = await res.json().catch(() => ({}));
+    toast(`已删除「${d.name || ''}」及关联数据`);
     await pfBackToList();
   } else {
     toast('删除失败，请重试');
@@ -689,10 +711,11 @@ async function pfDoDelPerson() {
 }
 
 async function pfDonePromise(id) {
-  await api('/api/profile/promises', {
+  const res = await api('/api/profile/promises', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: Number(id), status: '已完成', action: 'done' }),
   });
+  if (!res.ok) { toast('同步失败，请稍后重试'); return; }
   toast('已完成，待办已同步');
   await pfOpenProfile(PF.pid);
 }
@@ -747,11 +770,18 @@ function pfPickMod(id) {
 }
 
 // 字段助手
-const pfF = (label, val, ph, ta) => `<label class="field"><span>${label}</span>${
-  ta ? `<textarea name="${label}" rows="2" maxlength="300" placeholder="${ph || ''}">${pfEsc(val || '')}</textarea>`
-     : `<input name="${label}" value="${pfEsc(val || '')}" placeholder="${ph || ''}">`}</label>`;
-const pfS = (label, val, opts) => `<label class="field"><span>${label}</span><select name="${label}">${
-  opts.map((o) => `<option${o === val ? ' selected' : ''}>${o}</option>`).join('')}</select></label>`;
+// name 缺省用 label 文本；保存到 sections 的字段必须用英文列名（见 pfModRel/Work/Family），
+// 否则后端按列名取不到值、保存即整段清空（v0.3.14 及以前的实际 bug）。
+const pfF = (label, val, ph, ta, name) => `<label class="field"><span>${label}</span>${
+  ta ? `<textarea name="${name || label}" rows="2" maxlength="300" placeholder="${ph || ''}">${pfEsc(val || '')}</textarea>`
+     : `<input name="${name || label}" value="${pfEsc(val || '')}" placeholder="${ph || ''}">`}</label>`;
+// 当前值不在选项里时把当前值追加为选项，避免保存时被静默改写成第一项
+const pfS = (label, val, opts, name) => {
+  const base = Array.isArray(opts) ? opts : [];
+  const list = val && !base.includes(val) ? base.concat([val]) : base;
+  return `<label class="field"><span>${label}</span><select name="${name || label}">${
+    list.map((o) => `<option value="${pfEsc(o)}"${o === val ? ' selected' : ''}>${pfEsc(o)}</option>`).join('')}</select></label>`;
+};
 
 // 核心/更多折叠
 function pfCoreMore(id, coreHtml, moreHtml) {
@@ -766,6 +796,8 @@ function pfCoreMore(id, coreHtml, moreHtml) {
 function pfToggleMore(id) { pfMoreOpen[id] = !pfMoreOpen[id]; pfRenderModule(); }
 
 // 词库组件：已选标签 + 常用词点击即用
+// 交互按钮用 data-* + 事件委托绑定（pfRenderModule 内），不再拼 inline onclick，
+// 避免词里含引号时生成的 JS 字符串直接语法错误。
 function pfVocabBox(kind, selected, label) {
   const words = PF.vocab[kind] || [];
   const sel = selected || [];
@@ -774,14 +806,14 @@ function pfVocabBox(kind, selected, label) {
   return `<div class="pf-vocab">
     <span class="pf-vocab-l">${label}</span>
     <div class="tf-chips" id="vsel_${kind}">${pfVocabSel[key].map((w, i) =>
-      `<span class="tf-chip on">${pfEsc(w)}<button class="x" onclick="pfRmVocab('${kind}',${i})">×</button></span>`).join('')}</div>
+      `<span class="tf-chip on">${pfEsc(w)}<button class="x" type="button" data-vrm="${kind}" data-i="${i}">×</button></span>`).join('')}</div>
     <div class="add-row">
       <input class="inp" id="vin_${kind}" placeholder="输入新词，回车添加并记入词库">
-      <button class="btn ghost" onclick="pfAddVocab('${kind}')">添加</button>
+      <button class="btn ghost" type="button" data-vadd="${kind}">添加</button>
     </div>
     <div class="vocab">
       <span class="vocab-l">📌 常用词（点击即用）</span>
-      ${words.map((w) => `<button class="vc" onclick="pfQuickVocab('${kind}','${pfEsc(w)}')">${pfEsc(w)}</button>`).join('')}
+      ${words.map((w) => `<button class="vc" type="button" data-vq="${kind}" data-w="${pfEsc(w)}">${pfEsc(w)}</button>`).join('')}
     </div>
   </div>`;
 }
@@ -807,10 +839,12 @@ function pfGetVocab(kind, fallback) {
   return pfVocabSel[key] || fallback || [];
 }
 
-// 收集表单值
+// 收集表单值（checkbox 取 checked 布尔值，不能取恒为 'on' 的 value）
 function pfVals(form) {
   const o = {};
-  form.querySelectorAll('[name]').forEach((el) => { o[el.name] = el.value; });
+  form.querySelectorAll('[name]').forEach((el) => {
+    o[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+  });
   return o;
 }
 // 收集词库值
@@ -835,6 +869,16 @@ function pfRenderModule() {
   box.innerHTML = fn ? fn() : '';
   const f = box.querySelector('form[data-pf-form]');
   if (f) f.addEventListener('submit', (e) => { e.preventDefault(); pfSaveModule(m.id, f); });
+  // 词库组件：事件委托绑定（data-vq 点击即用 / data-vrm 移除 / data-vadd 添加）
+  box.querySelectorAll('[data-vq]').forEach((b) =>
+    b.addEventListener('click', () => pfQuickVocab(b.dataset.vq, b.dataset.w)));
+  box.querySelectorAll('[data-vrm]').forEach((b) =>
+    b.addEventListener('click', () => pfRmVocab(b.dataset.vrm, Number(b.dataset.i))));
+  box.querySelectorAll('[data-vadd]').forEach((b) =>
+    b.addEventListener('click', () => pfAddVocab(b.dataset.vadd)));
+  // 附件上传：文件选择后转 base64 传给 /api/profile/files
+  const fi = box.querySelector('#pfFileInput');
+  if (fi) fi.addEventListener('change', () => { pfUploadFiles(fi.files); fi.value = ''; });
 }
 
 // ===== 各模块表单 =====
@@ -861,6 +905,7 @@ function pfModBase() {
       ${pfF('城市', b.city)}
       ${pfF('职业', b.job)}
       ${pfF('公司', b.company)}
+      ${pfF('备注', b.note, '选填', false, 'note')}
       ${pfF('关系', m.rel.type)}
       ${pfS('亲疏层级', m.rel.level, ['核心', '重要', '普通', '弱连接'])}
       ${pfS('关系状态', m.rel.status, ['活跃', '疏远', '失联', '合作中', '已终止'])}
@@ -895,28 +940,38 @@ function pfModBase() {
 function pfModRel() {
   const r = PF.data.rel;
   return `<form data-pf-form="rel"><div class="field-grid">
-    ${pfS('关系类型', r.type || '朋友', ['家人', '亲戚', '朋友', '同学', '同事', '客户', '导师', '邻居', '合作伙伴', '配偶'])}
-    ${pfS('亲疏层级', r.level, ['核心', '重要', '普通', '弱连接'])}
-    ${pfS('认识渠道', r.via || '朋友介绍', ['活动', '朋友介绍', '工作', '学校', '线上社群', '血缘'])}
-    ${pfS('相处舒适度', r.score || '3', ['5', '4', '3', '2', '1'])}
-    ${pfF('介绍人 / 共同联系人', r.intro)}
-    ${pfF('相识时间', r.since)}
-    ${pfF('相识场景', r.scene)}
-    ${pfS('当前状态', r.status, ['活跃', '疏远', '失联', '合作中', '已终止'])}
+    ${pfS('关系类型', r.type || '朋友', ['家人', '亲戚', '朋友', '同学', '同事', '客户', '导师', '邻居', '合作伙伴', '配偶'], 'type')}
+    ${pfS('亲疏层级', r.level, ['核心', '重要', '普通', '弱连接'], 'level')}
+    ${pfS('认识渠道', r.via || '朋友介绍', ['活动', '朋友介绍', '工作', '学校', '线上社群', '血缘'], 'via')}
+    ${pfS('相处舒适度', r.score || '3', ['5', '4', '3', '2', '1'], 'score')}
+    ${pfF('介绍人 / 共同联系人', r.intro, '', false, 'intro')}
+    ${pfF('相识时间', r.since, '', false, 'since')}
+    ${pfF('相识场景', r.scene, '', false, 'scene')}
+    ${pfS('当前状态', r.status, ['活跃', '疏远', '失联', '合作中', '已终止'], 'status')}
   </div><div class="form-actions"><button class="btn primary" type="submit">保存</button></div></form>`;
 }
 
+// 教育经历单字段（data-edu + data-k 供 pfSaveEdu 收集）
+const pfEduF = (id, k, label, val) =>
+  `<label class="field"><span>${label}</span><input data-edu="${id}" data-k="${k}" value="${pfEsc(val || '')}"></label>`;
+
 function pfModEdu() {
   const list = PF.data.edus || [];
-  return `<div class="note info" style="margin-bottom:14px">💡 除最高学历外，可添加多段教育与经历（在职攻读、进修、培训等）。</div>
+  const eduOpts = PF.vocab.edu || [];
+  return `<div class="note info" style="margin-bottom:14px">💡 除最高学历外，可添加多段教育与经历（在职攻读、进修、培训等）。修改已有段落后点该段的「保存修改」。</div>
     ${list.map((e, i) => `<div class="rep-box">
-      <div class="rep-h"><b>教育经历 ${i + 1}</b><button class="icon-btn" onclick="pfDelEdu(${e.id})"><svg><use href="#i-x"/></svg></button></div>
+      <div class="rep-h"><b>教育经历 ${i + 1}</b>
+        <button class="btn xs" type="button" onclick="pfSaveEdu(${e.id})">保存修改</button>
+        <button class="icon-btn" onclick="pfDelEdu(${e.id})"><svg><use href="#i-x"/></svg></button></div>
       <div class="field-grid">
-        ${pfF('学校', e.school)}${pfF('专业', e.major)}${pfS('学历', e.degree, PF.vocab.edu)}
-        ${pfF('入学年份', e.start)}${pfF('毕业年份', e.end)}
-        <label class="field" style="grid-column:1/-1"><span>重要经历</span><input data-edu="${e.id}" data-k="school" value="${pfEsc(e.school || '')}" style="display:none"></label>
+        ${pfEduF(e.id, 'school', '学校', e.school)}${pfEduF(e.id, 'major', '专业', e.major)}
+        <label class="field"><span>学历</span><select data-edu="${e.id}" data-k="degree">${
+          eduOpts.concat(e.degree && !eduOpts.includes(e.degree) ? [e.degree] : [])
+            .map((o) => `<option value="${pfEsc(o)}"${o === e.degree ? ' selected' : ''}>${pfEsc(o)}</option>`).join('')
+        }</select></label>
+        ${pfEduF(e.id, 'start', '入学年份', e.start)}${pfEduF(e.id, 'end', '毕业年份', e.end)}
       </div>
-      <label class="field"><span>重要经历（交换 / 留学 / 培训）</span><input data-edu="${e.id}" data-k="story" value="${pfEsc(e.story || '')}"></label>
+      ${pfEduF(e.id, 'story', '重要经历（交换 / 留学 / 培训）', e.story)}
     </div>`).join('')}
     <div class="rep-box">
       <div class="rep-h"><b>新增教育经历</b></div>
@@ -925,15 +980,15 @@ function pfModEdu() {
         ${pfF('入学年份', '')}${pfF('毕业年份', '')}
       </div>
       <label class="field"><span>重要经历</span><input id="eduStory" placeholder="选填"></label>
-      <button class="btn" onclick="pfAddEdu()">+ 添加这段教育</button>
+      <button class="btn" type="button" onclick="pfAddEdu()">+ 添加这段教育</button>
     </div>`;
 }
 
 function pfModWork() {
   const w = PF.data.work;
   return `<form data-pf-form="work"><div class="field-grid">
-    ${pfF('公司', w.company)}${pfF('部门', w.dept)}${pfF('职位', w.title)}${pfF('职级', w.rank)}${pfF('工作城市', w.city)}
-    ${pfF('擅长领域', w.field)}
+    ${pfF('公司', w.company, '', false, 'company')}${pfF('部门', w.dept, '', false, 'dept')}${pfF('职位', w.title, '', false, 'title')}${pfF('职级', w.rank, '', false, 'rank')}${pfF('工作城市', w.city, '', false, 'city')}
+    ${pfF('擅长领域', w.field, '', false, 'field')}
   </div>
   <div class="field-divider"><b>可提供的资源</b><span>价值交换</span></div>
   <label class="field"><span>资源清单</span><textarea name="give" rows="2" placeholder="例：技术方案评审、内推资源、行业人脉">${pfEsc(w.give || '')}</textarea></label>
@@ -947,8 +1002,8 @@ function pfModWork() {
 function pfModFamily() {
   const f = PF.data.family;
   return `<form data-pf-form="family"><div class="field-grid">
-    ${pfF('父亲', f.father)}${pfF('母亲', f.mother)}${pfF('配偶', f.spouse)}
-    ${pfF('子女', f.child)}${pfF('兄弟姐妹', f.sibling)}${pfF('家庭居住地', f.live)}
+    ${pfF('父亲', f.father, '', false, 'father')}${pfF('母亲', f.mother, '', false, 'mother')}${pfF('配偶', f.spouse, '', false, 'spouse')}
+    ${pfF('子女', f.child, '', false, 'child')}${pfF('兄弟姐妹', f.sibling, '', false, 'sibling')}${pfF('家庭居住地', f.live, '', false, 'live')}
   </div>
   <div class="field-divider"><b>家庭重要事件</b><span>结婚 / 生子 / 乔迁 / 生病 / 离世</span></div>
   <label class="field"><span>记录</span><textarea name="events" rows="2" placeholder="例：2019年乔迁、2024年孩子入学">${pfEsc(f.events || '')}</textarea></label>
@@ -963,7 +1018,7 @@ function pfModPref() {
     ${pfVocabBox('food', pfGetVocab('food', p.foods), '饮食偏好 / 忌口 / 过敏')}
     ${pfVocabBox('drink', pfGetVocab('drink', p.drinks), '饮品偏好')}
     ${pfVocabBox('size', pfGetVocab('size', p.size ? [p.size] : []), '穿衣尺码')}
-    ${pfVocabBox('size', pfGetVocab('size2', p.shoes ? [p.shoes] : []), '鞋子尺码')}
+    ${pfVocabBox('shoes', pfGetVocab('shoes', p.shoes ? [p.shoes] : []), '鞋子尺码')}
     ${pfVocabBox('hobby', pfGetVocab('hobby', p.hobbies), '兴趣爱好')}
     <div class="field-divider"><b>生活方式与社交</b></div>
     ${pfF('作息与健康注意事项', p.life, '例：每周三晚跑步；23:30 前睡')}
@@ -1043,8 +1098,8 @@ async function pfSaveModule(id, form) {
       id: PF.pid, name: v['姓名'], alias: v['别名 / 昵称'], gender: v['性别'],
       birthday: v['生日（公历）'], province: v['省份'], city: v['城市'], job: v['职业'],
       company: v['公司'], relation: v['关系'], level: v['亲疏层级'], status: v['关系状态'],
-      showLunar: v['showLunar'] === 'on', native: v['籍贯'], page: v['主页 / 名片链接'],
-      idcard: v['身份证号码'],
+      showLunar: !!v['showLunar'], native: v['籍贯'], page: v['主页 / 名片链接'],
+      idcard: v['身份证号码'], note: v['note'],
     };
     const res = await api('/api/profile/detail', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     if (res.ok) {
@@ -1057,7 +1112,7 @@ async function pfSaveModule(id, form) {
   }
   if (id === 'pref') {
     const data = { foods: pfGetVocab('food'), drinks: pfGetVocab('drink'), hobbies: pfGetVocab('hobby'),
-      size: pfGetVocab('size')[0] || '', shoes: pfGetVocab('size2')[0] || '', life: v['作息与健康注意事项'], social: v['社交偏好'] };
+      size: pfGetVocab('size')[0] || '', shoes: pfGetVocab('shoes')[0] || '', life: v['作息与健康注意事项'], social: v['社交偏好'] };
     await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ person_id: PF.pid, section: 'pref', data }) });
     toast('已保存'); await pfOpenProfile(PF.pid); return;
@@ -1072,10 +1127,10 @@ async function pfSaveModule(id, form) {
   if (secMap[id]) {
     await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ person_id: PF.pid, section: secMap[id], data: v }) });
-    // rel 模块的部分字段同时写contacts 主表
+    // rel 模块的部分字段同时写 contacts 主表（表单 name 已是英文列名）
     if (id === 'rel') {
       await api('/api/profile/detail', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: PF.pid, name: PF.data.base.name, relation: v['关系类型'], level: v['亲疏层级'], status: v['当前状态'] }) });
+        body: JSON.stringify({ id: PF.pid, name: PF.data.base.name, relation: v.type, level: v.level, status: v.status }) });
     }
     toast('已保存'); await pfOpenProfile(PF.pid); return;
   }
@@ -1131,15 +1186,48 @@ async function pfAddEdu() {
     body: JSON.stringify({ person_id: PF.pid, school: g('学校'), major: g('专业'),
       degree: g('学历'), start: g('入学年份'), end: g('毕业年份'),
       story: (document.getElementById('eduStory') || {}).value || '' }) });
-  if (res.ok) { toast('已添加'); await pfOpenProfile(PF.pid); pfMod = 'edu'; pfRenderModule(); }
+  if (res.ok) { toast('已添加'); await pfOpenProfile(PF.pid); pfPickMod('edu'); }
+}
+async function pfSaveEdu(id) {
+  const g = (k) => { const e = document.querySelector(`#pfModBody [data-edu="${id}"][data-k="${k}"]`); return e ? e.value.trim() : ''; };
+  const res = await api('/api/profile/edu', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: Number(id), school: g('school'), major: g('major'), degree: g('degree'),
+      start: g('start'), end: g('end'), story: g('story') }) });
+  if (res.ok) { toast('已保存'); await pfOpenProfile(PF.pid); pfPickMod('edu'); }
+  else toast('保存失败，请稍后重试');
 }
 async function pfDelEdu(id) {
   if (!confirm('确定删除这段教育经历？')) return;
   await api(`/api/profile/edu?id=${id}`, { method: 'DELETE' });
-  toast('已删除'); await pfOpenProfile(PF.pid); pfMod = 'edu'; pfRenderModule();
+  toast('已删除'); await pfOpenProfile(PF.pid); pfPickMod('edu');
 }
 
-// 附件
+// 附件：选择文件 → base64 → POST /api/profile/files（后端写 R2）
+async function pfUploadFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length || !PF.pid) return;
+  let done = 0;
+  for (const f of files) {
+    if (f.size > 8 * 1024 * 1024) { toast(`「${f.name}」超过 8MB，暂不支持上传`); continue; }
+    const b64 = await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = () => resolve('');
+      r.readAsDataURL(f);
+    });
+    if (!b64) { toast(`「${f.name}」读取失败`); continue; }
+    const sizeText = f.size >= 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB';
+    const res = await api('/api/profile/files', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, name: f.name, size: sizeText, mime: f.type, dataBase64: b64 }),
+    });
+    if (res.ok) done++;
+    else toast(`「${f.name}」上传失败${res.status === 501 ? '（服务端未绑定 R2 存储）' : ''}`);
+  }
+  if (done) toast(`已上传 ${done} 个附件`);
+  await pfOpenProfile(PF.pid);
+  pfPickMod('files');
+}
 function pfOpenFile(id) { window.open(`/api/profile/files?person_id=${PF.pid}&id=${id}`, '_blank'); }
 async function pfDelFile(id) {
   if (!confirm('确定删除该附件？R2 中的文件也会一并删除。')) return;
@@ -1156,6 +1244,7 @@ window.pfAddContact = pfAddContact;
 window.pfAskDelContact = pfAskDelContact;
 window.pfDoDelContact = pfDoDelContact;
 window.pfAddEdu = pfAddEdu;
+window.pfSaveEdu = pfSaveEdu;
 window.pfDelEdu = pfDelEdu;
 window.pfOpenFile = pfOpenFile;
 window.pfDelFile = pfDelFile;

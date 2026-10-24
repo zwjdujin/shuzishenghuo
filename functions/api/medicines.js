@@ -37,6 +37,9 @@ export function daysLabel(days) {
 
 function shape(r, today) {
   const st = expiryStatus(r.expiry, today);
+  // stockMin 允许 0（= 不提醒库存不足），不能用 `|| 1` 把合法的 0 折叠成 1
+  const stock = r.stock === null || r.stock === undefined ? 1 : Number(r.stock);
+  const stockMin = r.stock_min === null || r.stock_min === undefined || r.stock_min === '' ? 1 : Number(r.stock_min);
   return {
     id: r.id,
     name: r.name || '',
@@ -48,8 +51,8 @@ function shape(r, today) {
     category: r.category || '其他',
     location: r.location || '客厅药箱',
     manufacturer: r.manufacturer || '',
-    stock: r.stock === null || r.stock === undefined ? 1 : Number(r.stock),
-    stockMin: Number(r.stock_min || 1),
+    stock,
+    stockMin,
     forWhom: r.for_whom || '通用',
     rx: Number(r.rx || 0),
     openDate: r.open_date || '',
@@ -59,8 +62,8 @@ function shape(r, today) {
     state: st.state,
     days: st.days,
     daysText: daysLabel(st.days),
-    // 库存不足提醒（库存 0 或低于下限）
-    lowStock: Number(r.stock || 0) <= 0 || (Number(r.stock_min || 1) > 0 && Number(r.stock || 0) < Number(r.stock_min || 1)),
+    // 库存不足提醒（库存 0 或低于下限；下限 0 表示不提醒）
+    lowStock: stock <= 0 || (stockMin > 0 && stock < stockMin),
   };
 }
 
@@ -72,7 +75,12 @@ export function parseMedBody(body) {
   if (expiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) return { error: '有效期格式不正确' };
   const openDate = String(body.openDate || body.open_date || '').trim();
   if (openDate && !/^\d{4}-\d{2}-\d{2}$/.test(openDate)) return { error: '开封日期格式不正确' };
-  const num = (v, d) => (v === undefined || v === null || v === '' ? d : Number(v));
+  // 数字字段：非法输入回退默认值，负数按 0 处理（库存没有负数语义，NaN 直接绑库会报错）
+  const num = (v, d) => {
+    if (v === undefined || v === null || v === '') return d;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, n) : d;
+  };
   const price = body.price === undefined || body.price === null || body.price === '' ? null : Number(body.price);
   return {
     data: {

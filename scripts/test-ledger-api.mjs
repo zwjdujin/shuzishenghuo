@@ -134,7 +134,15 @@ ok(
 ok(d.summary.income === 13600, '收入汇总 13600', String(d.summary.income));
 ok(d.summary.expense === 5566, '支出汇总 5566（3200+1266+600+500）', String(d.summary.expense));
 ok(d.summary.balance === 8034, '结余 = 收 − 支', String(d.summary.balance));
-ok(Math.abs(d.summary.avgDaily - 5566 / 31) < 0.01, '日均支出 = 支出 / 当月天数(31)', d.summary.avgDaily.toFixed(2));
+// v0.3.15：日均按「已过天数」算（当月取北京今天几号），历史月份仍按整月天数
+{
+  const bj = new Date(Date.now() + 8 * 3600 * 1000);
+  const mm = String(bj.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(bj.getUTCDate()).padStart(2, '0');
+  const isCurMonth = d.month === `${bj.getUTCFullYear()}-${mm}`;
+  const effDays = isCurMonth ? Number(dd) : 31;
+  ok(Math.abs(d.summary.avgDaily - 5566 / effDays) < 0.01, `日均支出 = 支出 / 已过天数(${effDays})`, d.summary.avgDaily.toFixed(2));
+}
 ok(d.summary.maxExpense === 3200, '最大单笔支出 3200', String(d.summary.maxExpense));
 
 ok(d.catStats.length === 4 && d.catStats[0].name === '居住' && d.catStats[0].value === 3200, '支出分类占比按金额降序', JSON.stringify(d.catStats.map((c) => c.name + ':' + c.value)));

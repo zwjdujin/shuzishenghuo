@@ -118,6 +118,10 @@ CREATE TABLE IF NOT EXISTS contacts (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- v0.3.15：补记人物档案扩展列（线上库此前手工加过，仓库一直漏记，导致本地/新库跑「保存基础信息」报 no such column）
+ALTER TABLE contacts ADD COLUMN native TEXT;   -- 籍贯
+ALTER TABLE contacts ADD COLUMN page TEXT;     -- 主页 / 名片链接
+
 -- 心情一句话（占位，避免 schema 与迁移不一致）
 -- 登录会话（账户安全：展示/登出各登录设备）
 CREATE TABLE IF NOT EXISTS sessions (
