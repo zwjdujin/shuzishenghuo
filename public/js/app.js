@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.4.0
-const VERSION = '0.4.0';
+// 数字生活 · 前端逻辑 v0.5.0
+const VERSION = '0.5.1';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'v0.4.0 人际关系模块重建：A-Z 分组列表 / 生日向导（阳历·农历）/ 标签群组 / 联系方式 / 婚姻 / 家庭关系 / 公司职位 / 宠物';
+const __BUILD_ID__ = 'v0.5.1 账本增强：自定义两级分类 / 转账 / 记一笔改版 / 全站统一日期时间选择器（年月滚轮）/ 联系人表单优化（名字标签·性别按钮·农历生日）';
 const __BUILD_TIME__ = '2026-10-24';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -1028,14 +1028,16 @@ function openEventModal(ev, presetDate, presetHour) {
   editingEventId = ev ? ev.id : null;
   const f = $('#eventForm');
   f.reset();
+  evClearQuick();   // 清掉上一次的快捷时长高亮
   $('#eventModalTitle').textContent = ev ? '编辑日程' : '新增日程';
   $('#eventFormError').hidden = true;
   $('#eventDeleteBtn').hidden = !ev;
 
   if (ev) {
     f.title.value = ev.title;
-    f.start.value = (ev.start || '').replace(' ', 'T').slice(0, 16);
-    f.end.value = (ev.end || '').replace(' ', 'T').slice(0, 16);
+    // 统一存储格式 "YYYY-MM-DD HH:MM"（hidden input），按钮文字由 syncDtBtns 刷新
+    f.start.value = (ev.start || '').slice(0, 16);
+    f.end.value = (ev.end || '').slice(0, 16);
     f.calendar.value = ev.calendar || '生活';
     f.location.value = ev.location || '';
     f.note.value = ev.note || '';
@@ -1044,11 +1046,19 @@ function openEventModal(ev, presetDate, presetHour) {
     const d = presetDate ? new Date(presetDate + 'T00:00:00') : new Date();
     const h = presetHour === undefined ? new Date().getHours() + 1 : presetHour;
     const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.min(Math.max(h, 0), 23), 0, 0);
-    f.start.value = toLocalInput(start);
-    f.end.value = toLocalInput(new Date(start.getTime() + 3600000));
+    f.start.value = toLocalInput(start).replace('T', ' ');
+    f.end.value = toLocalInput(new Date(start.getTime() + 3600000)).replace('T', ' ');
     f.calendar.value = '生活';
   }
+  syncEventDtBtns();
   $('#eventModal').hidden = false;
+}
+/** 日程开始/结束按钮：全天勾选时只显示日期、弹纯月历 */
+function syncEventDtBtns() {
+  const ad = $('#eventForm').allDay.checked;
+  $('[data-dt=evStart]').dataset.hideTime = ad ? '1' : '';
+  $('[data-dt=evEnd]').dataset.hideTime = ad ? '1' : '';
+  window.syncDtBtns($('#eventForm'));
 }
 function toLocalInput(d) {
   const p = (n) => String(n).padStart(2, '0');
@@ -1634,17 +1644,28 @@ function jumpToContact(id) {
   if (window.pfOpenProfile) window.pfOpenProfile(id);
 }
 
+// 人际关系档案 → 账本：定位到某笔流水所在月份（联系人财务往来的「去账本看看」）
+window.openLedgerMonth = function (date) {
+  if (date && /^\d{4}-\d{2}/.test(date)) ledgerState.month = date.slice(0, 7);
+  ledgerState.flow = 'all';
+  ledgerState.cat = '';
+  ledgerState.q = '';
+  switchView('ledger');
+};
+
 // ===== 记一笔 / 编辑记录 弹窗（v0.5.0 草稿驱动：分类两级 chips + 时间/账户/联系人/物品按钮） =====
 const p2 = (n) => String(n).padStart(2, '0');
 const nowHM = () => { const d = new Date(); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
 
-/** 分类 chips：一级 + （父分类有二级时的）二级 */
+/** 分类 chips：一级 + （父分类有二级时的）二级；hidden 的分类不在「记一笔」中显示（编辑旧账时若正选中则仍显示） */
 function renderCatChips() {
   const box = $('#txnCatChips');
   const subBox = $('#txnSubChips');
   if (!box || !txnDraft) return;
   if (txnDraft.flow === 'transfer') { box.innerHTML = ''; if (subBox) subBox.hidden = true; return; }
-  const tops = catTree[txnDraft.flow] || [];
+  const allTops = catTree[txnDraft.flow] || [];
+  if (!allTops.some((c) => c.name === txnDraft.category)) txnDraft.category = '';
+  const tops = allTops.filter((c) => !c.hidden || c.name === txnDraft.category);
   if (!tops.some((c) => c.name === txnDraft.category)) txnDraft.category = (tops[0] || {}).name || '其他';
   box.innerHTML = '';
   tops.forEach((c) => {
@@ -1656,8 +1677,8 @@ function renderCatChips() {
     box.appendChild(b);
   });
   if (!subBox) return;
-  const cur = tops.find((c) => c.name === txnDraft.category);
-  const kids = (cur && cur.children) || [];
+  const cur = allTops.find((c) => c.name === txnDraft.category);
+  const kids = ((cur && cur.children) || []).filter((k) => !k.hidden || k.name === txnDraft.sub);
   subBox.hidden = !kids.length;
   subBox.innerHTML = '';
   kids.forEach((k) => {
@@ -1808,12 +1829,146 @@ async function submitTxn(e) {
   } catch { /* 401 已处理 */ }
 }
 
-/* ---------- 时间选择器：月历 + 拖动选时分 ---------- */
+/* ---------- 全站统一 时间选择器（v0.5.0，源自「记一笔·选择时间」） ----------
+   三种模式：datetime 月历+时间轮 / date 仅月历 / time 仅时间轮。
+   全站所有日期、时间输入一律通过 openSitePicker 打开本组件（表单按钮用 attachSitePicker 接入）。 */
 let tpState = null;   // { y, m, date, h, mi }
 let tpDials = null;   // { h: dialApi, mi: dialApi }
+let tpMode = 'datetime';
+let tpOnDone = null;  // ({date, time}) => void
+let tpAllowClear = false;
 
-/** 可拖动数字滚轮（小时/分钟通用）：支持指针拖动、滚轮、点选，松手吸附 */
-function makeDial(el, count, initVal, onChange) {
+function openSitePicker({ mode = 'datetime', date = '', time = '', title, allowClear = false, view, onDone }) {
+  const m = $('#timePickModal');
+  if (!m) return;
+  tpMode = mode === 'date' || mode === 'time' ? mode : 'datetime';
+  tpOnDone = onDone || null;
+  tpAllowClear = !!allowClear;
+  const today = todayStrLocal();
+  const [ty, tmo] = (date || today).split('-').map(Number);
+  const [th, tmi] = (time || nowHM()).split(':').map(Number);
+  tpState = {
+    y: ty || new Date().getFullYear(), m: (tmo || 1) - 1,
+    date: date || '', h: th || 0, mi: tmi || 0,
+  };
+  // view：仅定位月历视图（不预选值），用于「已填年份但还没选月日」的生日场景
+  if (view && view.y) {
+    tpState.y = view.y;
+    tpState.m = (view.m || 1) - 1;
+    tpState.date = date || '';
+  }
+  const showCal = tpMode !== 'time';
+  $('#tpCalPart').hidden = !showCal;
+  $('#tpHeadNav').hidden = !showCal;
+  $('#tpYMPanel').hidden = true;
+  $('#tpBottom').hidden = false;   // 打开时回到月历/时间轮视图，底部行恢复
+  $('#tpDialsBox').hidden = tpMode === 'date';
+  $('#tpNow').hidden = tpMode === 'date';
+  $('#tpClear').hidden = !tpAllowClear;
+  const titleEl = $('#tpTitle');
+  titleEl.textContent = title || (showCal ? `${tpState.y}年${tpState.m + 1}月` : '选择时间');
+  titleEl.classList.toggle('clickable', showCal);
+  $('#tpHint').textContent = tpMode === 'date'
+    ? '点日期选择；点顶部年月可快速切换年份与月份。'
+    : tpMode === 'time'
+      ? '拖动（或滚轮）左侧选小时、右侧选分钟，松手自动吸附。'
+      : '点日期选年月日（点顶部年月可切换）；拖动下方选时分，松手自动吸附。';
+  tpRenderCal();
+  // 先显示弹窗再初始化滚轮：makeDial 依赖 clientHeight 计算居中偏移，隐藏时是 0 会错位
+  m.hidden = false;
+  if (!tpDials) {
+    tpDials = {
+      h: makeDial($('#tpHourDial'), 24, tpState.h, (v) => { tpState.h = v; }),
+      mi: makeDial($('#tpMinDial'), 60, tpState.mi, (v) => { tpState.mi = v; }),
+    };
+  } else {
+    tpDials.h.set(tpState.h);
+    tpDials.mi.set(tpState.mi);
+  }
+}
+
+function tpApplyNow() {
+  const d = new Date();
+  tpState.date = todayStrLocal();
+  tpState.y = d.getFullYear();
+  tpState.m = d.getMonth();
+  tpRenderCal();
+  if (tpMode !== 'date' && tpDials) {
+    tpDials.h.set(d.getHours());
+    tpDials.mi.set(d.getMinutes());
+  }
+}
+
+function tpDone() {
+  const out = { date: '', time: '' };
+  if (tpMode !== 'time') out.date = tpState.date;
+  if (tpMode !== 'date' && tpDials) out.time = `${p2(tpDials.h.get())}:${p2(tpDials.mi.get())}`;
+  $('#timePickModal').hidden = true;
+  if (tpOnDone) tpOnDone(out);
+}
+
+function tpClear() {
+  $('#timePickModal').hidden = true;
+  if (tpOnDone) tpOnDone({ date: '', time: '' });
+}
+
+/* ---------- 统一选择器 × 表单按钮（.dt-btn） ----------
+   结构：<button class="dt-btn" data-dt="key" data-ph="占位文本"><svg…/><span>—</span></button>
+   对应 hidden input 的 id = key + 'Input'（如 evStart → evStartInput）。
+   syncDtBtns 按输入值刷新按钮文字；attachSitePicker 把按钮接成选择器入口并写回。 */
+function dtInputOf(btn) { return document.getElementById(btn.dataset.dt + 'Input'); }
+
+window.syncDtBtns = function (root) {
+  ((root || document).querySelectorAll('.dt-btn[data-dt]') || []).forEach((btn) => {
+    const inp = dtInputOf(btn);
+    if (!inp) return;
+    let v = inp.value || '';
+    if (btn.dataset.hideTime === '1' && v.includes(' ')) v = v.split(' ')[0];
+    const span = btn.querySelector('span');
+    if (!v) {
+      span.textContent = btn.dataset.ph || '—';
+      btn.classList.remove('filled');
+      return;
+    }
+    btn.classList.add('filled');
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(v)) span.textContent = `${Number(v.slice(5, 7))}-${v.slice(8, 10)} ${v.slice(11, 16)}`;
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) span.textContent = `${Number(v.slice(5, 7))}-${v.slice(8, 10)}`;
+    else span.textContent = v;
+  });
+};
+
+/** 把 .dt-btn 按钮接成统一选择器入口；opts.modeFn 动态模式（如日程的全天切换），
+    opts.serialize 自定义写回格式（默认 datetime→"D T" / date→"D" / time→"T"） */
+function attachSitePicker(btnSel, opts = {}) {
+  const btn = $(btnSel);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const inp = dtInputOf(btn);
+    if (!inp) return;
+    const mode = opts.modeFn ? opts.modeFn() : (opts.mode || 'date');
+    const v = inp.value || '';
+    let date = '', time = '';
+    if (mode === 'time') time = v;
+    else if (mode === 'datetime') [date, time] = v.split(' ');
+    else date = v;
+    openSitePicker({
+      mode, date, time,
+      title: opts.title,
+      allowClear: !!opts.allowClear,
+      onDone: ({ date: d, time: t }) => {
+        if (opts.serialize) inp.value = opts.serialize(d, t);
+        else if (mode === 'time') inp.value = t;
+        else if (mode === 'datetime') inp.value = d && t ? `${d} ${t}` : '';
+        else inp.value = d;
+        if (opts.afterSet) opts.afterSet(inp.value);
+        window.syncDtBtns();
+      },
+    });
+  });
+}
+
+/** 可拖动数字滚轮（小时/分钟/年份/月份通用）：支持指针拖动、滚轮、点选，松手吸附；fmt 自定义条目文本 */
+function makeDial(el, count, initVal, onChange, fmt) {
   const ITEM = 36;                 // 与 CSS .tp-item 高度保持一致
   el.innerHTML = '';
   const strip = document.createElement('div');
@@ -1822,7 +1977,7 @@ function makeDial(el, count, initVal, onChange) {
   for (let i = 0; i < count; i++) {
     const it = document.createElement('div');
     it.className = 'tp-item';
-    it.textContent = p2(i);
+    it.textContent = fmt ? fmt(i) : p2(i);
     it.dataset.i = i;
     strip.appendChild(it);
     items.push(it);
@@ -1881,18 +2036,24 @@ function makeDial(el, count, initVal, onChange) {
 
 function tpRenderCal() {
   const grid = $('#tpGrid');
-  const ym = $('#tpYM');
   if (!grid || !tpState) return;
-  ym.textContent = `${tpState.y}年${tpState.m + 1}月`;
-  const first = new Date(tpState.y, tpState.m, 1);
+  // 标题即年月（随翻月联动；点它弹出年月滚轮）
+  if (tpMode !== 'time') $('#tpTitle').textContent = `${tpState.y}年${tpState.m + 1}月`;
   const days = new Date(tpState.y, tpState.m + 1, 0).getDate();
+  const first = new Date(tpState.y, tpState.m, 1);
   let html = '';
   for (let i = 0; i < first.getDay(); i++) html += '<i></i>';
   const today = todayStrLocal();
   for (let d = 1; d <= days; d++) {
     const ds = `${tpState.y}-${p2(tpState.m + 1)}-${p2(d)}`;
     const cls = (ds === tpState.date ? ' sel' : '') + (ds === today ? ' today' : '');
-    html += `<button type="button" class="tp-day${cls}" data-d="${d}">${d}</button>`;
+    // 公历数字下方带农历（初一显示月份、节气优先），与「日历中心」一致
+    let lun = '';
+    if (window.lunarLabel) {
+      const l = lunarLabel(new Date(tpState.y, tpState.m, d));
+      if (l && l.text) lun = `<small class="tp-lun${l.isFestival ? ' fst' : ''}">${escHtml(l.text)}</small>`;
+    }
+    html += `<button type="button" class="tp-day${cls}" data-d="${d}"><b>${d}</b>${lun}</button>`;
   }
   grid.innerHTML = html;
   grid.querySelectorAll('.tp-day').forEach((b) => {
@@ -1903,47 +2064,47 @@ function tpRenderCal() {
   });
 }
 
+/* ---------- 年月滚轮面板（点标题年月弹出；打开时时分滚轮与底部行隐藏，两者不同屏） ---------- */
+let tpYMDials = null;
+
+function tpOpenYM() {
+  if (tpMode === 'time' || !tpState) return;
+  $('#tpCalPart').hidden = true;
+  $('#tpHeadNav').hidden = true;
+  $('#tpBottom').hidden = true;    // 年月滚轮与时分滚轮互斥，不同屏
+  $('#tpYMPanel').hidden = false;
+  // 先显示面板再建滚轮（makeDial 依赖 clientHeight）
+  if (!tpYMDials) {
+    tpYMDials = {
+      y: makeDial($('#tpYearDial'), 201, tpState.y - 1900, () => {}, (i) => `${1900 + i}年`),
+      m: makeDial($('#tpMonthDial'), 12, tpState.m, () => {}, (i) => `${i + 1}月`),
+    };
+  } else {
+    tpYMDials.y.set(tpState.y - 1900);
+    tpYMDials.m.set(tpState.m);
+  }
+}
+
+function tpCloseYM() {
+  $('#tpYMPanel').hidden = true;
+  $('#tpHeadNav').hidden = tpMode === 'time';
+  $('#tpCalPart').hidden = tpMode === 'time';
+  $('#tpBottom').hidden = false;
+}
+
+function tpYMDone() {
+  if (!tpYMDials) return;
+  tpState.y = 1900 + tpYMDials.y.get();
+  tpState.m = tpYMDials.m.get();
+  tpCloseYM();
+  tpRenderCal();
+}
+
 function tpShiftMonth(delta) {
   const d = new Date(tpState.y, tpState.m + delta, 1);
   tpState.y = d.getFullYear();
   tpState.m = d.getMonth();
   tpRenderCal();
-}
-
-async function openTimePicker() {
-  const m = $('#timePickModal');
-  if (!m || !txnDraft) return;
-  const [y, mo, d] = (txnDraft.date || todayStrLocal()).split('-').map(Number);
-  const [h, mi] = (txnDraft.time || nowHM()).split(':').map(Number);
-  tpState = { y: y || new Date().getFullYear(), m: (mo || 1) - 1, date: txnDraft.date || todayStrLocal(), h: h || 0, mi: mi || 0 };
-  tpRenderCal();
-  if (!tpDials) {
-    tpDials = {
-      h: makeDial($('#tpHourDial'), 24, tpState.h, (v) => { tpState.h = v; }),
-      mi: makeDial($('#tpMinDial'), 60, tpState.mi, (v) => { tpState.mi = v; }),
-    };
-  } else {
-    tpDials.h.set(tpState.h);
-    tpDials.mi.set(tpState.mi);
-  }
-  m.hidden = false;
-}
-
-function tpApplyNow() {
-  const d = new Date();
-  tpState.date = todayStrLocal();
-  tpState.y = d.getFullYear();
-  tpState.m = d.getMonth();
-  tpRenderCal();
-  tpDials.h.set(d.getHours());
-  tpDials.mi.set(d.getMinutes());
-}
-
-function tpDone() {
-  txnDraft.date = tpState.date;
-  txnDraft.time = `${p2(tpDials.h.get())}:${p2(tpDials.mi.get())}`;
-  $('#timePickModal').hidden = true;
-  syncMetaBtns();
 }
 
 /* ---------- 账户选择（转账模式下选转出/转入两组） ---------- */
@@ -2033,6 +2194,212 @@ function renderContactPick(q) {
   });
 }
 
+/* ---------- 记账设置 · 分类管理（两级 + 拖动排序） ---------- */
+let ledset = { flow: 'expense', tree: null, expanded: new Set() };
+
+async function renderLedgerSet() {
+  const box = $('#ledsetList');
+  if (!box) return;
+  $('#ledsetFlowTitle').textContent = ledset.flow === 'income' ? '收入分类' : '支出分类';
+  $$('#view-ledgerset [data-lsflow]').forEach((b) =>
+    b.classList.toggle('active', b.dataset.lsflow === ledset.flow)
+  );
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  try {
+    const res = await api('/api/txn-categories');
+    ledset.tree = await res.json();
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+    ledset.tree = null;
+  }
+  const tops = (ledset.tree && ledset.tree[ledset.flow]) || [];
+  box.innerHTML = '';
+  if (!tops.length) {
+    box.innerHTML = '<div class="empty-hint">还没有分类，在上方输入名称添加一个吧。</div>';
+    return;
+  }
+  tops.forEach((c) => box.appendChild(ledsetItem(c)));
+}
+
+/** 一个一级分类块：分类行 + 可展开的二级列表 + 二级添加行 */
+function ledsetItem(cat) {
+  const wrap = document.createElement('div');
+  wrap.className = 'ls-item';
+  const row = ledsetRow(cat, 'top', {
+    expanded: ledset.expanded.has(cat.id),
+    onExpand: () => {
+      if (ledset.expanded.has(cat.id)) ledset.expanded.delete(cat.id);
+      else ledset.expanded.add(cat.id);
+      renderLedgerSet();
+    },
+  });
+  wrap.appendChild(row);
+
+  const kidsBox = document.createElement('div');
+  kidsBox.className = 'ls-kids';
+  if (!ledset.expanded.has(cat.id)) kidsBox.hidden = true;
+  (cat.children || []).forEach((k) => kidsBox.appendChild(ledsetRow(k, 'sub', { parentId: cat.id })));
+
+  const addRow = document.createElement('div');
+  addRow.className = 'ledset-add sub';
+  addRow.innerHTML = `
+    <input class="inp" maxlength="10" placeholder="在「${escHtml(cat.name)}」下新增二级分类">
+    <button class="btn ghost" type="button"><svg><use href="#i-plus"/></svg>添加</button>`;
+  const addSub = async () => {
+    const name = addRow.querySelector('input').value.trim();
+    if (!name) { toast('请填写二级分类名称'); return; }
+    const res = await api('/api/txn-categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flow: ledset.flow, name, parent_id: cat.id }),
+    });
+    if (res.ok) { toast('已添加'); markSynced(); renderLedgerSet(); }
+    else toast((await res.json().catch(() => ({}))).error || '添加失败');
+  };
+  addRow.querySelector('button').onclick = addSub;
+  addRow.querySelector('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
+  kidsBox.appendChild(addRow);
+  wrap.appendChild(kidsBox);
+  return wrap;
+}
+
+/** 一条可拖动/可编辑的分类行（level: top | sub） */
+function ledsetRow(cat, level, opt = {}) {
+  const row = document.createElement('div');
+  row.className = 'ls-row ' + level + (cat.hidden ? ' off' : '');
+  row.dataset.id = cat.id || '';
+  row.dataset.name = cat.name;
+  const hasId = !!cat.id;
+  const kidCount = level === 'top' ? (cat.children || []).length : 0;
+  row.innerHTML = `
+    <span class="ls-handle" title="拖动排序" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="ls-name">${escHtml(cat.name)}</span>
+    ${level === 'top' ? `<button class="ls-cnt" type="button">${kidCount ? kidCount + ' 个二级' : '无二级'}</button>` : ''}
+    <span class="ls-actions">
+      <button class="icon-btn vis" title="是否在「记一笔」中显示" aria-label="前端显示开关"><svg><use href="#i-eye"/></svg></button>
+      <button class="icon-btn edit" title="重命名" aria-label="重命名"><svg><use href="#i-edit"/></svg></button>
+      <button class="icon-btn del" title="删除" aria-label="删除"><svg><use href="#i-trash"/></svg></button>
+    </span>`;
+  if (!hasId) {
+    // 未迁移（分类表为空回退默认）时不可编辑，只展示
+    row.querySelector('.ls-handle').style.visibility = 'hidden';
+    row.querySelectorAll('.ls-actions .icon-btn').forEach((b) => { b.style.visibility = 'hidden'; });
+    return row;
+  }
+
+  row.querySelector('.ls-name').onclick = opt.onExpand || null;
+  const cntBtn = row.querySelector('.ls-cnt');
+  if (cntBtn) cntBtn.onclick = opt.onExpand || null;
+
+  // 前端显示开关：隐藏后该分类不再出现在「记一笔」的选择标签里（历史流水与统计不受影响）
+  row.querySelector('.vis').onclick = async () => {
+    const res = await api(`/api/txn-categories/${cat.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: !cat.hidden }),
+    });
+    if (res.ok) {
+      toast(cat.hidden ? `「${cat.name}」已恢复显示` : `「${cat.name}」已隐藏，不再出现在记一笔`);
+      markSynced();
+      renderLedgerSet();
+      renderLedger();
+    } else toast('设置失败');
+  };
+  row.querySelector('.edit').onclick = async () => {
+    const name = prompt('修改分类名称（最多 10 字）', cat.name);
+    if (name === null) return;
+    const v = name.trim();
+    if (!v) { toast('名称不能为空'); return; }
+    const res = await api(`/api/txn-categories/${cat.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: v }),
+    });
+    if (res.ok) { toast('已重命名'); markSynced(); renderLedgerSet(); renderLedger(); }
+    else toast((await res.json().catch(() => ({}))).error || '修改失败');
+  };
+  row.querySelector('.del').onclick = async () => {
+    const tip = level === 'top'
+      ? `删除「${cat.name}」？其下二级分类一并删除，历史流水会归并到「其他」。`
+      : `删除二级分类「${cat.name}」？`;
+    if (!confirm(tip)) return;
+    const res = await api(`/api/txn-categories/${cat.id}`, { method: 'DELETE' });
+    if (res.ok) { toast('已删除'); markSynced(); renderLedgerSet(); renderLedger(); }
+    else toast((await res.json().catch(() => ({}))).error || '删除失败');
+  };
+
+  // 同级拖动排序：top 层在 .ledset-list 的一级块之间移动，sub 层在 .ls-kids 内移动
+  // （行创建时尚未入 DOM，closest() 拿不到容器，因此拖动开始时再解析）
+  bindLedgerDrag(row.querySelector('.ls-handle'), row, level, opt.parentId || null);
+  return row;
+}
+
+/** 指针拖动排序（鼠标 / 触屏通用）：拖起时绝对定位跟随指针，其余行让位，松手写回顺序 */
+function bindLedgerDrag(handle, row, level, parentId) {
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch (_) { /* 合成事件无活动指针时忽略 */ }
+    const isTop = level === 'top';
+    const scope = isTop ? row.closest('.ledset-list') : row.closest('.ls-kids');
+    if (!scope) return;
+    // 参与排序的行：top 层取每块的 .ls-row.top，sub 层取本 .ls-kids 里的 .ls-row.sub
+    const rows = Array.from(scope.children)
+      .filter((el) => el.classList.contains(isTop ? 'ls-item' : 'ls-row'))
+      .map((b) => (isTop ? b.querySelector('.ls-row.top') : b));
+
+    const ghostEl = isTop ? row.parentElement : row;   // top 层整块跟随（含展开的二级）
+    const rect = ghostEl.getBoundingClientRect();
+    const holder = document.createElement('div');
+    holder.className = 'ls-holder';
+    holder.style.height = rect.height + 'px';
+    ghostEl.parentElement.insertBefore(holder, ghostEl);
+    Object.assign(ghostEl.style, {
+      position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+      width: rect.width + 'px', zIndex: 60, pointerEvents: 'none',
+    });
+    const grabDy = e.clientY - rect.top;
+    document.body.classList.add('ledset-dragging');
+
+    const moveTo = (y) => {
+      ghostEl.style.top = (y - grabDy) + 'px';
+      for (const r of rows) {
+        if (!r || r === row) continue;
+        const rr = r.parentElement === scope ? r.getBoundingClientRect() : r.parentElement.getBoundingClientRect();
+        const blockEl = isTop ? r.parentElement : r;
+        if (y < rr.top + rr.height / 2) {
+          if (holder.nextElementSibling !== blockEl) blockEl.parentElement.insertBefore(holder, blockEl);
+          return;
+        }
+      }
+      const lastBlock = isTop ? rows[rows.length - 1] && rows[rows.length - 1].parentElement : rows[rows.length - 1];
+      if (lastBlock && lastBlock !== ghostEl && lastBlock.nextElementSibling !== holder) {
+        lastBlock.parentElement.insertBefore(holder, lastBlock.nextElementSibling);
+      }
+    };
+    moveTo(e.clientY);
+
+    const onMove = (ev) => moveTo(ev.clientY);
+    const onUp = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      document.body.classList.remove('ledset-dragging');
+      holder.parentElement.insertBefore(ghostEl, holder);
+      holder.remove();
+      ghostEl.style.cssText = '';
+      const ids = Array.from(scope.children)
+        .filter((el) => el.classList.contains(isTop ? 'ls-item' : 'ls-row'))
+        .map((b) => Number((isTop ? b.querySelector('.ls-row.top') : b).dataset.id))
+        .filter(Boolean);
+      api('/api/txn-categories', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids }),
+      }).then((res) => {
+        if (res.ok) { toast('排序已保存'); markSynced(); renderLedgerSet(); renderLedger(); }
+        else toast('排序保存失败');
+      }).catch(() => {});
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+  });
+}
+
 // ===== 人际关系 =====
 // v0.4.0 起列表与档案全部由 profile.js（pfLoadList / pfOpenProfile）负责，
 // 添加/编辑走 contactEditModal，此处不再有联系人弹窗。
@@ -2056,6 +2423,7 @@ function switchView(name, opts = {}) {
   if (name === 'calendar') loadCalEvents();
   if (name === 'todos') renderTodos();
   if (name === 'ledger') renderLedger();
+  if (name === 'ledgerset') renderLedgerSet();
   if (name === 'medicine' && window.medRenderMedicine) window.medRenderMedicine();
   if (name === 'relations') { if (window.pfLoadList) pfLoadList(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2311,6 +2679,12 @@ function openHabitModal() {
   $('#methodField').hidden = false;
   f.querySelector('[name=method][value=count]').checked = true;
   fillUnitOptions('count');
+  // 睡眠时段默认值（hidden input reset 后为空，需显式补上）
+  f.querySelector('[name=bed_time]').value = '23:00';
+  f.querySelector('[name=rise_time]').value = '07:00';
+  f.querySelector('[name=nap_start]').value = '12:30';
+  f.querySelector('[name=nap_end]').value = '14:00';
+  window.syncDtBtns(f);
   $('#habitFormError').hidden = true;
   $('#habitModal').hidden = false;
 }
@@ -2351,6 +2725,7 @@ async function editHabit(id) {
   f.querySelector('[name=icon]').value = h.icon || 'sprout';
   f.querySelector('[name=color]').value = h.color || 'sage';
   syncMethodUI(method, h.unit);
+  window.syncDtBtns(f);
   $('#habitFormError').hidden = true;
   $('#habitModal').hidden = false;
 }
@@ -3059,6 +3434,8 @@ bind('#addTodoBtn', 'click', () => {
   const f = $('#todoForm');
   f.reset();
   f.date.value = todayStrLocal();
+  f.time.value = '';
+  window.syncDtBtns(f);
   $('#todoFormError').hidden = true;
   $('#todoModal').hidden = false;
 });
@@ -3108,12 +3485,137 @@ bind('#txnModalClose', 'click', closeTxnModal);
 bind('#txnModal', 'click', (e) => { if (e.target === $('#txnModal')) closeTxnModal(); });
 bind('#txnForm', 'submit', submitTxn);
 
-// 支出/收入 切换 → 分类下拉跟着换
+// 支出/收入/转账 切换 → 草稿联动（转账隐藏分类、账户按钮变转出/转入）
 $$('#txnForm [name=flow]').forEach((r) =>
-  r.addEventListener('change', () => { if (!editingTxnId) syncTxnCats(); else syncTxnCats($('#txnCatSel').value); })
+  r.addEventListener('change', () => {
+    if (!txnDraft) return;
+    txnDraft.flow = r.value;
+    if (r.value !== 'transfer') txnDraft.toAccount = txnDraft.toAccount || '';
+    syncFlowUI();
+  })
 );
 // 备注以 @ 开头 → 提示与「人际关系」联动
 bind('#txnForm', 'input', (e) => { if (e.target && e.target.name === 'note') syncTxnHint(); });
+
+// 时间 / 账户 / 联系人 / 物品
+// 时间按钮 → 全站统一选择器（datetime 模式：月历 + 拖动时分）
+bind('#txnTimeBtn', 'click', () => {
+  if (!txnDraft) return;
+  openSitePicker({
+    mode: 'datetime', date: txnDraft.date, time: txnDraft.time,
+    onDone: ({ date, time }) => { txnDraft.date = date; txnDraft.time = time; syncMetaBtns(); },
+  });
+});
+bind('#txnAcctBtn', 'click', () => { if (txnDraft) { renderAcctPick(); $('#acctPickModal').hidden = false; } });
+bind('#txnContactBtn', 'click', openContactPicker);
+bind('#txnItemBtn', 'click', () => {
+  if (!txnDraft) return;
+  $('#itemPickInput').value = txnDraft.item || '';
+  $('#itemPickModal').hidden = false;
+});
+// 时间选择器内部
+bind('#tpPrev', 'click', () => tpShiftMonth(-1));
+bind('#tpNext', 'click', () => tpShiftMonth(1));
+bind('#tpNow', 'click', tpApplyNow);
+bind('#tpDone', 'click', tpDone);
+bind('#tpClear', 'click', tpClear);
+bind('#timePickClose', 'click', () => { $('#timePickModal').hidden = true; });
+bind('#timePickModal', 'click', (e) => { if (e.target === $('#timePickModal')) $('#timePickModal').hidden = true; });
+// 标题年月 → 年月滚轮面板（再点标题或「返回」回月历；「确定」应用）
+bind('#tpTitle', 'click', () => {
+  if (!$('#tpYMPanel').hidden) tpCloseYM();
+  else tpOpenYM();
+});
+bind('#tpYMDone', 'click', tpYMDone);
+bind('#tpYMBack', 'click', tpCloseYM);
+
+// 全站统一选择器：日程（开始/结束；勾选全天 → 纯月历，存 00:00）
+attachSitePicker('[data-dt=evStart]', {
+  modeFn: () => ($('#eventForm').allDay.checked ? 'date' : 'datetime'),
+  serialize: (d, t) => ($('#eventForm').allDay.checked
+    ? (d ? `${d} 00:00` : '')
+    : (d && t ? `${d} ${t}` : '')),
+  afterSet: () => evClearQuick(),   // 开始变了，旧时长高亮失效
+});
+attachSitePicker('[data-dt=evEnd]', {
+  modeFn: () => ($('#eventForm').allDay.checked ? 'date' : 'datetime'),
+  allowClear: true,
+  serialize: (d, t) => ($('#eventForm').allDay.checked
+    ? (d ? `${d} 00:00` : '')
+    : (d && t ? `${d} ${t}` : '')),
+  afterSet: () => evClearQuick(),   // 手动选结束 = 不再用快捷时长
+});
+bind('#eventForm', 'change', (e) => { if (e.target && e.target.name === 'allDay') { evClearQuick(); syncEventDtBtns(); } });
+
+// 日程快捷时长（1小时/1天/3天/7天）：结束 = 开始 + 时长；再点一次取消，手动选结束也会取消
+const EV_DUR_MS = { '1h': 3600000, '1d': 86400000, '3d': 259200000, '7d': 604800000 };
+function evClearQuick() {
+  $$('#evQuickRow .ev-q').forEach((b) => b.classList.remove('on'));
+}
+bind('#evQuickRow', 'click', (e) => {
+  const btn = e.target.closest('.ev-q');
+  if (!btn) return;
+  const f = $('#eventForm');
+  if (f.allDay.checked) { f.allDay.checked = false; syncEventDtBtns(); }   // 点时长 = 退出全天
+  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(f.start.value || '');
+  if (!m) { toast('请先选择开始时间'); return; }
+  const base = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  f.end.value = toLocalInput(new Date(base.getTime() + (EV_DUR_MS[btn.dataset.dur] || 0))).replace('T', ' ');
+  const wasOn = btn.classList.contains('on');
+  evClearQuick();                      // 先清掉旧高亮（互斥单选）
+  if (!wasOn) btn.classList.add('on'); // 再点同一个 = 取消快捷，回到手动
+  window.syncDtBtns(f);
+});
+// 全站统一选择器：待办（日期 / 时间可留空）
+attachSitePicker('[data-dt=tdDate]', { mode: 'date', allowClear: true });
+attachSitePicker('[data-dt=tdTime]', { mode: 'time', allowClear: true });
+// 全站统一选择器：睡眠时段（必填）
+['htBed', 'htRise', 'htNapStart', 'htNapEnd'].forEach((k) =>
+  attachSitePicker(`[data-dt=${k}]`, { mode: 'time', allowClear: false })
+);
+// 全站统一选择器：药品效期 / 开封日期（可留空）
+attachSitePicker('[data-dt=medExpiry]', { mode: 'date', allowClear: true });
+attachSitePicker('[data-dt=medOpen]', { mode: 'date', allowClear: true });
+// 账户 / 联系人 / 物品弹窗
+bind('#acctPickClose', 'click', () => { $('#acctPickModal').hidden = true; });
+bind('#acctPickModal', 'click', (e) => { if (e.target === $('#acctPickModal')) $('#acctPickModal').hidden = true; });
+bind('#acctPickDone', 'click', () => { $('#acctPickModal').hidden = true; });
+bind('#contactPickClose', 'click', () => { $('#contactPickModal').hidden = true; });
+bind('#contactPickModal', 'click', (e) => { if (e.target === $('#contactPickModal')) $('#contactPickModal').hidden = true; });
+bind('#contactPickSearch', 'input', (e) => renderContactPick(e.target.value));
+bind('#itemPickClose', 'click', () => { $('#itemPickModal').hidden = true; });
+bind('#itemPickModal', 'click', (e) => { if (e.target === $('#itemPickModal')) $('#itemPickModal').hidden = true; });
+bind('#itemSaveBtn', 'click', () => {
+  if (txnDraft) txnDraft.item = $('#itemPickInput').value.trim();
+  $('#itemPickModal').hidden = true;
+  syncMetaBtns();
+});
+bind('#itemClearBtn', 'click', () => {
+  if (txnDraft) txnDraft.item = '';
+  $('#itemPickInput').value = '';
+  $('#itemPickModal').hidden = true;
+  syncMetaBtns();
+});
+
+// 记账设置：入口（弹窗右上角 + 账本页头）与返回
+bind('#txnSetBtn', 'click', () => { closeTxnModal(); switchView('ledgerset'); });
+bind('#ledgerSetBtn', 'click', () => switchView('ledgerset'));
+bind('#ledsetBack', 'click', () => switchView('ledger'));
+$$('[data-lsflow]').forEach((b) => {
+  b.onclick = () => { ledset.flow = b.dataset.lsflow || 'expense'; renderLedgerSet(); };
+});
+bind('#ledsetAddBtn', 'click', async () => {
+  const inp = $('#ledsetName');
+  const name = (inp.value || '').trim();
+  if (!name) { toast('请填写分类名称'); return; }
+  const res = await api('/api/txn-categories', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow: ledset.flow, name }),
+  });
+  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); renderLedgerSet(); }
+  else toast((await res.json().catch(() => ({}))).error || '添加失败');
+});
+bind('#ledsetName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAddBtn').click(); } });
 
 // 快捷金额
 $$('#quickAmt button').forEach((b) => {
@@ -3152,7 +3654,7 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.4.0.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.1.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定

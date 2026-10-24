@@ -156,6 +156,8 @@ async function pfOpenProfile(id) {
   pfEl('relProfileView').hidden = false;
   ['pfHero', 'pfBasic', 'pfSocial', 'pfMethods', 'pfRelatives', 'pfWork', 'pfEdu', 'pfPets']
     .forEach((k) => { const el = pfEl(k); if (el) el.innerHTML = '<div class="empty-hint">加载中…</div>'; });
+  if (pfEl('pfFinance')) pfEl('pfFinance').innerHTML = '<div class="empty-hint">加载中…</div>';
+  pfRenderFinance();
   try {
     const res = await api('/api/profile/detail?id=' + PF.pid);
     PF.data = await res.json();
@@ -389,12 +391,80 @@ function pfRenderPets() {
     <p class="field-hint">纪念日选填，可用于纪念离开的毛孩子；种类输入一次后会自动成为备选。</p>`;
 }
 
+// ===== 财务往来（v0.5.0：账本流水按联系人自动关联） =====
+async function pfRenderFinance() {
+  const el = pfEl('pfFinance');
+  if (!el) return;
+  el.innerHTML = '<div class="empty-hint">加载中…</div>';
+  pfEl('pfFinSum').textContent = '';
+  try {
+    const res = await api('/api/transactions?contact_id=' + PF.pid);
+    const data = await res.json();
+    const list = data.list || [];
+    const s = data.summary || {};
+    pfEl('pfFinSum').textContent = list.length
+      ? `${s.count} 笔 · 收 ¥${Math.round(s.income).toLocaleString('zh-CN')} · 支 ¥${Math.round(s.expense).toLocaleString('zh-CN')}`
+      : '';
+    if (!list.length) {
+      el.innerHTML = '<div class="empty-hint">暂无往来流水。在「记一笔」时选择该联系人，账目会自动关联到这里。</div>';
+      return;
+    }
+    el.innerHTML = '';
+    list.forEach((t) => {
+      const isTrf = t.flow === 'transfer';
+      const row = document.createElement('div');
+      row.className = 'txn-row';
+      row.innerHTML = `
+        <span class="txn-ic">${isTrf ? '⇄' : pfEsc(String(t.category || '其').slice(0, 1))}</span>
+        <div class="txn-main"><b></b><div class="txn-meta"></div></div>
+        <span class="txn-amt ${isTrf ? 'trf' : t.flow === 'expense' ? 'exp' : 'inc'}">${isTrf ? '→ ' : t.flow === 'expense' ? '-' : '+'}¥${Math.round(t.amount).toLocaleString('zh-CN')}</span>`;
+      row.querySelector('b').textContent = t.note || (isTrf ? '转账' : t.category);
+      row.querySelector('.txn-meta').innerHTML =
+        `<span>${pfEsc(String(t.date).slice(5).replace('-', '/'))}${t.time ? ' ' + pfEsc(t.time) : ''}</span>` +
+        (isTrf
+          ? `<span>${pfEsc(t.account)} → ${pfEsc(t.toAccount || '')}</span>`
+          : `<span class="cat-tag">${pfEsc(t.category)}${t.sub ? ' · ' + pfEsc(t.sub) : ''}</span><span>${pfEsc(t.account)}</span>`);
+      row.title = '去账本查看当月流水';
+      row.onclick = () => { if (window.openLedgerMonth) window.openLedgerMonth(t.date); };
+      el.appendChild(row);
+    });
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) el.innerHTML = '<div class="empty-hint">加载财务往来失败</div>';
+  }
+}
+
 // ===== 添加 / 编辑联系人弹窗 =====
-function pfSyncWizard() {
+// 生日：统一月历日期 + 年份 + 农历按钮（v0.5.1）
+// 存储：bday_date 存公历参考日（年份 = 年份输入或当前年）；年份填了 → full，没填 → monthday；
+//       农历激活时换算成农历月/日存库（calendar='lunar'），生日提醒因此按农历计算。
+const P2 = (n) => String(n).padStart(2, '0');
+
+/** 农历月日 + 农历年 → 公历日期反查（农历年腊月可能跨到次年公历年初，扫描前后各一年） */
+function pfLunarToSolar(lMonth, lDay, lunarYear) {
+  if (!window.lunarFull) return null;
+  const y = lunarYear || new Date().getFullYear();
+  const end = new Date(y + 1, 11, 31);
+  for (const d = new Date(y - 1, 0, 1); d <= end; d.setDate(d.getDate() + 1)) {
+    const l = lunarFull(d);
+    if (l && l.year === y && l.month === lMonth && l.day === lDay) return new Date(d);
+  }
+  return null;
+}
+
+/** 农历按钮 / 农历文本联动（年份取换算出的农历年，带干支生肖） */
+function pfSyncBdayLunar() {
   const f = pfEl('contactEditForm');
-  const type = f.querySelector('[name=bdayOpt]:checked').value;
-  pfEl('bdayBody').hidden = type === 'unknown';
-  pfEl('bdayYearRow').hidden = type !== 'full';
+  const btn = pfEl('bdayLunarBtn');
+  const textEl = pfEl('bdayLunarText');
+  if (!f || !btn || !textEl) return;
+  btn.classList.toggle('on', PF.bdayLunar);
+  const raw = String(f.bday_date.value || '');
+  if (!raw || !PF.bdayLunar || !window.lunarFull) { textEl.hidden = true; return; }
+  const [y, mo, d] = raw.split('-').map(Number);
+  const l = lunarFull(new Date(y, mo - 1, d));
+  if (!l) { textEl.hidden = true; return; }
+  textEl.textContent = `${l.year}年（${l.ganzhi}年/${l.animal}）${l.monthName}${l.dayName}，生日提醒将按农历计算。`;
+  textEl.hidden = false;
 }
 
 function pfRenderChipPicker(boxId, words, selected, key) {
@@ -428,15 +498,39 @@ async function pfOpenEditModal() {
   f.reset();
   pfEl('contactEditTitle').textContent = b ? `编辑「${b.name}」` : '添加联系人';
   pfEl('contactEditError').hidden = true;
+  pfBuildNameFields();
   ['firstName', 'nickname', 'childhoodName', 'formerName', 'englishName', 'alias']
     .forEach((k) => { f[k].value = b ? (b[k] || '') : ''; });
-  f.gender.value = b ? (b.gender || '') : '';
-  const type = b ? (b.birthdayType || 'unknown') : 'unknown';
-  f.querySelector(`[name=bdayOpt][value="${type}"]`).checked = true;
-  f.birthYear.value = b && b.birthYear ? b.birthYear : '';
-  f.birthMonth.value = b && b.birthMonth ? b.birthMonth : '';
-  f.birthDay.value = b && b.birthDay ? b.birthDay : '';
-  f.querySelector(`[name=birthdayCalendar][value="${b ? (b.birthdayCalendar || 'solar') : 'solar'}"]`).checked = true;
+  // 名字标签行：默认显示「姓名」标签页（其余字段值保留，靠标签上的「·」提示）
+  pfShowNameField('firstName');
+  pfSyncNameChips();
+  // 性别：三个按钮（未知/男/女），默认未知；旧数据「其他」归为未知
+  const g = b && ['男', '女', '未知'].includes(b.gender) ? b.gender : '未知';
+  const gRadio = f.querySelector(`[name=gender][value="${g}"]`);
+  if (gRadio) gRadio.checked = true;
+  // 生日：换算成公历参考日填入统一月历按钮；记录初始快照用于提交时识别「未改动的旧 monthday 数据」
+  PF.bdayLunar = b ? b.birthdayCalendar === 'lunar' : false;
+  let bdayDate = '';
+  PF.bdayInit = null;
+  if (b && b.birthMonth) {
+    if (b.birthdayCalendar === 'lunar') {
+      // 农历生日：按出生农历年反查当年的公历对应日，月历直接定位到出生年
+      const solar = pfLunarToSolar(b.birthMonth, b.birthDay, b.birthYear || null);
+      if (solar) bdayDate = `${solar.getFullYear()}-${P2(solar.getMonth() + 1)}-${P2(solar.getDate())}`;
+    } else {
+      bdayDate = `${b.birthYear || new Date().getFullYear()}-${P2(b.birthMonth)}-${P2(b.birthDay)}`;
+    }
+    PF.bdayInit = {
+      date: bdayDate,
+      lunar: PF.bdayLunar,
+      type: b.birthYear ? 'full' : 'monthday',
+      month: b.birthMonth,
+      day: b.birthDay,
+    };
+  }
+  f.bday_date.value = bdayDate;
+  pfSyncBdayLunar();
+  if (window.syncDtBtns) window.syncDtBtns(f);   // 刷新生日按钮上的日期文字
   f.birthdayRemind.checked = b ? !!b.birthdayRemind : false;
   f.isDeceased.checked = b ? !!b.isDeceased : false;
   PF.editTags = b ? (b.tags || []).slice() : [];
@@ -448,12 +542,65 @@ async function pfOpenEditModal() {
   pfRenderChipPicker('tagChips', PF.vocab.rel_tag || [], PF.editTags, 'tag');
   pfRenderChipPicker('groupChips', PF.vocab.rel_group || [], PF.editGroups, 'group');
   pfFillReferrers();
-  pfSyncWizard();
   pfEl('contactEditModal').hidden = false;
   setTimeout(() => { try { f.firstName.focus(); } catch (_) {} }, 40);
 }
 
 function pfCloseEditModal() { pfEl('contactEditModal').hidden = true; }
+
+// ===== 名字标签行（v0.5.1 改版）：6 个标签单选切换，默认显示「姓名」 =====
+// 输入框常驻表单（hidden 切换），切走不清值、提交照常携带；有值的非激活标签带「·」提示
+const NM_FIELDS = [
+  ['firstName', '姓名', 20, '姓名，如：张三'],
+  ['nickname', '昵称', 20, '昵称'],
+  ['childhoodName', '小名', 20, '小名'],
+  ['formerName', '曾用名', 20, '曾用名'],
+  ['alias', '别名', 20, '别名'],
+  ['englishName', '英文名', 30, '英文名'],
+];
+let nmActive = 'firstName';
+function pfBuildNameFields() {
+  const extra = pfEl('nameExtra');
+  if (!extra || extra.dataset.built) return;
+  extra.dataset.built = '1';
+  extra.innerHTML = NM_FIELDS
+    .map(([k, label, max, ph]) => `<input name="${k}" maxlength="${max}" data-nm="${k}" placeholder="${ph}" hidden>`)
+    .join('');
+}
+function pfShowNameField(key) {
+  const f = pfEl('contactEditForm');
+  if (!f.querySelector(`input[data-nm="${key}"]`)) return;
+  nmActive = key;
+  NM_FIELDS.forEach(([k]) => {
+    const el = f.querySelector(`input[data-nm="${k}"]`);
+    if (el) el.hidden = k !== key;
+  });
+  pfSyncNameChips();
+  const cur = f.querySelector(`input[data-nm="${key}"]`);
+  if (cur && !cur.hidden) setTimeout(() => cur.focus(), 30);
+}
+function pfSyncNameChips() {
+  const f = pfEl('contactEditForm');
+  const box = pfEl('nameChips');
+  if (!f || !box) return;
+  box.querySelectorAll('[data-nm]').forEach((btn) => {
+    const inp = f.querySelector(`input[data-nm="${btn.dataset.nm}"]`);
+    if (!inp) return;
+    const label = (NM_FIELDS.find(([k]) => k === btn.dataset.nm) || [])[1] || btn.dataset.nm;
+    const hasVal = !!inp.value.trim();
+    btn.classList.toggle('on', btn.dataset.nm === nmActive);
+    btn.textContent = label + (hasVal && btn.dataset.nm !== nmActive ? ' ·' : '');
+  });
+}
+function pfBindNameChips() {
+  const box = pfEl('nameChips');
+  if (!box || box.dataset.bound) return;
+  box.dataset.bound = '1';
+  box.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-nm]');
+    if (btn) pfShowNameField(btn.dataset.nm);
+  });
+}
 
 async function pfSubmitEdit(e) {
   e.preventDefault();
@@ -464,32 +611,46 @@ async function pfSubmitEdit(e) {
 
   const names = ['firstName', 'nickname', 'childhoodName', 'formerName', 'englishName', 'alias'].map(val).filter(Boolean);
   if (!names.length) return err('姓名、昵称、小名、曾用名、英文名、别名至少填一项');
-  if (!f.gender.value) return err('请选择性别');
+  const genderEl = f.querySelector('[name=gender]:checked');
+  const gender = genderEl ? genderEl.value : '未知';
 
-  const type = f.querySelector('[name=bdayOpt]:checked').value;
   const payload = {
     firstName: val('firstName'), nickname: val('nickname'), childhoodName: val('childhoodName'),
     formerName: val('formerName'), englishName: val('englishName'), alias: val('alias'),
-    gender: f.gender.value,
-    birthdayType: type,
-    birthdayCalendar: f.querySelector('[name=birthdayCalendar]:checked').value,
+    gender,
     birthdayRemind: f.birthdayRemind.checked,
     isDeceased: f.isDeceased.checked,
     tags: PF.editTags.slice(),
     groups: PF.editGroups.slice(),
     note: val('note'),
   };
-  if (type !== 'unknown') {
-    payload.birthMonth = Number(f.birthMonth.value);
-    payload.birthDay = Number(f.birthDay.value);
-    if (!payload.birthMonth || payload.birthMonth < 1 || payload.birthMonth > 12) return err('请填写正确的出生月份');
-    if (!payload.birthDay || payload.birthDay < 1 || payload.birthDay > 31) return err('请填写正确的出生日期');
-    if (type === 'full') {
-      payload.birthYear = Number(f.birthYear.value);
-      if (!payload.birthYear || payload.birthYear < 1900 || payload.birthYear > 2100) return err('请填写正确的出生年份（1900-2100）');
-    }
+  // 生日：统一月历日期 + 农历标记 → 生日三元组（农历激活时按农历月/日存库，年份取换算农历年）
+  const bdayRaw = String(f.bday_date.value || '');
+  const unchangedMonthday = PF.bdayInit && PF.bdayInit.type === 'monthday'
+    && bdayRaw === PF.bdayInit.date && PF.bdayLunar === PF.bdayInit.lunar;
+  if (!bdayRaw) {
+    payload.birthdayType = 'unknown';
+    payload.birthdayCalendar = 'solar';
+    payload.birthYear = null; payload.birthMonth = null; payload.birthDay = null;
+  } else if (unchangedMonthday) {
+    // 未改动的旧「只知月日」数据：保持原类型与月日
+    payload.birthdayType = 'monthday';
+    payload.birthdayCalendar = PF.bdayLunar ? 'lunar' : 'solar';
+    payload.birthYear = null;
+    payload.birthMonth = PF.bdayInit.month;
+    payload.birthDay = PF.bdayInit.day;
   } else {
-    payload.birthMonth = null; payload.birthDay = null; payload.birthYear = null;
+    const [refY, mo, d] = bdayRaw.split('-').map(Number);
+    payload.birthdayType = 'full';
+    if (PF.bdayLunar) {
+      const lf = window.lunarFull ? lunarFull(new Date(refY, mo - 1, d)) : null;
+      if (!lf) return err('生日日期超出农历换算范围（1900-2100）');
+      payload.birthYear = lf.year; payload.birthMonth = lf.month; payload.birthDay = lf.day;
+      payload.birthdayCalendar = 'lunar';
+    } else {
+      payload.birthYear = refY; payload.birthMonth = mo; payload.birthDay = d;
+      payload.birthdayCalendar = 'solar';
+    }
   }
 
   // 引荐人：按姓名匹配已有联系人
@@ -545,6 +706,30 @@ async function pfDeletePerson() {
 
 // ===== 模块事件委托 =====
 function pfBindEvents() {
+  // 名字标签行（一次性绑定）
+  pfBindNameChips();
+  // 生日：统一月历（date 模式，可清除 = 不知道年龄；点标题年月可换年份）+ 农历按钮
+  const bdayDtBtn = document.querySelector('[data-dt=bdayDate]');
+  if (bdayDtBtn) {
+    bdayDtBtn.addEventListener('click', () => {
+      const f = pfEl('contactEditForm');
+      openSitePicker({
+        mode: 'date', date: String(f.bday_date.value || ''), allowClear: true,
+        onDone: ({ date: d }) => {
+          f.bday_date.value = d || '';
+          pfSyncBdayLunar();
+          if (window.syncDtBtns) window.syncDtBtns(f);
+        },
+      });
+    });
+  }
+  const lunarBtn = pfEl('bdayLunarBtn');
+  if (lunarBtn) {
+    lunarBtn.addEventListener('click', () => {
+      PF.bdayLunar = !PF.bdayLunar;
+      pfSyncBdayLunar();
+    });
+  }
   // 列表
   const search = pfEl('relSearch');
   if (search) {
@@ -572,10 +757,7 @@ function pfBindEvents() {
   const close = pfEl('contactEditClose'); if (close) close.addEventListener('click', pfCloseEditModal);
   if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) pfCloseEditModal(); });
   const form = pfEl('contactEditForm');
-  if (form) {
-    form.addEventListener('submit', pfSubmitEdit);
-    form.addEventListener('change', (e) => { if (e.target.name === 'bdayOpt') pfSyncWizard(); });
-  }
+  if (form) form.addEventListener('submit', pfSubmitEdit);
   const addTag = pfEl('addTagBtn');
   if (addTag) addTag.addEventListener('click', () => {
     const inp = pfEl('newTagInput');

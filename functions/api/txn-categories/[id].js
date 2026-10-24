@@ -14,24 +14,37 @@ export async function onRequest(context) {
   return json({ error: '不支持的请求方法' }, 405);
 }
 
-// PUT —— 重命名（同级重名校验）
+// PUT —— 局部更新：可传 name（重命名）和/或 hidden（是否在「记一笔」前端显示）
 async function rename(env, id, request) {
   let body = {};
   try { body = await request.json(); } catch (_) {}
-  const name = String(body.name || '').replace(/[,，]/g, '').trim().slice(0, 10);
-  if (!name) return json({ error: '请填写分类名称' }, 400);
+  const hasName = body.name !== undefined;
+  const hasHidden = body.hidden !== undefined;
+  if (!hasName && !hasHidden) return json({ error: '没有要更新的字段' }, 400);
 
   const row = await env.DB.prepare(
     'SELECT id, flow, parent_id FROM txn_categories WHERE id = ?'
   ).bind(id).first();
   if (!row) return json({ error: '分类不存在' }, 404);
 
-  const dup = await env.DB.prepare(
-    'SELECT id FROM txn_categories WHERE flow = ? AND name = ? AND parent_id IS ? AND id <> ?'
-  ).bind(row.flow, name, row.parent_id, id).first();
-  if (dup) return json({ error: '同级已有同名分类' }, 400);
-
-  await env.DB.prepare('UPDATE txn_categories SET name = ? WHERE id = ?').bind(name, id).run();
+  const sets = [];
+  const vals = [];
+  if (hasName) {
+    const name = String(body.name || '').replace(/[,，]/g, '').trim().slice(0, 10);
+    if (!name) return json({ error: '请填写分类名称' }, 400);
+    const dup = await env.DB.prepare(
+      'SELECT id FROM txn_categories WHERE flow = ? AND name = ? AND parent_id IS ? AND id <> ?'
+    ).bind(row.flow, name, row.parent_id, id).first();
+    if (dup) return json({ error: '同级已有同名分类' }, 400);
+    sets.push('name = ?');
+    vals.push(name);
+  }
+  if (hasHidden) {
+    sets.push('hidden = ?');
+    vals.push(body.hidden ? 1 : 0);
+  }
+  vals.push(id);
+  await env.DB.prepare(`UPDATE txn_categories SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
   return json({ ok: true });
 }
 

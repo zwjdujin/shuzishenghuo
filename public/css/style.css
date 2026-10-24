@@ -534,7 +534,8 @@ html[data-mode="night"]{
   padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer}
 .quick-amt button:hover{border-color:var(--plum);color:var(--plum)}
 .cat-chips{display:flex;flex-wrap:wrap;gap:8px}
-.cat-chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;
+/* 圆角与全站按钮一致（.seg-item 11px），不再用全圆胶囊 */
+.cat-chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:11px;
   padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer}
 .cat-chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
 
@@ -1191,6 +1192,190 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
 .pm-add .btn{flex:0 0 auto}
 .pm-add-label{font-size:12.5px;color:var(--muted)}
 .wizard-opts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.wizard-body{border:1px dashed var(--line);border-radius:12px;padding:12px;margin-top:8px}
+.wizard-body{border:1px dashed var(--line);border-radius:12px;padding:12px;margin-top:8px;margin-bottom:14px}
 .chip-picker .add-row{margin-top:8px}
 @media (max-width:640px){.wizard-opts{grid-template-columns:1fr}.pm-add .inp{flex:1 1 100%}}
+
+/* ================= 记账 v0.5.0：记一笔改版 / 时间选择 / 记账设置 ================= */
+
+/* --- 记一笔弹窗顶部：三选项靠左 + 设置入口靠右 --- */
+.txn-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.txn-flow-seg{flex-wrap:nowrap}
+.txn-flow-seg .seg-item{padding:8px 16px}
+.txn-card .icon-btn{flex:0 0 auto}
+
+/* --- 时间 / 账户 / 联系人 / 物品 按钮组 --- */
+.meta-btns{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 14px}
+.meta-btn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:9px 11px;border:1px solid var(--line);
+  border-radius:12px;background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;min-width:0;transition:.15s}
+.meta-btn:hover{border-color:var(--plum)}
+.meta-btn svg{width:15px;height:15px;color:var(--muted)}
+.meta-btn b{font-size:12px;font-weight:700;color:var(--ink)}
+.meta-btn span{font-size:11px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta-btn.filled{border-color:var(--plum);background:var(--plum-soft)}
+.meta-btn.filled span{color:var(--plum);font-weight:600}
+
+/* 二级分类小 chips */
+.cat-chips.sub{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.cat-chip.sm{font-size:12px;padding:4px 11px}
+
+/* --- 弹出选择层（盖在记一笔弹窗之上） --- */
+.picker-overlay{z-index:130}
+.cp-search{width:100%;margin-bottom:10px}
+.cp-list{max-height:min(46vh,420px);overflow-y:auto;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch}
+.cp-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:12px;
+  background:var(--surface);cursor:pointer;text-align:left;transition:.15s}
+.cp-row:hover{border-color:var(--plum)}
+.cp-row.clear{justify-content:center;color:var(--muted)}
+.cp-row.clear:hover{color:var(--red)}
+.cp-av{width:32px;height:32px;flex:0 0 auto;border-radius:10px;display:grid;place-items:center;background:var(--plum-soft);
+  color:var(--plum);font-weight:700;font-size:14px}
+.cp-row.clear .cp-av{background:transparent;width:auto;height:auto;font-size:14px}
+.cp-main{min-width:0}
+.cp-main b{display:block;font-size:13.5px}
+.cp-main small{display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-group{margin-bottom:14px}
+.acct-t{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:7px}
+
+/* --- 时间选择：月历 + 时分拖动滚轮 --- */
+.tp-card{width:min(420px,100%)}
+.tp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.tp-cal-head b{font-size:14.5px}
+.tp-week{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11px;color:var(--muted);margin-bottom:2px}
+.tp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:12px}
+/* 单元格两行：公历数字 + 农历（初一显示月份、节气优先） */
+/* 常驻透明边框占位，选中态只描边不填充 —— 今天恰好被选中时数字也清晰可见 */
+.tp-day{height:42px;border:1.5px solid transparent;border-radius:9px;background:transparent;color:var(--ink);font-size:13px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;padding:0;min-width:0;box-sizing:border-box}
+.tp-day b{font-weight:500;font-variant-numeric:tabular-nums}
+.tp-lun{font-size:9px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tp-lun.fst{color:var(--terra)}
+.tp-day:hover{background:var(--plum-soft)}
+.tp-day.today b{color:var(--plum);font-weight:700}
+.tp-day.sel{border-color:var(--plum)}
+.tp-day.sel b{color:var(--plum);font-weight:700}
+.tp-day.sel .tp-lun{color:var(--plum)}
+.tp-bottom{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.tp-bottom .btn{flex:0 0 auto}
+.tp-dials{flex:1;display:flex;align-items:center;justify-content:center;gap:4px;min-width:190px}
+.tp-colon{font:700 20px/1 var(--font-serif);color:var(--ink)}
+.tp-dial{position:relative;width:62px;height:150px;overflow:hidden;touch-action:none;cursor:grab;
+  -webkit-mask-image:linear-gradient(transparent, #000 26%, #000 74%, transparent);
+  mask-image:linear-gradient(transparent, #000 26%, #000 74%, transparent)}
+.tp-dial:active{cursor:grabbing}
+.tp-strip{will-change:transform}
+.tp-item{height:36px;display:grid;place-items:center;font-size:16px;color:var(--muted);font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,Menlo,Consolas,monospace;user-select:none}
+.tp-item.on{color:var(--ink);font-weight:700;font-size:19px}
+
+/* --- 账本流水：转账行 / 时间 / 物品 --- */
+.txn-amt.trf{color:var(--ink)}
+.txn-ic svg{width:16px;height:16px}
+.txn-time{font-variant-numeric:tabular-nums;opacity:.85}
+.txn-pill.item{background:var(--sand-soft,#f1e8d8);color:#8a6a33}
+
+/* --- 记账设置 · 分类管理 --- */
+.ledset-add{display:flex;gap:8px;margin:12px 0 14px}
+.ledset-add .inp{flex:1;min-width:0}
+.ledset-add .btn{flex:0 0 auto}
+.ledset-add.sub{margin:10px 0 2px}
+.ledset-add.sub .inp{flex:1 1 120px;height:36px;font-size:12.5px}
+.ledset-list{display:flex;flex-direction:column;gap:8px}
+.ls-item{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.ls-kids{border-top:1px dashed var(--line);padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px;background:var(--paper,rgba(0,0,0,.02))}
+.ls-row{display:flex;align-items:center;gap:10px;padding:11px 12px;min-width:0}
+.ls-kids .ls-row{padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.ls-handle{flex:0 0 auto;width:22px;height:26px;display:flex;flex-direction:column;justify-content:center;gap:3px;
+  cursor:grab;touch-action:none;color:var(--muted)}
+.ls-handle:active{cursor:grabbing}
+.ls-handle i{display:block;height:2px;border-radius:2px;background:currentColor;opacity:.55}
+.ls-name{font-size:14px;font-weight:600;color:var(--ink);cursor:default;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ls-kids .ls-name{font-size:13px;font-weight:500}
+.ls-cnt{border:0;background:transparent;color:var(--muted);font-size:11.5px;cursor:pointer;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.ls-cnt:hover{background:var(--plum-soft);color:var(--plum)}
+.ls-actions{margin-left:auto;display:flex;gap:2px;flex:0 0 auto}
+/* 前端显示开关：隐藏的分类整行弱化 */
+.ls-row .vis{color:var(--plum)}
+.ls-row.off .ls-name{opacity:.4;text-decoration:line-through}
+.ls-row.off .ls-handle{opacity:.3}
+.ls-row.off .vis{color:var(--muted);opacity:.45}
+.ls-holder{border:1px dashed var(--plum);border-radius:14px;background:var(--plum-soft);opacity:.6}
+body.ledset-dragging{user-select:none;-webkit-user-select:none}
+body.ledset-dragging *{cursor:grabbing!important}
+
+/* --- 手机端自适应 --- */
+@media (max-width:860px){
+  .meta-btns{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .txn-topbar{flex-wrap:nowrap}
+  .txn-flow-seg .seg-item{padding:7px 12px;font-size:13px}
+  .tp-dial{width:56px;height:138px}
+  .tp-day{height:44px}
+  .ls-actions .icon-btn{width:36px;height:36px}
+}
+@media (max-width:400px){
+  .txn-flow-seg .seg-item{padding:7px 9px}
+  .tp-dial{width:52px}
+}
+
+/* ================= v0.5.0 追加：联系人名字标签行 / 全站统一日期时间按钮 ================= */
+
+/* --- 联系人名字标签行：6 个标签单选切换，下方单输入框 --- */
+.name-chips{display:flex;gap:6px;flex-wrap:wrap}
+.name-extra{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+.name-extra input{width:100%;height:42px;padding:0 12px;border:1px solid var(--line);border-radius:11px;
+  background:var(--surface);color:var(--ink);font-size:14px;outline:none;min-width:0}
+.name-extra input:focus{border-color:var(--plum)}
+
+/* --- 全站统一日期/时间选择按钮（.dt-btn，配合 openSitePicker / syncDtBtns） --- */
+.dt-btn{display:flex;align-items:center;gap:8px;width:100%;height:46px;padding:0 12px;border:1px solid var(--line);
+  border-radius:12px;background:var(--surface);color:var(--ink);font-size:14px;cursor:pointer;text-align:left;transition:.15s}
+.dt-btn svg{width:15px;height:15px;color:var(--muted);flex:0 0 auto}
+.dt-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.dt-btn:hover{border-color:var(--plum)}
+.dt-btn.filled span{font-weight:600}
+.dt-btn.sm{height:36px;width:auto;flex:0 0 auto;padding:0 10px;font-size:13px;border-radius:10px}
+
+/* ================= v0.5.0 追加 2：日程快捷时长行 / 人脉标签群组同行输入 ================= */
+
+/* --- 日程：1小时/1天/3天/7天 + 全天（同一行，单选互斥） --- */
+.ev-quick{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-2px 0 14px}
+.ev-q{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:11px;
+  padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s}
+.ev-q:hover{border-color:var(--plum)}
+.ev-q.on{background:var(--plum);border-color:var(--plum);color:#fff}
+.ev-allday{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.ev-allday input{width:16px;height:16px;accent-color:var(--plum)}
+@media (max-width:640px){.ev-quick{gap:6px}.ev-q{padding:6px 10px}}
+
+/* --- 人脉标签 / 人脉群组：输入框与添加按钮同一行 --- */
+.chip-picker .add-row{display:flex;gap:8px;margin-top:8px}
+.chip-picker .add-row .inp{flex:1;min-width:0;width:auto}
+.chip-picker .add-row .btn{flex:0 0 auto;white-space:nowrap}
+
+/* --- 联系人生日行：统一月历按钮 + 农历按钮 --- */
+.bday-row{display:flex;gap:8px;align-items:center}
+.bday-row .dt-btn{flex:1;min-width:0}
+.bday-row .cat-chip{flex:0 0 auto;padding:10px 13px;font-size:13px}
+.bday-lunar{color:var(--plum)}
+
+/* --- 联系人生日：年份输入行 --- */
+.bday-year-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.bday-year-row input{flex:0 0 170px;width:auto;height:40px;padding:0 12px;border:1px solid var(--line);
+  border-radius:11px;background:var(--surface);color:var(--ink);font-size:14px;outline:none}
+.bday-year-row input:focus{border-color:var(--plum)}
+.bday-year-hint{font-size:11px;color:var(--muted)}
+
+/* ================= v0.5.1：日期选择器标题年月化 / 年月滚轮面板 ================= */
+/* 标题即年月（有月历时），点击弹出年月滚轮 */
+#tpTitle.clickable{cursor:pointer}
+#tpTitle.clickable:hover{color:var(--plum)}
+/* 上一月/下一月箭头：紧挨右上角关闭按钮 */
+.tp-head-nav{display:flex;gap:2px;margin-left:auto}
+.tp-head-nav .icon-btn{width:30px;height:30px}
+.modal-head{gap:6px}
+/* 年月滚轮面板 */
+#tpYMPanel .tp-dials{margin:8px 0 10px;min-width:230px}
+.tp-dial.wide{width:88px}
+.tp-ym-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+/* 确定按钮靠右 */
+.tp-bottom .btn.primary{margin-left:auto}

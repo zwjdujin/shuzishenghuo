@@ -60,12 +60,12 @@ export async function onRequestPut(context) {
   return json({ ok: true });
 }
 
-/** 读取分类树 { expense: [{id,name,children:[{id,name}]}], income: [...] }；表为空回退默认分类 */
+/** 读取分类树 { expense: [{id,name,hidden,children:[{id,name,hidden}]}], income: [...] }；表为空回退默认分类 */
 export async function loadCatTree(env) {
   try {
     const rows = (
       await env.DB.prepare(
-        'SELECT id, flow, name, parent_id FROM txn_categories ORDER BY sort_order, id'
+        'SELECT id, flow, name, parent_id, hidden FROM txn_categories ORDER BY sort_order, id'
       ).all()
     ).results || [];
     if (!rows.length) return defaultTree();
@@ -73,9 +73,9 @@ export async function loadCatTree(env) {
     const kids = {};
     rows.forEach((r) => {
       if (r.parent_id) {
-        (kids[r.parent_id] = kids[r.parent_id] || []).push({ id: r.id, name: r.name });
+        (kids[r.parent_id] = kids[r.parent_id] || []).push({ id: r.id, name: r.name, hidden: !!r.hidden });
       } else if (top[r.flow]) {
-        top[r.flow].push({ id: r.id, name: r.name, children: [] });
+        top[r.flow].push({ id: r.id, name: r.name, hidden: !!r.hidden, children: [] });
       }
     });
     ['expense', 'income'].forEach((f) =>
@@ -88,7 +88,7 @@ export async function loadCatTree(env) {
 }
 
 function defaultTree() {
-  const wrap = (names) => names.map((n) => ({ name: n, children: [] }));
+  const wrap = (names) => names.map((n) => ({ name: n, hidden: false, children: [] }));
   return {
     expense: wrap(['餐饮', '零食', '美妆', '烟酒', '日常', '购物', '交通', '娱乐', '社交', '装修', '旅游', '医疗', '学习', '其他']),
     income: wrap(['礼金', '理财', '报销', '工资', '奖金', '生活费', '外快兼职', '退款', '投资收益', '其他']),

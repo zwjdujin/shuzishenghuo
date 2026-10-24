@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/v0.4.0/css/style.css">
+  <link rel="stylesheet" href="./assets/v0.5.1/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -86,7 +86,6 @@
       </nav>
       <div class="local-card">
         <div class="local-status"><span class="status-dot"></span><span id="syncText">云端已同步</span></div>
-        <p>数据存于 Cloudflare D1，多端自动同步。</p>
         <small id="versionText">v0.0.1</small>
       </div>
       <div class="side-bottom-wrap">
@@ -294,7 +293,7 @@
               <button class="seg-item" data-lsflow="income" type="button"><span>收入</span></button>
             </div>
           </div>
-          <p class="ts-hint">按住 <b>≡</b> 上下拖动可调整同级顺序，常用分类放前面方便点击；点击分类名可展开 / 收起二级分类。删除一级分类时，其历史流水会归并到「其他」。</p>
+          <p class="ts-hint">按住 <b>≡</b> 上下拖动可调整同级顺序，常用分类放前面方便点击；点击分类名可展开 / 收起二级分类；点 👁 可设置该分类是否在「记一笔」中显示（隐藏不影响历史流水与统计）。删除一级分类时，其历史流水会归并到「其他」。</p>
           <div class="ledset-add">
             <input class="inp" id="ledsetName" maxlength="10" placeholder="新增一级分类，如：宠物">
             <button class="btn primary" id="ledsetAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加</button>
@@ -481,40 +480,34 @@
         <button class="icon-btn" id="contactEditClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
       <form id="contactEditForm">
-        <div class="field-grid">
-          <label class="field"><span>姓名</span><input name="firstName" maxlength="20" placeholder="如：张三"></label>
-          <label class="field"><span>昵称</span><input name="nickname" maxlength="20"></label>
-          <label class="field"><span>小名</span><input name="childhoodName" maxlength="20"></label>
-          <label class="field"><span>曾用名</span><input name="formerName" maxlength="20"></label>
-          <label class="field"><span>英文名</span><input name="englishName" maxlength="30"></label>
-          <label class="field"><span>别名</span><input name="alias" maxlength="20"></label>
-        </div>
-        <p class="field-hint">以上名字任选其一填写即可（至少一项）。</p>
-        <label class="field"><span>性别 *</span>
-          <select name="gender"><option value="">请选择</option><option>男</option><option>女</option><option>其他</option></select>
+        <!-- 名字六字段：6 个标签单选切换，默认显示「姓名」，点标签在下方输入框填写 -->
+        <label class="field"><span>名字（任选其一填写，至少一项）</span>
+          <div class="name-chips" id="nameChips">
+            <button type="button" class="cat-chip sm" data-nm="firstName">姓名</button>
+            <button type="button" class="cat-chip sm" data-nm="nickname">昵称</button>
+            <button type="button" class="cat-chip sm" data-nm="childhoodName">小名</button>
+            <button type="button" class="cat-chip sm" data-nm="formerName">曾用名</button>
+            <button type="button" class="cat-chip sm" data-nm="alias">别名</button>
+            <button type="button" class="cat-chip sm" data-nm="englishName">英文名</button>
+          </div>
+          <div class="name-extra" id="nameExtra"></div>
         </label>
-        <label class="field"><span>生日（必选一项）</span>
-          <div class="wizard-opts" id="bdayOpts">
-            <label class="prio-item" data-b="unknown"><input type="radio" name="bdayOpt" value="unknown" checked><b>不知道年龄</b><small>跳过生日设置</small></label>
-            <label class="prio-item" data-b="monthday"><input type="radio" name="bdayOpt" value="monthday"><b>只知月日</b><small>不知出生年份</small></label>
-            <label class="prio-item" data-b="full"><input type="radio" name="bdayOpt" value="full"><b>确切生日</b><small>知道年月日</small></label>
+        <label class="field"><span>性别</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="gender" value="未知" checked><span>未知</span></label>
+            <label class="seg-item"><input type="radio" name="gender" value="男"><span>男</span></label>
+            <label class="seg-item"><input type="radio" name="gender" value="女"><span>女</span></label>
           </div>
         </label>
-        <div class="wizard-body" id="bdayBody" hidden>
-          <div class="field-row" id="bdayYearRow" hidden>
-            <label class="field"><span>出生年</span><input name="birthYear" type="number" min="1900" max="2100" placeholder="1990"></label>
+        <!-- 生日：统一月历选日期（点标题年月可换年份）+ 农历按钮（激活后显示农历生日与干支生肖） -->
+        <label class="field"><span>生日（可留空表示不知道年龄）</span>
+          <div class="bday-row">
+            <input type="hidden" name="bday_date" id="bdayDateInput">
+            <button type="button" class="dt-btn" data-dt="bdayDate" data-ph="点此选择日期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+            <button type="button" class="cat-chip sm" id="bdayLunarBtn" title="按农历记住这个生日">农历</button>
           </div>
-          <div class="field-row">
-            <label class="field"><span>月</span><input name="birthMonth" type="number" min="1" max="12" placeholder="6"></label>
-            <label class="field"><span>日</span><input name="birthDay" type="number" min="1" max="31" placeholder="15"></label>
-          </div>
-          <label class="field"><span>历法</span>
-            <div class="seg">
-              <label class="seg-item"><input type="radio" name="birthdayCalendar" value="solar" checked><span>阳历</span></label>
-              <label class="seg-item"><input type="radio" name="birthdayCalendar" value="lunar"><span>农历</span></label>
-            </div>
-          </label>
-        </div>
+          <p class="field-hint bday-lunar" id="bdayLunarText" hidden></p>
+        </label>
         <label class="check-line"><input type="checkbox" name="birthdayRemind"><span>创建年度生日提醒（显示在日历中心）</span></label>
         <label class="check-line"><input type="checkbox" name="isDeceased"><span>将此人标记为已逝者</span></label>
         <label class="field"><span>人脉标签</span>
@@ -688,12 +681,12 @@
         <label class="field" id="sleepField" hidden>
           <span>睡眠目标时段</span>
           <div class="time-row">
-            <span><input name="bed_time" type="time" value="23:00"> <em>前睡＝早睡</em></span>
-            <span><input name="rise_time" type="time" value="07:00"> <em>前起＝早起</em></span>
+            <span><input type="hidden" name="bed_time" id="htBedInput"><button type="button" class="dt-btn sm" data-dt="htBed" data-ph="23:00"><svg><use href="#i-clock"/></svg><span>—</span></button> <em>前睡＝早睡</em></span>
+            <span><input type="hidden" name="rise_time" id="htRiseInput"><button type="button" class="dt-btn sm" data-dt="htRise" data-ph="07:00"><svg><use href="#i-clock"/></svg><span>—</span></button> <em>前起＝早起</em></span>
           </div>
           <div class="time-row" style="margin-top:8px">
-            <span><input name="nap_start" type="time" value="12:30"> <em>午睡起</em></span>
-            <span><input name="nap_end" type="time" value="14:00"> <em>午睡止</em></span>
+            <span><input type="hidden" name="nap_start" id="htNapStartInput"><button type="button" class="dt-btn sm" data-dt="htNapStart" data-ph="12:30"><svg><use href="#i-clock"/></svg><span>—</span></button> <em>午睡起</em></span>
+            <span><input type="hidden" name="nap_end" id="htNapEndInput"><button type="button" class="dt-btn sm" data-dt="htNapEnd" data-ph="14:00"><svg><use href="#i-clock"/></svg><span>—</span></button> <em>午睡止</em></span>
           </div>
           <small class="field-hint">午睡只需在某区间内睡过即记为完成（如 12:30–14:00）。</small>
         </label>
@@ -751,15 +744,28 @@
       <form id="eventForm">
         <label class="field"><span>日程标题</span><input name="title" maxlength="30" placeholder="例如：部门周会" required></label>
         <div class="field-row">
-          <label class="field"><span>开始</span><input name="start" type="datetime-local" required></label>
-          <label class="field"><span>结束</span><input name="end" type="datetime-local"></label>
+          <label class="field"><span>开始</span>
+            <input type="hidden" name="start" id="evStartInput">
+            <button type="button" class="dt-btn" data-dt="evStart" data-ph="选择日期时间"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
+          <label class="field"><span>结束</span>
+            <input type="hidden" name="end" id="evEndInput">
+            <button type="button" class="dt-btn" data-dt="evEnd" data-ph="选填"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
+        </div>
+        <!-- 快捷时长 + 全天（同一行：点时长自动算结束，点全天切纯日期，也可手动选结束） -->
+        <div class="ev-quick" id="evQuickRow">
+          <button type="button" class="ev-q" data-dur="1h">1小时</button>
+          <button type="button" class="ev-q" data-dur="1d">1天</button>
+          <button type="button" class="ev-q" data-dur="3d">3天</button>
+          <button type="button" class="ev-q" data-dur="7d">7天</button>
+          <label class="ev-allday"><input type="checkbox" name="allDay"><span>全天日程</span></label>
         </div>
         <div class="field-row">
           <label class="field"><span>所属日历</span><select name="calendar" id="eventCalendarSel"></select></label>
           <label class="field"><span>地点</span><input name="location" maxlength="20" placeholder="选填"></label>
         </div>
         <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
-        <label class="check-line"><input type="checkbox" name="allDay"><span>全天日程</span></label>
         <div class="settings-actions" style="gap:10px">
           <button class="btn ghost danger" id="eventDeleteBtn" type="button" hidden>删除</button>
           <button class="btn primary" type="submit" style="flex:0 0 auto">保存日程</button>
@@ -779,8 +785,14 @@
       <form id="todoForm">
         <label class="field"><span>待办内容</span><input name="title" maxlength="30" placeholder="例如：预约牙科检查" required></label>
         <div class="field-row">
-          <label class="field"><span>日期</span><input name="date" type="date"></label>
-          <label class="field"><span>时间</span><input name="time" type="time"></label>
+          <label class="field"><span>日期</span>
+            <input type="hidden" name="date" id="tdDateInput">
+            <button type="button" class="dt-btn" data-dt="tdDate" data-ph="选择日期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
+          <label class="field"><span>时间</span>
+            <input type="hidden" name="time" id="tdTimeInput">
+            <button type="button" class="dt-btn" data-dt="tdTime" data-ph="选填"><svg><use href="#i-clock"/></svg><span>—</span></button>
+          </label>
         </div>
         <div class="field-row">
           <label class="field"><span>清单</span><select name="list" id="todoListSel"></select></label>
@@ -862,30 +874,43 @@
     </div>
   </div>
 
-  <!-- 时间选择（v0.5.0：月历 + 拖动选时分） -->
+  <!-- 全站统一 时间选择（v0.5.1：标题=年月可点开年月滚轮；箭头移至右上角；确认按钮） -->
   <div class="modal-overlay picker-overlay" id="timePickModal" hidden>
     <div class="modal-card tp-card">
       <div class="modal-head">
-        <h3>选择时间</h3>
+        <h3 id="tpTitle">选择时间</h3>
+        <span class="tp-head-nav" id="tpHeadNav" hidden>
+          <button class="icon-btn" id="tpPrev" type="button" aria-label="上一月"><svg><use href="#i-left"/></svg></button>
+          <button class="icon-btn" id="tpNext" type="button" aria-label="下一月"><svg><use href="#i-right"/></svg></button>
+        </span>
         <button class="icon-btn" id="timePickClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
-      <div class="tp-cal-head">
-        <button class="icon-btn" id="tpPrev" type="button" aria-label="上月"><svg><use href="#i-left"/></svg></button>
-        <b id="tpYM">—</b>
-        <button class="icon-btn" id="tpNext" type="button" aria-label="下月"><svg><use href="#i-right"/></svg></button>
+      <div id="tpCalPart">
+        <div class="tp-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+        <div class="tp-grid" id="tpGrid"></div>
       </div>
-      <div class="tp-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
-      <div class="tp-grid" id="tpGrid"></div>
-      <div class="tp-bottom">
-        <button class="btn ghost" id="tpNow" type="button"><svg><use href="#i-clock"/></svg>此刻</button>
+      <!-- 年月滚轮面板（点标题年月弹出） -->
+      <div id="tpYMPanel" hidden>
         <div class="tp-dials">
+          <div class="tp-dial wide" id="tpYearDial" aria-label="年份"></div>
+          <div class="tp-dial" id="tpMonthDial" aria-label="月份"></div>
+        </div>
+        <div class="tp-ym-actions">
+          <button class="btn ghost" id="tpYMBack" type="button">返回</button>
+          <button class="btn primary" id="tpYMDone" type="button">确定</button>
+        </div>
+      </div>
+      <div class="tp-bottom" id="tpBottom">
+        <button class="btn ghost" id="tpClear" type="button" hidden>清除</button>
+        <button class="btn ghost" id="tpNow" type="button"><svg><use href="#i-clock"/></svg>此刻</button>
+        <div class="tp-dials" id="tpDialsBox">
           <div class="tp-dial" id="tpHourDial" aria-label="小时"></div>
           <span class="tp-colon">:</span>
           <div class="tp-dial" id="tpMinDial" aria-label="分钟"></div>
         </div>
-        <button class="btn primary" id="tpDone" type="button">完成</button>
+        <button class="btn primary" id="tpDone" type="button">确定</button>
       </div>
-      <p class="ts-hint">点日期选年月日；拖动（或滚轮）左侧选小时、右侧选分钟，松手自动吸附。</p>
+      <p class="ts-hint" id="tpHint">点日期选择；点顶部年月可快速切换年份与月份。</p>
     </div>
   </div>
 
@@ -945,7 +970,10 @@
         </div>
         <label class="field"><span>用量（用法用量）</span><input name="dosage" maxlength="60" placeholder="例如：每次1片，每日3次，饭后服用"></label>
         <div class="field-row">
-          <label class="field"><span>有效期至</span><input name="expiry" type="date"></label>
+          <label class="field"><span>有效期至</span>
+            <input type="hidden" name="expiry" id="medExpiryInput">
+            <button type="button" class="dt-btn" data-dt="medExpiry" data-ph="留空＝未填效期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
           <label class="field"><span>分类</span><select name="category" id="medCatSel"></select></label>
         </div>
         <div class="field-row">
@@ -958,7 +986,10 @@
         </div>
         <div class="field-row">
           <label class="field"><span>生产厂家</span><input name="manufacturer" maxlength="40" placeholder="选填"></label>
-          <label class="field"><span>开封日期</span><input name="openDate" type="date"></label>
+          <label class="field"><span>开封日期</span>
+            <input type="hidden" name="openDate" id="medOpenInput">
+            <button type="button" class="dt-btn" data-dt="medOpen" data-ph="选填"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
         </div>
         <label class="field"><span>参考单价（元）</span><input name="price" type="number" min="0" step="0.01" placeholder="选填"></label>
         <label class="check-line"><input type="checkbox" name="rx"><span>处方药（需凭医师处方购买与使用）</span></label>
@@ -1017,9 +1048,9 @@
     </div>
   </div>
 
-  <script src="./assets/v0.4.0/js/lunar.js"></script>
-  <script src="./assets/v0.4.0/js/profile.js"></script>
-  <script src="./assets/v0.4.0/js/medicine.js"></script>
-  <script src="./assets/v0.4.0/js/app.js"></script>
+  <script src="./assets/v0.5.1/js/lunar.js"></script>
+  <script src="./assets/v0.5.1/js/profile.js"></script>
+  <script src="./assets/v0.5.1/js/medicine.js"></script>
+  <script src="./assets/v0.5.1/js/app.js"></script>
 </body>
 </html>

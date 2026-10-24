@@ -92,3 +92,13 @@ export async function onRequestPut(context) {
     .run();
   return json({ ok: true, id });
 }
+
+// DELETE /api/events?id= —— 删除日程（此前缺失该实现，UI 的删除一直是 405 静默失败）
+export async function onRequestDelete(context) {
+  const { env, request } = context;
+  const url = new URL(request.url);
+  const id = Number(url.searchParams.get('id'));
+  if (!id) return json({ error: '缺少事件 ID' }, 400);
+  await env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id).run();
+  return json({ ok: true, id });
+}

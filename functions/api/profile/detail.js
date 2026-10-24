@@ -44,7 +44,8 @@ async function mergeBase(env, body, existing) {
 
   if (body.gender !== undefined) {
     const g = String(body.gender || '').trim();
-    if (!['男', '女', '其他'].includes(g)) return { error: '请选择性别' };
+    // 「其他」为旧版取值，保留兼容以便旧记录可编辑保存
+    if (!['男', '女', '未知', '其他'].includes(g)) return { error: '请选择性别' };
     sets.gender = g;
   }
 
@@ -163,7 +164,7 @@ export async function onRequestGet(context) {
     })),
     pets: pets.map((p) => ({ id: p.id, species: p.species || '', name: p.name || '', memorialDate: p.memorial_date || '' })),
     meta: {
-      genders: ['男', '女', '其他'],
+      genders: ['男', '女', '未知'],
       marriages: MARRIAGES,
       kins: await dict('rel_kin'),
       companies: await dict('rel_company'),

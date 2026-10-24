@@ -324,6 +324,7 @@
       // 默认有效期：两年后（常见药品效期），用户可改
       form.expiry.value = plusMonths(todayLocal(), 24);
     }
+    if (window.syncDtBtns) window.syncDtBtns(form);
     $('#medModal').hidden = false;
   }
 

@@ -84,13 +84,14 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 账本自定义分类（v0.5.0：支出/收入两级分类 + 拖动排序）
+-- 账本自定义分类（v0.5.0：支出/收入两级分类 + 拖动排序 + 前端显示开关）
 CREATE TABLE IF NOT EXISTS txn_categories (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   flow       TEXT NOT NULL CHECK(flow IN ('expense','income')),
   name       TEXT NOT NULL,
   parent_id  INTEGER,                          -- NULL = 一级分类；否则为父分类 id
   sort_order INTEGER NOT NULL DEFAULT 0,
+  hidden     INTEGER NOT NULL DEFAULT 0,       -- 1 = 不在「记一笔」前端显示
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
