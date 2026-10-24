@@ -157,7 +157,7 @@ export async function onRequestGet(context) {
 
   const now = cnNow();
   return json({
-    version: '0.5.3',
+    version: '0.5.4',
     brand,
     appearance,
     today,

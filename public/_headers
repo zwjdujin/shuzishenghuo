@@ -1,0 +1,20 @@
+# 数字生活 · Cloudflare Pages 响应头
+# 1) HTML 与 SW 永不走长缓存：自定义域的区域缓存曾忽略查询串导致「旧 HTML 配新 JS」白屏，
+#    版本目录 + 这里显式 no-cache 双保险（v0.5.4 起）。
+# 2) 版本化静态资源可安全缓存一年（内容变 = 路径变）。
+# 3) CSP：全站无内联脚本（script-src 'self'），行内 style 属性与 jsDelivr 字体放行，
+#    frame-ancestors 防点击劫持。改前端加载方式时须同步核对此文件。
+
+/index.html
+  Cache-Control: no-cache
+
+/sw*.js
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
