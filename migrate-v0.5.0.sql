@@ -21,33 +21,34 @@ CREATE TABLE IF NOT EXISTS txn_categories (
 );
 CREATE INDEX IF NOT EXISTS idx_txncat_flow ON txn_categories(flow, parent_id, sort_order);
 
--- 默认分类（仅在表为空时写入）
+-- 默认分类（仅当表为空时整批写入，不覆盖已有自定义分类）
 INSERT INTO txn_categories (flow, name, parent_id, sort_order)
-SELECT 'expense', '餐饮', NULL, 0 WHERE NOT EXISTS (SELECT 1 FROM txn_categories);
-INSERT INTO txn_categories (flow, name, parent_id, sort_order) VALUES
-  ('expense', '零食',  NULL, 1),
-  ('expense', '美妆',  NULL, 2),
-  ('expense', '烟酒',  NULL, 3),
-  ('expense', '日常',  NULL, 4),
-  ('expense', '购物',  NULL, 5),
-  ('expense', '交通',  NULL, 6),
-  ('expense', '娱乐',  NULL, 7),
-  ('expense', '社交',  NULL, 8),
-  ('expense', '装修',  NULL, 9),
-  ('expense', '旅游',  NULL, 10),
-  ('expense', '医疗',  NULL, 11),
-  ('expense', '学习',  NULL, 12),
-  ('expense', '其他',  NULL, 13),
-  ('income',  '礼金',  NULL, 0),
-  ('income',  '理财',  NULL, 1),
-  ('income',  '报销',  NULL, 2),
-  ('income',  '工资',  NULL, 3),
-  ('income',  '奖金',  NULL, 4),
-  ('income',  '生活费', NULL, 5),
-  ('income',  '外快兼职', NULL, 6),
-  ('income',  '退款',  NULL, 7),
-  ('income',  '投资收益', NULL, 8),
-  ('income',  '其他',  NULL, 9);
+SELECT f, n, p, s FROM (
+  SELECT 'expense' f, '餐饮' n, NULL p, 0 s UNION ALL
+  SELECT 'expense', '零食',   NULL, 1 UNION ALL
+  SELECT 'expense', '美妆',   NULL, 2 UNION ALL
+  SELECT 'expense', '烟酒',   NULL, 3 UNION ALL
+  SELECT 'expense', '日常',   NULL, 4 UNION ALL
+  SELECT 'expense', '购物',   NULL, 5 UNION ALL
+  SELECT 'expense', '交通',   NULL, 6 UNION ALL
+  SELECT 'expense', '娱乐',   NULL, 7 UNION ALL
+  SELECT 'expense', '社交',   NULL, 8 UNION ALL
+  SELECT 'expense', '装修',   NULL, 9 UNION ALL
+  SELECT 'expense', '旅游',   NULL, 10 UNION ALL
+  SELECT 'expense', '医疗',   NULL, 11 UNION ALL
+  SELECT 'expense', '学习',   NULL, 12 UNION ALL
+  SELECT 'expense', '其他',   NULL, 13 UNION ALL
+  SELECT 'income',  '礼金',   NULL, 0 UNION ALL
+  SELECT 'income',  '理财',   NULL, 1 UNION ALL
+  SELECT 'income',  '报销',   NULL, 2 UNION ALL
+  SELECT 'income',  '工资',   NULL, 3 UNION ALL
+  SELECT 'income',  '奖金',   NULL, 4 UNION ALL
+  SELECT 'income',  '生活费', NULL, 5 UNION ALL
+  SELECT 'income',  '外快兼职', NULL, 6 UNION ALL
+  SELECT 'income',  '退款',   NULL, 7 UNION ALL
+  SELECT 'income',  '投资收益', NULL, 8 UNION ALL
+  SELECT 'income',  '其他',   NULL, 9
+) WHERE NOT EXISTS (SELECT 1 FROM txn_categories);
 
 -- ===== 2. 重建 transactions（旧 CHECK(flow IN expense,income) 无法直接改，需整表重建） =====
 CREATE TABLE transactions_new (

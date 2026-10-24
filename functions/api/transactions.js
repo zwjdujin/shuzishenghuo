@@ -1,12 +1,7 @@
 import { json, todayStr } from '../_lib.js';
+import { loadCatTree } from './txn-categories.js';
 
-// 账本分类（支出 / 收入）
-export const CATEGORIES = {
-  expense: ['餐饮', '交通', '购物', '居住', '娱乐', '医疗', '教育', '人情', '借还款', '其他'],
-  income: ['工资', '奖金', '兼职', '理财', '红包', '其他'],
-};
-
-// 常用账户
+// 默认账户（预置 + 实际用过的）
 export const ACCOUNTS = ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'];
 
 // 「YYYY-MM」加减月份
@@ -16,20 +11,60 @@ function shiftMonth(month, delta) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// GET /api/transactions?month=YYYY-MM
-// 返回：当月明细 + 收支汇总 + 支出/收入分类占比 + 近 6 个月趋势 + 账户 + 预算 + @人名反查
+// 记账字段统一清洗（POST / PUT 共用）
+// 返回 null 表示金额无效
+export function normalizeTxnBody(body) {
+  const flow = ['income', 'expense', 'transfer'].includes(body.flow) ? body.flow : 'expense';
+  const amount = Number(body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  let account = String(body.account || '').trim() || '默认账户';
+  let toAccount = String(body.to_account || '').trim() || null;
+  if (flow === 'transfer') {
+    // 转账必须有转出/转入两个账户，且不能相同
+    if (!toAccount) return { error: '请选择转入账户' };
+    if (toAccount === account) return { error: '转出与转入账户不能相同' };
+  } else {
+    toAccount = null;
+  }
+  return {
+    flow,
+    amount,
+    category: flow === 'transfer' ? '转账' : (String(body.category || '').trim() || '其他'),
+    subCategory: flow === 'transfer' ? null : (String(body.sub_category || '').trim() || null),
+    date: String(body.date || '').trim() || todayStr(),
+    time: String(body.time || '').trim().slice(0, 5) || null,
+    account,
+    toAccount,
+    contactId: Number(body.contact_id) || null,
+    item: String(body.item || '').trim().slice(0, 40) || null,
+    note: String(body.note || '').trim() || null,
+  };
+}
+
+// GET /api/transactions?month=YYYY-MM[&contact_id=123]
+// 返回：当月明细 + 收支汇总 + 支出/收入分类占比 + 近 6 个月趋势 + 账户 + 预算 + @人名反查 + 分类树
+// 传 contact_id 时：返回该联系人名下全部流水（人际关系 · 财务往来用）
 export async function onRequestGet(context) {
   const { env, request } = context;
   const url = new URL(request.url);
+  const contactId = Number(url.searchParams.get('contact_id')) || null;
   const month = url.searchParams.get('month') || todayStr().slice(0, 7);
 
+  // ---- 账本分类树（自定义，含二级；表为空时回退默认）----
+  const catTree = await loadCatTree(env);
+  const categories = {
+    expense: catTree.expense.map((c) => c.name),
+    income: catTree.income.map((c) => c.name),
+  };
+
+  const where = contactId ? 'contact_id = ?' : "strftime('%Y-%m', txn_date) = ?";
   const rows = (
     await env.DB.prepare(
-      `SELECT id, flow, amount, category, txn_date, note, account
-       FROM transactions WHERE strftime('%Y-%m', txn_date) = ?
+      `SELECT id, flow, amount, category, sub_category, txn_date, txn_time, account, to_account, contact_id, item, note
+       FROM transactions WHERE ${where}
        ORDER BY txn_date DESC, id DESC`
     )
-      .bind(month)
+      .bind(contactId || month)
       .all()
   ).results || [];
 
@@ -38,11 +73,17 @@ export async function onRequestGet(context) {
     flow: r.flow,
     amount: Number(r.amount),
     category: r.category || '其他',
+    sub: r.sub_category || '',
     date: r.txn_date,
-    note: r.note || '',
+    time: r.txn_time || '',
     account: r.account || '默认账户',
+    toAccount: r.to_account || '',
+    contactId: r.contact_id || null,
+    item: r.item || '',
+    note: r.note || '',
   }));
 
+  // ---- 汇总（转账不计入收支）----
   let income = 0;
   let expense = 0;
   const byCat = {};
@@ -51,7 +92,7 @@ export async function onRequestGet(context) {
     if (t.flow === 'income') {
       income += t.amount;
       byCatIn[t.category] = (byCatIn[t.category] || 0) + t.amount;
-    } else {
+    } else if (t.flow === 'expense') {
       expense += t.amount;
       byCat[t.category] = (byCat[t.category] || 0) + t.amount;
     }
@@ -65,50 +106,57 @@ export async function onRequestGet(context) {
   const catStats = toStats(byCat, expense);
   const incomeCatStats = toStats(byCatIn, income);
 
-  // ---- 近 6 个月趋势（含当前月）----
-  const from = shiftMonth(month, -5);
+  // ---- 近 6 个月趋势（含当前月；contact_id 模式不需要）----
   let trend = [];
-  try {
-    const tRows = (
-      await env.DB.prepare(
-        `SELECT strftime('%Y-%m', txn_date) m,
-                COALESCE(SUM(CASE WHEN flow='income'  THEN amount ELSE 0 END),0) inc,
-                COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp
-         FROM transactions
-         WHERE strftime('%Y-%m', txn_date) >= ? AND strftime('%Y-%m', txn_date) <= ?
-         GROUP BY m`
-      )
-        .bind(from, month)
-        .all()
-    ).results || [];
-    const map = {};
-    tRows.forEach((r) => { map[r.m] = { income: Number(r.inc), expense: Number(r.exp) }; });
-    for (let i = 5; i >= 0; i--) {
-      const k = shiftMonth(month, -i);
-      const v = map[k] || { income: 0, expense: 0 };
-      trend.push({ month: k, income: v.income, expense: v.expense, balance: v.income - v.expense });
+  if (!contactId) {
+    const from = shiftMonth(month, -5);
+    try {
+      const tRows = (
+        await env.DB.prepare(
+          `SELECT strftime('%Y-%m', txn_date) m,
+                  COALESCE(SUM(CASE WHEN flow='income'  THEN amount ELSE 0 END),0) inc,
+                  COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp
+           FROM transactions
+           WHERE strftime('%Y-%m', txn_date) >= ? AND strftime('%Y-%m', txn_date) <= ?
+           GROUP BY m`
+        )
+          .bind(from, month)
+          .all()
+      ).results || [];
+      const map = {};
+      tRows.forEach((r) => { map[r.m] = { income: Number(r.inc), expense: Number(r.exp) }; });
+      for (let i = 5; i >= 0; i--) {
+        const k = shiftMonth(month, -i);
+        const v = map[k] || { income: 0, expense: 0 };
+        trend.push({ month: k, income: v.income, expense: v.expense, balance: v.income - v.expense });
+      }
+    } catch (_) {
+      trend = [];
     }
-  } catch (_) {
-    trend = [];
   }
 
-  // ---- 账户（预置 + 实际用过的）----
+  // ---- 账户（预置 + 实际用过的，含转账转入账户）----
   const accounts = [...ACCOUNTS];
   try {
     const aRows = (
       await env.DB.prepare(
-        "SELECT DISTINCT account FROM transactions WHERE account IS NOT NULL AND account <> ''"
+        "SELECT DISTINCT account a FROM transactions WHERE account IS NOT NULL AND account <> '' " +
+        'UNION SELECT DISTINCT to_account FROM transactions WHERE to_account IS NOT NULL AND to_account <> \'\''
       ).all()
     ).results || [];
-    aRows.forEach((r) => { if (!accounts.includes(r.account)) accounts.push(r.account); });
+    aRows.forEach((r) => { if (r.a && !accounts.includes(r.a)) accounts.push(r.a); });
   } catch (_) { /* 忽略 */ }
 
-  // ---- 「@人名」反查联系人 id（人情 / 借还款流水可跳转人际关系档案）----
+  // ---- 「@人名」反查 + 关联联系人（两种都跳转人际关系档案）----
   const payees = {};
+  const linked = {};
   try {
     const cRows = (await env.DB.prepare('SELECT id, name FROM contacts').all()).results || [];
+    const byId = {};
+    cRows.forEach((c) => { byId[c.id] = c.name; });
     const named = cRows.filter((c) => c.name).sort((a, b) => b.name.length - a.name.length);
     list.forEach((t) => {
+      if (t.contactId && byId[t.contactId]) linked[t.id] = { id: t.contactId, name: byId[t.contactId] };
       if (!t.note || t.note[0] !== '@') return;
       const hit = named.find((c) => t.note.startsWith('@' + c.name));
       if (hit) payees[t.id] = { id: hit.id, name: hit.name };
@@ -125,12 +173,23 @@ export async function onRequestGet(context) {
   // ---- 本月人情往来小结（人际关系页联动展示）----
   const social = { out: 0, in: 0, count: 0 };
   list.forEach((t) => {
+    if (t.flow === 'transfer') return;
     if (t.account === '人情往来' || t.category === '人情' || t.category === '借还款') {
       social.count += 1;
       if (t.flow === 'income') social.in += t.amount;
       else social.out += t.amount;
     }
   });
+
+  // contact_id 模式：只要明细与合计（人际关系档案 · 财务往来）
+  if (contactId) {
+    return json({
+      contactId,
+      list,
+      summary: { income, expense, balance: income - expense, count: list.length },
+      categories,
+    });
+  }
 
   const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
   // 日均按「已经过的天数」算才真实：当月取今天几号，历史/未来月份取整月天数
@@ -153,30 +212,29 @@ export async function onRequestGet(context) {
     trend,
     accounts,
     payees,
+    linked,
     budget,
     social,
-    categories: CATEGORIES,
+    categories,
+    catTree,
   });
 }
 
-// POST /api/transactions —— 记一笔
+// POST /api/transactions —— 记一笔（支出 / 收入 / 转账）
 export async function onRequestPost(context) {
   const { env, request } = context;
   let body = {};
   try { body = await request.json(); } catch (_) {}
 
-  const flow = body.flow === 'income' ? 'income' : 'expense';
-  const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) return json({ error: '请填写有效金额' }, 400);
-  const date = String(body.date || '').trim() || todayStr();
-  const category = String(body.category || '').trim() || '其他';
-  const note = String(body.note || '').trim() || null;
-  const account = String(body.account || '').trim() || '默认账户';
+  const t = normalizeTxnBody(body);
+  if (!t) return json({ error: '请填写有效金额' }, 400);
+  if (t.error) return json({ error: t.error }, 400);
 
   const res = await env.DB.prepare(
-    'INSERT INTO transactions(flow, amount, category, txn_date, note, account) VALUES (?,?,?,?,?,?)'
+    `INSERT INTO transactions(flow, amount, category, sub_category, txn_date, txn_time, account, to_account, contact_id, item, note)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
   )
-    .bind(flow, amount, category, date, note, account)
+    .bind(t.flow, t.amount, t.category, t.subCategory, t.date, t.time, t.account, t.toAccount, t.contactId, t.item, t.note)
     .run();
   const id = res.meta && res.meta.last_row_id ? res.meta.last_row_id : null;
   return json({ ok: true, id }, 201);

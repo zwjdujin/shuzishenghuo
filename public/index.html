@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./css/style.css?v=0.4.0">
+  <link rel="stylesheet" href="./assets/v0.4.0/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -46,6 +46,8 @@
     <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.4 0 2-.9 2-1.8 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.9-4-8-9-8Z"/><circle cx="7.5" cy="12" r="1.2"/><circle cx="10.5" cy="7.8" r="1.2"/><circle cx="15.5" cy="8.6" r="1.2"/></symbol>
     <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"/></symbol>
   </svg>
 
   <!-- 登录遮罩 -->
@@ -228,6 +230,7 @@
               <span class="led-month" id="ledMonth"></span>
               <button class="icon-btn" id="ledNext" title="下月" aria-label="下月"><svg><use href="#i-right"/></svg></button>
             </div>
+            <button class="icon-btn" id="ledgerSetBtn" title="记账设置" aria-label="记账设置"><svg><use href="#i-settings"/></svg></button>
             <button class="btn primary" id="addTxnBtn" type="button"><svg><use href="#i-plus"/></svg>记一笔</button>
           </div>
         </div>
@@ -268,12 +271,36 @@
                 <button class="lf-btn active" data-ledflow="all" type="button">全部</button>
                 <button class="lf-btn" data-ledflow="expense" type="button">支出</button>
                 <button class="lf-btn" data-ledflow="income" type="button">收入</button>
+                <button class="lf-btn" data-ledflow="transfer" type="button">转账</button>
               </div>
               <input class="lf-input" id="ledSearch" type="search" placeholder="搜索备注 / 分类 / 账户">
             </div>
             <div id="ledgerList" class="txn-stack"></div>
           </article>
         </div>
+      </section>
+
+      <!-- 记账设置（v0.5.0：分类管理 + 二级分类 + 拖动排序） -->
+      <section class="view" id="view-ledgerset" data-title="记账设置">
+        <div class="growth-head">
+          <div><p class="eyebrow">记账设置</p><h2>分类管理</h2></div>
+          <button class="btn ghost" id="ledsetBack" type="button">← 返回账本</button>
+        </div>
+        <article class="panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">分类</p><h2 id="ledsetFlowTitle">支出分类</h2></div>
+            <div class="seg">
+              <button class="seg-item active" data-lsflow="expense" type="button"><span>支出</span></button>
+              <button class="seg-item" data-lsflow="income" type="button"><span>收入</span></button>
+            </div>
+          </div>
+          <p class="ts-hint">按住 <b>≡</b> 上下拖动可调整同级顺序，常用分类放前面方便点击；点击分类名可展开 / 收起二级分类。删除一级分类时，其历史流水会归并到「其他」。</p>
+          <div class="ledset-add">
+            <input class="inp" id="ledsetName" maxlength="10" placeholder="新增一级分类，如：宠物">
+            <button class="btn primary" id="ledsetAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加</button>
+          </div>
+          <div id="ledsetList" class="ledset-list"></div>
+        </article>
       </section>
       <!-- 家庭药箱（v0.3.7 录入 + 药品一览 + 临期 + 过期） -->
       <section class="view" id="view-medicine" data-title="家庭药箱">
@@ -436,6 +463,12 @@
           <article class="panel">
             <div class="panel-head"><div><p class="eyebrow">宠物</p><h2>家里的毛孩子</h2></div></div>
             <div id="pfPets"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">财务往来</p><h2>账本流水</h2></div>
+              <span class="muted" id="pfFinSum"></span></div>
+            <p class="ts-hint">在「记一笔」时选择该联系人，账目会自动关联到这里。</p>
+            <div id="pfFinance" class="txn-stack"></div>
           </article>
         </div>
       </section>
@@ -768,18 +801,23 @@
     </div>
   </div>
 
-  <!-- 记一笔 / 编辑记录 弹窗 -->
+  <!-- 记一笔 / 编辑记录 弹窗（v0.5.0：支出/收入/转账 + 时间·账户·联系人·物品） -->
   <div class="modal-overlay" id="txnModal" hidden>
     <div class="modal-card txn-card">
       <div class="modal-head">
         <h3 id="txnModalTitle">记一笔</h3>
         <button class="icon-btn" id="txnModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
-      <form id="txnForm">
+      <form id="txnForm" novalidate>
         <input type="hidden" name="id" id="txnEditId" value="">
-        <div class="seg" style="margin-bottom:14px">
-          <label class="seg-item"><input type="radio" name="flow" value="expense" checked><span>支出</span></label>
-          <label class="seg-item"><input type="radio" name="flow" value="income"><span>收入</span></label>
+        <!-- 三选项靠左，最右侧进入记账设置 -->
+        <div class="txn-topbar">
+          <div class="seg txn-flow-seg">
+            <label class="seg-item"><input type="radio" name="flow" value="expense" checked><span>支出</span></label>
+            <label class="seg-item"><input type="radio" name="flow" value="income"><span>收入</span></label>
+            <label class="seg-item"><input type="radio" name="flow" value="transfer"><span>转账</span></label>
+          </div>
+          <button class="icon-btn" id="txnSetBtn" type="button" title="记账设置" aria-label="记账设置"><svg><use href="#i-settings"/></svg></button>
         </div>
 
         <div class="field txn-amount">
@@ -787,28 +825,107 @@
           <div class="amt-input"><i>¥</i><input name="amount" id="txnAmount" type="number" min="0.01" step="0.01" placeholder="0.00" inputmode="decimal" required></div>
         </div>
         <div class="quick-amt" id="quickAmt">
+          <button type="button" data-amt="0.1">+0.1</button>
+          <button type="button" data-amt="1">+1</button>
           <button type="button" data-amt="10">+10</button>
-          <button type="button" data-amt="50">+50</button>
           <button type="button" data-amt="100">+100</button>
-          <button type="button" data-amt="500">+500</button>
           <button type="button" data-amt="clear">清零</button>
         </div>
 
-        <div class="field">
+        <div class="field" id="txnCatField">
           <span>分类</span>
           <div class="cat-chips" id="txnCatChips"></div>
-          <select name="category" id="txnCatSel" hidden></select>
+          <div class="cat-chips sub" id="txnSubChips" hidden></div>
         </div>
 
-        <div class="field-row">
-          <label class="field"><span>日期</span><input name="date" id="txnDate" type="date"></label>
-          <label class="field"><span>账户</span><select name="account" id="txnAcctSel"></select></label>
+        <!-- 时间 / 账户 / 联系人 / 物品 -->
+        <div class="meta-btns">
+          <button type="button" class="meta-btn" id="txnTimeBtn">
+            <svg><use href="#i-clock"/></svg><b>时间</b><span id="txnTimeVal">今天</span>
+          </button>
+          <button type="button" class="meta-btn" id="txnAcctBtn">
+            <svg><use href="#i-wallet"/></svg><b id="txnAcctLabel">账户</b><span id="txnAcctVal">—</span>
+          </button>
+          <button type="button" class="meta-btn" id="txnContactBtn">
+            <svg><use href="#i-people"/></svg><b>联系人</b><span id="txnContactVal">选填</span>
+          </button>
+          <button type="button" class="meta-btn" id="txnItemBtn">
+            <svg><use href="#i-box"/></svg><b>物品</b><span id="txnItemVal">选填</span>
+          </button>
         </div>
-        <label class="field"><span>备注</span><input name="note" maxlength="30" placeholder="选填，例如：午饭 / @张伟 生日礼物"></label>
+
+        <label class="field"><span>备注</span><input name="note" id="txnNote" maxlength="30" placeholder="选填，例如：午饭 / @张伟 生日礼物"></label>
         <div class="note info" id="txnSyncHint" hidden>🔗 备注以 <b>@姓名</b> 开头，会与「人际关系 · 财务人情账」互相反查。</div>
         <button class="btn primary full" type="submit" id="txnSubmitBtn">保存</button>
         <p class="login-error" id="txnFormError" hidden></p>
       </form>
+    </div>
+  </div>
+
+  <!-- 时间选择（v0.5.0：月历 + 拖动选时分） -->
+  <div class="modal-overlay picker-overlay" id="timePickModal" hidden>
+    <div class="modal-card tp-card">
+      <div class="modal-head">
+        <h3>选择时间</h3>
+        <button class="icon-btn" id="timePickClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="tp-cal-head">
+        <button class="icon-btn" id="tpPrev" type="button" aria-label="上月"><svg><use href="#i-left"/></svg></button>
+        <b id="tpYM">—</b>
+        <button class="icon-btn" id="tpNext" type="button" aria-label="下月"><svg><use href="#i-right"/></svg></button>
+      </div>
+      <div class="tp-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+      <div class="tp-grid" id="tpGrid"></div>
+      <div class="tp-bottom">
+        <button class="btn ghost" id="tpNow" type="button"><svg><use href="#i-clock"/></svg>此刻</button>
+        <div class="tp-dials">
+          <div class="tp-dial" id="tpHourDial" aria-label="小时"></div>
+          <span class="tp-colon">:</span>
+          <div class="tp-dial" id="tpMinDial" aria-label="分钟"></div>
+        </div>
+        <button class="btn primary" id="tpDone" type="button">完成</button>
+      </div>
+      <p class="ts-hint">点日期选年月日；拖动（或滚轮）左侧选小时、右侧选分钟，松手自动吸附。</p>
+    </div>
+  </div>
+
+  <!-- 账户选择（v0.5.0；转账模式下为转出/转入两组） -->
+  <div class="modal-overlay picker-overlay" id="acctPickModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="acctPickTitle">选择账户</h3>
+        <button class="icon-btn" id="acctPickClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div id="acctPickBody"></div>
+      <button class="btn primary full" id="acctPickDone" type="button" hidden>完成</button>
+    </div>
+  </div>
+
+  <!-- 联系人选择（v0.5.0：关联人际关系） -->
+  <div class="modal-overlay picker-overlay" id="contactPickModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>选择联系人</h3>
+        <button class="icon-btn" id="contactPickClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <input class="inp cp-search" id="contactPickSearch" type="search" placeholder="搜索姓名 / 昵称…">
+      <div class="cp-list" id="contactPickList"></div>
+    </div>
+  </div>
+
+  <!-- 物品（v0.5.0：基础记录，功能后续扩展） -->
+  <div class="modal-overlay picker-overlay" id="itemPickModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>物品</h3>
+        <button class="icon-btn" id="itemPickClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <p class="muted">记下这笔账买了什么，之后会在这里扩展更多功能。</p>
+      <input class="inp" id="itemPickInput" maxlength="40" placeholder="例如： Switch 游戏 / 化妆品">
+      <div class="data-actions" style="margin-top:6px">
+        <button class="btn ghost" id="itemClearBtn" type="button">清除</button>
+        <button class="btn primary" id="itemSaveBtn" type="button">保存</button>
+      </div>
     </div>
   </div>
 
@@ -900,9 +1017,9 @@
     </div>
   </div>
 
-  <script src="./js/lunar.js?v=0.4.0"></script>
-  <script src="./js/profile.js?v=0.4.0"></script>
-  <script src="./js/medicine.js?v=0.4.0"></script>
-  <script src="./js/app.js?v=0.4.0"></script>
+  <script src="./assets/v0.4.0/js/lunar.js"></script>
+  <script src="./assets/v0.4.0/js/profile.js"></script>
+  <script src="./assets/v0.4.0/js/medicine.js"></script>
+  <script src="./assets/v0.4.0/js/app.js"></script>
 </body>
 </html>

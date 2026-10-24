@@ -67,14 +67,30 @@ CREATE TABLE IF NOT EXISTS todos (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 我的账本
+-- 我的账本（v0.5.0：转账 + 两级分类 + 时间/联系人/物品）
 CREATE TABLE IF NOT EXISTS transactions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  flow         TEXT NOT NULL CHECK(flow IN ('expense','income','transfer')),
+  amount       REAL NOT NULL,
+  category     TEXT,
+  sub_category TEXT,                            -- 二级分类（挂在 category 之下）
+  txn_date     TEXT NOT NULL,
+  txn_time     TEXT,                            -- 'HH:MM'；NULL 表示未记录时分
+  account      TEXT DEFAULT '默认账户',          -- 支出/收入：付款账户；转账：转出账户
+  to_account   TEXT,                            -- 转账：转入账户
+  contact_id   INTEGER,                         -- 关联「人际关系」联系人
+  item         TEXT,                            -- 物品（预留）
+  note         TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 账本自定义分类（v0.5.0：支出/收入两级分类 + 拖动排序）
+CREATE TABLE IF NOT EXISTS txn_categories (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   flow       TEXT NOT NULL CHECK(flow IN ('expense','income')),
-  amount     REAL NOT NULL,
-  category   TEXT,
-  txn_date   TEXT NOT NULL,
-  note       TEXT,
+  name       TEXT NOT NULL,
+  parent_id  INTEGER,                          -- NULL = 一级分类；否则为父分类 id
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -190,4 +206,5 @@ CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date);
 CREATE INDEX IF NOT EXISTS idx_todos_date      ON todos(todo_date);
 CREATE INDEX IF NOT EXISTS idx_todos_done      ON todos(done);
 CREATE INDEX IF NOT EXISTS idx_txn_date        ON transactions(txn_date);
+CREATE INDEX IF NOT EXISTS idx_txncat_flow     ON txn_categories(flow, parent_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_events_start     ON events(start);

@@ -7,6 +7,7 @@ export const TABLE_LABELS = {
   habit_logs: '成长打卡 · 打卡记录',
   todos: '待办提醒',
   transactions: '我的账本',
+  txn_categories: '我的账本 · 分类',
   medicines: '家庭药箱',
   events: '日历事件',
   contacts: '人际关系 · 联系人',

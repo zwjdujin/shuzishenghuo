@@ -1242,21 +1242,38 @@ function setSystemAlarm(t) {
   window.location.href = uri;
 }
 
-// ===== 我的账本 =====
+// ===== 我的账本（v0.5.0：支出/收入/转账 + 两级自定义分类 + 时间/账户/联系人/物品） =====
 let ledgerState = { month: todayStrLocal().slice(0, 7), donutMode: 'expense', flow: 'all', cat: '', q: '' };
 let ledgerData = {
   catStats: [], incomeCatStats: [], list: [], trend: [], accounts: ['默认账户'],
-  payees: {}, budget: 0, summary: {}, social: { out: 0, in: 0, count: 0 },
+  payees: {}, linked: {}, budget: 0, summary: {}, social: { out: 0, in: 0, count: 0 },
 };
-let txnCats = { expense: ['其他'], income: ['其他'] };
+// 分类树：{ expense: [{name, children:[name]}], income: [...] }（来自 txn_categories，空表回退默认）
+let catTree = { expense: [], income: [] };
 let editingTxnId = null;
+// 记一笔草稿（弹窗内的时间/账户/联系人/物品等不进表单，统一存这里）
+let txnDraft = null;
 
-// 分类 → 调色板槽位（与 CSS 的 .dc0~.dc9 对应，日/夜自动换色）
+// 旧默认分类 → 调色板槽位（兼容迁移前的历史流水着色）
 const LED_CAT_IDX = {
   餐饮: 0, 交通: 1, 购物: 2, 居住: 3, 娱乐: 4, 医疗: 5, 教育: 6, 人情: 7, 借还款: 8, 其他: 9,
   工资: 3, 奖金: 0, 兼职: 2, 理财: 6, 红包: 8,
 };
-const ledCatClass = (n) => 'dc' + (LED_CAT_IDX[n] === undefined ? 9 : LED_CAT_IDX[n]);
+function hashCat(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return h;
+}
+/** 分类 → 调色板槽位（与 CSS 的 .dc0~.dc9 对应）：优先取当前分类树中的序号，保证同屏颜色稳定 */
+function ledCatClass(name, flow) {
+  const flows = flow ? [flow] : ['expense', 'income'];
+  for (const f of flows) {
+    const i = (catTree[f] || []).findIndex((c) => c.name === name);
+    if (i >= 0) return 'dc' + (i % 10);
+  }
+  if (LED_CAT_IDX[name] !== undefined) return 'dc' + LED_CAT_IDX[name];
+  return 'dc' + (name ? hashCat(name) % 10 : 9);
+}
 const escHtml = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -1275,17 +1292,17 @@ async function renderLedger() {
       trend: data.trend || [],
       accounts: (data.accounts && data.accounts.length) ? data.accounts : ['默认账户'],
       payees: data.payees || {},
+      linked: data.linked || {},
       budget: Number(data.budget) || 0,
       summary: data.summary || {},
       social: data.social || { out: 0, in: 0, count: 0 },
     };
-    txnCats = data.categories || txnCats;
+    if (data.catTree) catTree = data.catTree;
     renderLedgerStats();
     renderBudget();
     renderTrend();
     renderDonut();
     renderTxnList();
-    syncTxnCats();
     markSynced();
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载账本失败</div>';
@@ -1433,12 +1450,12 @@ function renderDonut() {
   cats.forEach((c, i) => {
     const frac = c.value / total;
     const dash = Math.max(0.5, frac * CIRC - 1.6); // 相邻扇区留 1.6 的缝，看得到分界
-    paths += `<circle class="dseg ${ledCatClass(c.name)}" cx="${CX}" cy="${CY}" r="${R}"
+    paths += `<circle class="dseg ${ledCatClass(c.name, ledgerState.donutMode)}" cx="${CX}" cy="${CY}" r="${R}"
       transform="rotate(-90 ${CX} ${CY})"
       stroke-dasharray="${dash} ${CIRC - dash}" stroke-dashoffset="${-offset}"/>`;
     offset += frac * CIRC;
     const pct = Math.round(frac * 100);
-    legend += `<button class="dl ${ledCatClass(c.name)}${ledgerState.cat && ledgerState.cat !== c.name ? ' dim' : ''}" type="button" data-ledcat="${escHtml(c.name)}">
+    legend += `<button class="dl ${ledCatClass(c.name, ledgerState.donutMode)}${ledgerState.cat && ledgerState.cat !== c.name ? ' dim' : ''}" type="button" data-ledcat="${escHtml(c.name)}">
       <i class="dot"></i><span class="nm">${escHtml(c.name)}</span>
       <span class="vl">${money(c.value)}</span><span class="pc">${pct}%</span>
       <span class="dl-bar"><i style="width:${Math.max(pct, 2)}%"></i></span>
@@ -1525,7 +1542,9 @@ function txnDayLabel(s) {
 
 function buildTxnRow(t) {
   const isExp = t.flow === 'expense';
+  const isTrf = t.flow === 'transfer';
   const payee = ledgerData.payees ? ledgerData.payees[t.id] : null;
+  const linked = ledgerData.linked ? ledgerData.linked[t.id] : null;
   // 由「人际关系 · 财务人情账」写入的流水：分类与金额以人际关系页为准，账本里只读+可跳转，
   // 避免两端各改一次造成数据不一致。
   const synced = t.account === '人情往来';
@@ -1537,14 +1556,39 @@ function buildTxnRow(t) {
       <b></b>
       <div class="txn-meta"></div>
     </div>
-    <span class="txn-amt ${isExp ? 'exp' : 'inc'}">${isExp ? '-' : '+'}${money(t.amount)}</span>
+    <span class="txn-amt ${isTrf ? 'trf' : isExp ? 'exp' : 'inc'}">${isTrf ? '→ ' : isExp ? '-' : '+'}${money(t.amount)}</span>
     ${synced ? '' : '<button class="icon-btn del" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>'}`;
-  row.classList.add(ledCatClass(t.category));
+  row.classList.add(ledCatClass(t.category, t.flow));
   const head = row.querySelector('b');
-  head.textContent = t.note || t.category;
-  row.querySelector('.txn-ic').textContent = String(t.category || '其').slice(0, 1);
+  head.textContent = t.note || (isTrf ? '转账' : t.category);
+  const ic = row.querySelector('.txn-ic');
+  if (isTrf) ic.innerHTML = '<svg><use href="#i-swap"/></svg>';
+  else ic.textContent = String(t.category || '其').slice(0, 1);
   const meta = row.querySelector('.txn-meta');
-  meta.innerHTML = `<span class="cat-tag">${escHtml(t.category)}</span><span>${escHtml(t.account)}</span>`;
+  meta.innerHTML = isTrf
+    ? `<span class="cat-tag">转账</span><span>${escHtml(t.account)} → ${escHtml(t.toAccount || '—')}</span>`
+    : `<span class="cat-tag">${escHtml(t.category)}${t.sub ? ' · ' + escHtml(t.sub) : ''}</span><span>${escHtml(t.account)}</span>`;
+  if (t.time) {
+    const tm = document.createElement('span');
+    tm.className = 'txn-time';
+    tm.textContent = t.time;
+    meta.appendChild(tm);
+  }
+  if (t.item) {
+    const it = document.createElement('span');
+    it.className = 'txn-pill item';
+    it.textContent = '🛍 ' + t.item;
+    meta.appendChild(it);
+  }
+  if (linked) {
+    const p = document.createElement('button');
+    p.type = 'button';
+    p.className = 'txn-pill';
+    p.textContent = '@' + linked.name;
+    p.title = '查看人际关系档案';
+    p.onclick = (e) => { e.stopPropagation(); jumpToContact(linked.id); };
+    meta.appendChild(p);
+  }
   if (payee) {
     const p = document.createElement('button');
     p.type = 'button';
@@ -1590,42 +1634,77 @@ function jumpToContact(id) {
   if (window.pfOpenProfile) window.pfOpenProfile(id);
 }
 
-// ===== 记一笔 / 编辑记录 弹窗 =====
-function syncTxnCats(extra) {
-  const sel = $('#txnCatSel');
-  const flow = ($('#txnForm') && $('#txnForm').flow.value) || 'expense';
-  const list = ((txnCats && txnCats[flow]) || ['其他']).slice();
-  if (extra && !list.includes(extra)) list.push(extra);
-  if (sel) {
-    const keep = sel.value;
-    sel.innerHTML = list.map((c) => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
-    sel.value = list.includes(keep) ? keep : list[0];
-  }
-  renderCatChips();
-}
+// ===== 记一笔 / 编辑记录 弹窗（v0.5.0 草稿驱动：分类两级 chips + 时间/账户/联系人/物品按钮） =====
+const p2 = (n) => String(n).padStart(2, '0');
+const nowHM = () => { const d = new Date(); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
 
+/** 分类 chips：一级 + （父分类有二级时的）二级 */
 function renderCatChips() {
   const box = $('#txnCatChips');
-  const sel = $('#txnCatSel');
-  if (!box || !sel) return;
+  const subBox = $('#txnSubChips');
+  if (!box || !txnDraft) return;
+  if (txnDraft.flow === 'transfer') { box.innerHTML = ''; if (subBox) subBox.hidden = true; return; }
+  const tops = catTree[txnDraft.flow] || [];
+  if (!tops.some((c) => c.name === txnDraft.category)) txnDraft.category = (tops[0] || {}).name || '其他';
   box.innerHTML = '';
-  $$('#txnCatSel option').forEach((o) => {
+  tops.forEach((c) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'cat-chip' + (o.value === sel.value ? ' on' : '');
-    b.textContent = o.value;
-    b.onclick = () => { sel.value = o.value; renderCatChips(); };
+    b.className = 'cat-chip' + (c.name === txnDraft.category ? ' on' : '');
+    b.textContent = c.name;
+    b.onclick = () => { txnDraft.category = c.name; txnDraft.sub = ''; renderCatChips(); };
     box.appendChild(b);
+  });
+  if (!subBox) return;
+  const cur = tops.find((c) => c.name === txnDraft.category);
+  const kids = (cur && cur.children) || [];
+  subBox.hidden = !kids.length;
+  subBox.innerHTML = '';
+  kids.forEach((k) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cat-chip sm' + (k.name === txnDraft.sub ? ' on' : '');
+    b.textContent = k.name;
+    b.onclick = () => { txnDraft.sub = txnDraft.sub === k.name ? '' : k.name; renderCatChips(); };
+    subBox.appendChild(b);
   });
 }
 
-function fillTxnAccounts(current) {
-  const sel = $('#txnAcctSel');
-  if (!sel) return;
-  const list = (ledgerData.accounts && ledgerData.accounts.length) ? ledgerData.accounts.slice() : ['默认账户'];
-  if (current && !list.includes(current)) list.push(current);
-  sel.innerHTML = list.map((a) => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('');
-  sel.value = current && list.includes(current) ? current : list[0];
+/** 收支/转账切换后的显隐联动 */
+function syncFlowUI() {
+  const isTrf = txnDraft.flow === 'transfer';
+  const catField = $('#txnCatField');
+  if (catField) catField.hidden = isTrf;
+  const label = $('#txnAcctLabel');
+  if (label) label.textContent = isTrf ? '转出 → 转入' : '账户';
+  if (isTrf && !txnDraft.toAccount) {
+    // 默认转入账户：取与转出不同的第一个常用账户
+    const list = (ledgerData.accounts && ledgerData.accounts.length ? ledgerData.accounts : ['默认账户'])
+      .filter((a) => a !== txnDraft.account && a !== '人情往来');
+    txnDraft.toAccount = list[0] || '银行卡';
+  }
+  renderCatChips();
+  syncMetaBtns();
+}
+
+/** 时间/账户/联系人/物品 四个按钮上的当前值 */
+function syncMetaBtns() {
+  if (!txnDraft) return;
+  const tv = $('#txnTimeVal');
+  if (tv) {
+    const d = txnDraft.date === todayStrLocal() ? '今天' : `${Number(txnDraft.date.slice(5, 7))}-${txnDraft.date.slice(8, 10)}`;
+    tv.textContent = txnDraft.time ? `${d} ${txnDraft.time}` : d;
+  }
+  const av = $('#txnAcctVal');
+  if (av) av.textContent = txnDraft.flow === 'transfer' ? `${txnDraft.account} → ${txnDraft.toAccount}` : (txnDraft.account || '—');
+  const cv = $('#txnContactVal');
+  if (cv) cv.textContent = txnDraft.contact ? txnDraft.contact.name : '选填';
+  const cb = $('#txnContactBtn');
+  if (cb) cb.classList.toggle('filled', !!txnDraft.contact);
+  const iv = $('#txnItemVal');
+  if (iv) iv.textContent = txnDraft.item || '选填';
+  const ib = $('#txnItemBtn');
+  if (ib) ib.classList.toggle('filled', !!txnDraft.item);
 }
 
 function openTxnModal(t) {
@@ -1639,20 +1718,30 @@ function openTxnModal(t) {
   $('#txnFormError').hidden = true;
 
   if (t) {
-    const radio = f.querySelector(`[name=flow][value="${t.flow === 'income' ? 'income' : 'expense'}"]`);
-    if (radio) radio.checked = true;
+    const linked = (ledgerData.linked || {})[t.id] || null;
+    txnDraft = {
+      flow: t.flow === 'income' ? 'income' : t.flow === 'transfer' ? 'transfer' : 'expense',
+      category: t.category, sub: t.sub || '',
+      date: t.date || todayStrLocal(), time: t.time || '',
+      account: t.account || '默认账户', toAccount: t.toAccount || '',
+      contact: t.contactId ? { id: t.contactId, name: (linked && linked.name) || '联系人' } : null,
+      item: t.item || '',
+    };
     $('#txnAmount').value = String(t.amount);
-    $('#txnDate').value = t.date || todayStrLocal();
-    f.note.value = t.note || '';
-    fillTxnAccounts(t.account);
-    syncTxnCats(t.category);
-    $('#txnCatSel').value = t.category;
-    renderCatChips();
+    $('#txnNote').value = t.note || '';
   } else {
-    $('#txnDate').value = todayStrLocal();
-    fillTxnAccounts(ledgerState.lastAccount || '默认账户');
-    syncTxnCats();
+    txnDraft = {
+      flow: 'expense', category: '', sub: '',
+      date: todayStrLocal(), time: nowHM(),          // 默认添加时的当前时间
+      account: ledgerState.lastAccount || '默认账户', toAccount: '',
+      contact: null, item: '',
+    };
+    $('#txnAmount').value = '';
+    $('#txnNote').value = '';
   }
+  const radio = f.querySelector(`[name=flow][value="${txnDraft.flow}"]`);
+  if (radio) radio.checked = true;
+  syncFlowUI();
   syncTxnHint();
   $('#txnModal').hidden = false;
   // 桌面端自动聚焦金额（手机端不聚焦，避免键盘顶起页面）
@@ -1666,32 +1755,45 @@ function closeTxnModal() {
 
 function syncTxnHint() {
   const hint = $('#txnSyncHint');
-  const note = $('#txnForm') && $('#txnForm').note.value.trim();
+  const note = $('#txnNote') ? $('#txnNote').value.trim() : '';
   if (hint) hint.hidden = !(note && note[0] === '@');
 }
 
 async function submitTxn(e) {
   e.preventDefault();
-  const f = $('#txnForm');
-  const fd = new FormData(f);
+  if (!txnDraft) return;
   const errEl = $('#txnFormError');
-  const amount = Number(fd.get('amount'));
+  const amount = Number($('#txnAmount').value);
   if (!Number.isFinite(amount) || amount <= 0) {
     errEl.textContent = '请填写有效金额';
     errEl.hidden = false;
     return;
   }
-  const id = fd.get('id');
-  const account = String(fd.get('account') || '默认账户');
-  ledgerState.lastAccount = account;
+  if (txnDraft.flow === 'transfer' && txnDraft.toAccount === txnDraft.account) {
+    errEl.textContent = '转出与转入账户不能相同';
+    errEl.hidden = false;
+    return;
+  }
+  const id = $('#txnEditId').value;
+  const payload = {
+    flow: txnDraft.flow,
+    amount,
+    category: txnDraft.flow === 'transfer' ? '转账' : (txnDraft.category || '其他'),
+    sub_category: txnDraft.flow === 'transfer' ? '' : (txnDraft.sub || ''),
+    date: txnDraft.date,
+    time: txnDraft.time || '',
+    account: txnDraft.account,
+    to_account: txnDraft.flow === 'transfer' ? txnDraft.toAccount : '',
+    contact_id: txnDraft.contact ? txnDraft.contact.id : null,
+    item: txnDraft.item || '',
+    note: $('#txnNote').value,
+  };
+  ledgerState.lastAccount = txnDraft.account;
   try {
     const res = await api(id ? `/api/transactions/${id}` : '/api/transactions', {
       method: id ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        flow: fd.get('flow'), amount, category: fd.get('category'),
-        date: fd.get('date'), note: fd.get('note'), account,
-      }),
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       closeTxnModal();
@@ -1704,6 +1806,231 @@ async function submitTxn(e) {
       errEl.hidden = false;
     }
   } catch { /* 401 已处理 */ }
+}
+
+/* ---------- 时间选择器：月历 + 拖动选时分 ---------- */
+let tpState = null;   // { y, m, date, h, mi }
+let tpDials = null;   // { h: dialApi, mi: dialApi }
+
+/** 可拖动数字滚轮（小时/分钟通用）：支持指针拖动、滚轮、点选，松手吸附 */
+function makeDial(el, count, initVal, onChange) {
+  const ITEM = 36;                 // 与 CSS .tp-item 高度保持一致
+  el.innerHTML = '';
+  const strip = document.createElement('div');
+  strip.className = 'tp-strip';
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const it = document.createElement('div');
+    it.className = 'tp-item';
+    it.textContent = p2(i);
+    it.dataset.i = i;
+    strip.appendChild(it);
+    items.push(it);
+  }
+  el.appendChild(strip);
+
+  let cur = Math.max(0, Math.min(count - 1, initVal));
+  let dragging = false, moved = false, startY = 0, startCur = 0;
+
+  const paint = (anim) => {
+    strip.style.transition = anim ? 'transform .16s ease' : 'none';
+    strip.style.transform = `translateY(${(el.clientHeight - ITEM) / 2 - cur * ITEM}px)`;
+    const near = Math.round(cur);
+    items.forEach((it, i) => it.classList.toggle('on', i === near));
+  };
+  const setVal = (v, anim) => {
+    cur = Math.max(0, Math.min(count - 1, v));
+    paint(anim);
+    onChange(Math.round(cur));
+  };
+  paint(false);
+
+  el.addEventListener('pointerdown', (e) => {
+    dragging = true; moved = false;
+    startY = e.clientY; startCur = cur;
+    el.setPointerCapture(e.pointerId);
+    paint(false);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 3) moved = true;
+    if (!moved) return;
+    cur = Math.max(0, Math.min(count - 1, startCur - dy / ITEM));
+    paint(false);
+    onChange(Math.round(cur));
+  });
+  const finish = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    if (moved) { setVal(Math.round(cur), true); return; }
+    // 未拖动 → 视为点选
+    const it = e.target && e.target.closest ? e.target.closest('.tp-item') : null;
+    if (it) setVal(Number(it.dataset.i), true);
+    else setVal(Math.round(cur), true);
+  };
+  el.addEventListener('pointerup', finish);
+  el.addEventListener('pointercancel', () => { dragging = false; setVal(Math.round(cur), true); });
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    setVal(Math.round(cur) + (e.deltaY > 0 ? 1 : -1), true);
+  }, { passive: false });
+
+  return { get: () => Math.round(cur), set: (v) => setVal(v, true) };
+}
+
+function tpRenderCal() {
+  const grid = $('#tpGrid');
+  const ym = $('#tpYM');
+  if (!grid || !tpState) return;
+  ym.textContent = `${tpState.y}年${tpState.m + 1}月`;
+  const first = new Date(tpState.y, tpState.m, 1);
+  const days = new Date(tpState.y, tpState.m + 1, 0).getDate();
+  let html = '';
+  for (let i = 0; i < first.getDay(); i++) html += '<i></i>';
+  const today = todayStrLocal();
+  for (let d = 1; d <= days; d++) {
+    const ds = `${tpState.y}-${p2(tpState.m + 1)}-${p2(d)}`;
+    const cls = (ds === tpState.date ? ' sel' : '') + (ds === today ? ' today' : '');
+    html += `<button type="button" class="tp-day${cls}" data-d="${d}">${d}</button>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('.tp-day').forEach((b) => {
+    b.onclick = () => {
+      tpState.date = `${tpState.y}-${p2(tpState.m + 1)}-${p2(Number(b.dataset.d))}`;
+      tpRenderCal();
+    };
+  });
+}
+
+function tpShiftMonth(delta) {
+  const d = new Date(tpState.y, tpState.m + delta, 1);
+  tpState.y = d.getFullYear();
+  tpState.m = d.getMonth();
+  tpRenderCal();
+}
+
+async function openTimePicker() {
+  const m = $('#timePickModal');
+  if (!m || !txnDraft) return;
+  const [y, mo, d] = (txnDraft.date || todayStrLocal()).split('-').map(Number);
+  const [h, mi] = (txnDraft.time || nowHM()).split(':').map(Number);
+  tpState = { y: y || new Date().getFullYear(), m: (mo || 1) - 1, date: txnDraft.date || todayStrLocal(), h: h || 0, mi: mi || 0 };
+  tpRenderCal();
+  if (!tpDials) {
+    tpDials = {
+      h: makeDial($('#tpHourDial'), 24, tpState.h, (v) => { tpState.h = v; }),
+      mi: makeDial($('#tpMinDial'), 60, tpState.mi, (v) => { tpState.mi = v; }),
+    };
+  } else {
+    tpDials.h.set(tpState.h);
+    tpDials.mi.set(tpState.mi);
+  }
+  m.hidden = false;
+}
+
+function tpApplyNow() {
+  const d = new Date();
+  tpState.date = todayStrLocal();
+  tpState.y = d.getFullYear();
+  tpState.m = d.getMonth();
+  tpRenderCal();
+  tpDials.h.set(d.getHours());
+  tpDials.mi.set(d.getMinutes());
+}
+
+function tpDone() {
+  txnDraft.date = tpState.date;
+  txnDraft.time = `${p2(tpDials.h.get())}:${p2(tpDials.mi.get())}`;
+  $('#timePickModal').hidden = true;
+  syncMetaBtns();
+}
+
+/* ---------- 账户选择（转账模式下选转出/转入两组） ---------- */
+function renderAcctPick() {
+  const body = $('#acctPickBody');
+  if (!body || !txnDraft) return;
+  const isTrf = txnDraft.flow === 'transfer';
+  $('#acctPickTitle').textContent = isTrf ? '选择转账账户' : '选择账户';
+  $('#acctPickDone').hidden = !isTrf;
+  const list = (ledgerData.accounts && ledgerData.accounts.length ? ledgerData.accounts : ['默认账户']);
+  const grp = (title, current, onPick) => {
+    const w = document.createElement('div');
+    w.className = 'acct-group';
+    w.innerHTML = `<span class="acct-t">${title}</span>`;
+    const chips = document.createElement('div');
+    chips.className = 'cat-chips';
+    list.forEach((a) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cat-chip' + (a === current ? ' on' : '');
+      b.textContent = a;
+      b.onclick = () => { onPick(a); renderAcctPick(); syncMetaBtns(); };
+      chips.appendChild(b);
+    });
+    w.appendChild(chips);
+    body.appendChild(w);
+  };
+  body.innerHTML = '';
+  if (isTrf) {
+    grp('转出账户', txnDraft.account, (a) => { txnDraft.account = a; });
+    grp('转入账户', txnDraft.toAccount, (a) => { txnDraft.toAccount = a; });
+  } else {
+    grp('付款账户', txnDraft.account, (a) => { txnDraft.account = a; $('#acctPickModal').hidden = true; });
+  }
+}
+
+/* ---------- 联系人选择（来自人际关系，选中即关联） ---------- */
+let contactCache = null;
+async function openContactPicker() {
+  const m = $('#contactPickModal');
+  if (!m) return;
+  const list = $('#contactPickList');
+  list.innerHTML = '<div class="empty-hint">加载中…</div>';
+  $('#contactPickSearch').value = '';
+  m.hidden = false;
+  if (!contactCache) {
+    try {
+      const res = await api('/api/contacts');
+      contactCache = (await res.json()).contacts || [];
+    } catch (_) { contactCache = []; }
+  }
+  renderContactPick('');
+}
+
+function renderContactPick(q) {
+  const list = $('#contactPickList');
+  if (!list) return;
+  const kw = (q || '').trim().toLowerCase();
+  const rows = (contactCache || []).filter((c) => !kw || String(c.name || '').toLowerCase().includes(kw) || String(c.phone || '').includes(kw));
+  list.innerHTML = '';
+  if (txnDraft && txnDraft.contact) {
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'cp-row clear';
+    clear.innerHTML = '<span class="cp-av">✕</span><b>不关联联系人</b>';
+    clear.onclick = () => { txnDraft.contact = null; $('#contactPickModal').hidden = true; syncMetaBtns(); };
+    list.appendChild(clear);
+  }
+  if (!rows.length) {
+    if (!list.children.length) list.innerHTML = '<div class="empty-hint">没有匹配的联系人</div>';
+    return;
+  }
+  rows.forEach((c) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cp-row';
+    b.innerHTML = `<span class="cp-av"></span><div class="cp-main"><b></b><small></small></div>`;
+    b.querySelector('.cp-av').textContent = String(c.name || '?')[0];
+    b.querySelector('b').textContent = c.name;
+    b.querySelector('small').textContent = [c.gender, c.phone].filter(Boolean).join(' · ') || '　';
+    b.onclick = () => {
+      txnDraft.contact = { id: c.id, name: c.name };
+      $('#contactPickModal').hidden = true;
+      syncMetaBtns();
+    };
+    list.appendChild(b);
+  });
 }
 
 // ===== 人际关系 =====
@@ -2825,7 +3152,7 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.4.0.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定
