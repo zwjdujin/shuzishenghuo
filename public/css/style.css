@@ -1440,3 +1440,11 @@ html[data-mode="night"] .txn-flow-seg .seg-item:has(input:checked){color:#fff!im
   #view-ledger .gh-actions .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
   #view-ledger .led-monthnav{order:3;flex:0 0 100%;justify-content:flex-start}
 }
+
+/* ================= v0.5.3 待发：桌面端布局修复 ================= */
+/* 账本页头：齿轮 + 记一笔 水平成组（此前 gh-actions 无 display 规则，桌面端两按钮竖排） */
+.gh-actions{display:flex;align-items:center;gap:8px}
+/* 成长打卡「我的习惯」空提示：横跨整个网格行，文字与上下面板一样居中 */
+.habit-grid .empty-hint{grid-column:1/-1}
+/* 家庭药箱统计：5 张卡片一行展示（此前缺 display:grid，卡片竖向堆叠） */
+.med-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}

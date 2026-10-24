@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.2
-const VERSION = '0.5.2';
+// 数字生活 · 前端逻辑 v0.5.3
+const VERSION = '0.5.3';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'v0.5.2 界面优化：登录页主题化 / 各页移动端页头右对齐 / 记账与人脉按钮样式统一 / 人脉词库设置页（标签群组增删改排序）/ prompt 兼容修复';
+const __BUILD_ID__ = 'v0.5.3 桌面端布局修复：账本页头齿轮与记一笔同行 / 成长打卡空提示居中 / 家庭药箱统计一行五卡';
 const __BUILD_TIME__ = '2026-10-24';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -3679,7 +3679,7 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.2.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.3.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定

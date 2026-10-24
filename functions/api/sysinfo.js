@@ -1,7 +1,7 @@
 import { json, todayStr } from '../_lib.js';
 
 // 与 schema 版本对应（数据库结构版本）
-const DB_SCHEMA_VERSION = 'v0.5.2';
+const DB_SCHEMA_VERSION = 'v0.5.3';
 const DEPLOY_PLATFORM = 'Cloudflare Pages';
 const DEPLOY_SOURCE = 'GitHub → Cloudflare Pages（Git 集成自动部署）';
 const BACKEND = 'Cloudflare Pages Functions（无服务器）';
