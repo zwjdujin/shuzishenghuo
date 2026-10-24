@@ -32,6 +32,11 @@ window.addEventListener('unhandledrejection', (e) => fatal('Promise: ' + (e.reas
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+// 带空值保护的绑定助手：元素缺失时静默跳过（HTML/JS 版本错配时不再让整个应用崩溃）
+function bind(sel, type, fn) {
+  const el = $(sel);
+  if (el) el.addEventListener(type, fn);
+}
 
 function money(n) {
   return '¥' + Math.round(Number(n || 0)).toLocaleString('zh-CN');
@@ -377,7 +382,7 @@ function showLoginError(msg) {
   err.hidden = false;
 }
 // 登录：直接用 fetch，不要把 401 交给 api() 包装函数（否则会被静默吞掉、毫无提示）
-$('#loginForm').addEventListener('submit', async (e) => {
+bind('#loginForm', 'submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const btn = e.target.querySelector('button');
@@ -2026,9 +2031,9 @@ async function editHabit(id) {
 function closeHabitModal() { $('#habitModal').hidden = true; }
 function showHabitFormError(msg) { const el = $('#habitFormError'); el.textContent = msg; el.hidden = false; }
 
-$('#addHabitBtn').addEventListener('click', openHabitModal);
-$('#habitModalClose').addEventListener('click', closeHabitModal);
-$('#habitModal').addEventListener('click', (e) => { if (e.target === $('#habitModal')) closeHabitModal(); });
+bind('#addHabitBtn', 'click', openHabitModal);
+bind('#habitModalClose', 'click', closeHabitModal);
+bind('#habitModal', 'click', (e) => { if (e.target === $('#habitModal')) closeHabitModal(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHabitModal(); });
 
 $('#habitForm').querySelector('[name=category]').addEventListener('change', (e) => {
@@ -2045,7 +2050,7 @@ $$('#habitForm [name=method]').forEach((r) =>
   })
 );
 
-$('#habitForm').addEventListener('submit', async (e) => {
+bind('#habitForm', 'submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const catSel = fd.get('category');
@@ -2538,7 +2543,7 @@ async function renderSysInfo() {
   }
 }
 
-$('#saveSettingsBtn').addEventListener('click', async () => {
+bind('#saveSettingsBtn', 'click', async () => {
   const payload = {
     brand_name: ($('#setBrandName').value || '').trim() || '数字生活',
     brand_avatar: ($('#setBrandAvatar').value || '').trim() || '数',
@@ -2573,15 +2578,10 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
   finally { btn.disabled = false; }
 });
 
-$('#logoutBtn2').addEventListener('click', doLogout);
+bind('#logoutBtn2', 'click', doLogout);
 
 // ===== 修改密码弹窗交互 =====
-// 注意：app.js 末尾的绑定都是直连 DOM，任一元素缺失就会中断后续初始化
-// （曾因预览页 HTML 快照早于 index.html，导致 #changePassBtn 为 null 而整段失败），此处统一加空值保护。
-function bind(sel, type, fn) {
-  const el = $(sel);
-  if (el) el.addEventListener(type, fn);
-}
+// 修改密码弹窗交互（bind 为顶部定义的空值保护助手）
 bind('#changePassBtn', 'click', openPassModal);
 bind('#passModalClose', 'click', closePassModal);
 bind('#passCancelBtn', 'click', closePassModal);
@@ -2594,21 +2594,21 @@ bind('#passSubmitBtn', 'click', submitPassChange);
 });
 
 // ===== 数据处理页交互 =====
-$('#exportDataBtn').addEventListener('click', exportAllData);
-$('#refreshDataBtn').addEventListener('click', renderDataPage);
-$('#ackBackup').addEventListener('change', (e) => {
+bind('#exportDataBtn', 'click', exportAllData);
+bind('#refreshDataBtn', 'click', renderDataPage);
+bind('#ackBackup', 'change', (e) => {
   const cb = $('#clearDataBtn');
   if (cb) cb.disabled = !e.target.checked;
 });
-$('#clearDataBtn').addEventListener('click', openClearModal);
-$('#clearModalClose').addEventListener('click', closeClearModal);
-$('#clearCancelBtn').addEventListener('click', closeClearModal);
-$('#clearModal').addEventListener('click', (e) => { if (e.target === $('#clearModal')) closeClearModal(); });
-$('#clearConfirmInput').addEventListener('input', (e) => {
+bind('#clearDataBtn', 'click', openClearModal);
+bind('#clearModalClose', 'click', closeClearModal);
+bind('#clearCancelBtn', 'click', closeClearModal);
+bind('#clearModal', 'click', (e) => { if (e.target === $('#clearModal')) closeClearModal(); });
+bind('#clearConfirmInput', 'input', (e) => {
   const cb = $('#clearConfirmBtn');
   if (cb) cb.disabled = e.target.value.trim() !== '清空';
 });
-$('#clearConfirmBtn').addEventListener('click', confirmClearData);
+bind('#clearConfirmBtn', 'click', confirmClearData);
 
 // ===== 个人中心子菜单（唯一入口） =====
 // 记住当前选中的子页，从子菜单进入时不被 switchView 重置
@@ -2665,16 +2665,16 @@ document.addEventListener('click', (e) => {
 
 // ===== 日历中心交互 =====
 $$('.cal-view').forEach((b) => b.addEventListener('click', () => switchCalView(b.dataset.calview)));
-$('#calPrev').addEventListener('click', () => calShift(-1));
-$('#calNext').addEventListener('click', () => calShift(1));
-$('#calToday').addEventListener('click', () => { calState.anchor = new Date(); initCalPicker(); loadCalEvents(); });
-$('#calMonth').addEventListener('change', applyCalPicker);
-$('#calYear').addEventListener('change', applyCalPicker);
-$('#calYear').addEventListener('blur', applyCalPicker);
-$('#addEventBtn').addEventListener('click', () => openEventModal(null));
-$('#eventModalClose').addEventListener('click', closeEventModal);
-$('#eventModal').addEventListener('click', (e) => { if (e.target === $('#eventModal')) closeEventModal(); });
-$('#eventForm').addEventListener('submit', async (e) => {
+bind('#calPrev', 'click', () => calShift(-1));
+bind('#calNext', 'click', () => calShift(1));
+bind('#calToday', 'click', () => { calState.anchor = new Date(); initCalPicker(); loadCalEvents(); });
+bind('#calMonth', 'change', applyCalPicker);
+bind('#calYear', 'change', applyCalPicker);
+bind('#calYear', 'blur', applyCalPicker);
+bind('#addEventBtn', 'click', () => openEventModal(null));
+bind('#eventModalClose', 'click', closeEventModal);
+bind('#eventModal', 'click', (e) => { if (e.target === $('#eventModal')) closeEventModal(); });
+bind('#eventForm', 'submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const title = String(fd.get('title') || '').trim();
@@ -2710,7 +2710,7 @@ $('#eventForm').addEventListener('submit', async (e) => {
   }
 });
 // 删除事件
-$('#eventDeleteBtn').addEventListener('click', async () => {
+bind('#eventDeleteBtn', 'click', async () => {
   if (!editingEventId) return;
   if (!confirm('确定删除该日程？')) return;
   const res = await api(`/api/events?id=${editingEventId}`, { method: 'DELETE' }).catch(() => null);
@@ -2728,17 +2728,17 @@ document.addEventListener('dblclick', (e) => {
 });
 
 // ===== 待办交互 =====
-$('#addTodoBtn').addEventListener('click', () => {
+bind('#addTodoBtn', 'click', () => {
   const f = $('#todoForm');
   f.reset();
   f.date.value = todayStrLocal();
   $('#todoFormError').hidden = true;
   $('#todoModal').hidden = false;
 });
-$('#enableNotifyBtn').addEventListener('click', enableTodoNotify);
-$('#todoModalClose').addEventListener('click', () => { $('#todoModal').hidden = true; });
-$('#todoModal').addEventListener('click', (e) => { if (e.target === $('#todoModal')) $('#todoModal').hidden = true; });
-$('#todoForm').addEventListener('submit', async (e) => {
+bind('#enableNotifyBtn', 'click', enableTodoNotify);
+bind('#todoModalClose', 'click', () => { $('#todoModal').hidden = true; });
+bind('#todoModal', 'click', (e) => { if (e.target === $('#todoModal')) $('#todoModal').hidden = true; });
+bind('#todoForm', 'submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const title = String(fd.get('title') || '').trim();
