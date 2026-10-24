@@ -1,4 +1,5 @@
 import { json, todayStr, weekdayCN, cnNow } from '../_lib.js';
+import { birthdayWithin30Of } from './_profile.js';
 
 function fmtWhen(date, time, today) {
   if (date < today) return '已逾期';
@@ -9,16 +10,6 @@ function fmtWhen(date, time, today) {
 function fmtTime(start) {
   const m = /(\d{2}:\d{2})/.exec(start || '');
   return m ? m[1] : '';
-}
-function birthdayWithin30(birthday, today) {
-  if (!birthday || !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return false;
-  const [, m, d] = birthday.split('-');
-  const t = new Date(today + 'T00:00:00');
-  let y = t.getFullYear();
-  let b = new Date(`${y}-${m}-${d}T00:00:00`);
-  if (b < t) b = new Date(`${y + 1}-${m}-${d}T00:00:00`);
-  const diff = Math.round((b - t) / 86400000);
-  return diff >= 0 && diff <= 30;
 }
 
 export async function onRequestGet(context) {
@@ -71,8 +62,14 @@ export async function onRequestGet(context) {
   }
   const habitDoneCount = habitList.filter(habitTodayDone).length;
 
-  // 关系：30 天内的生日数量（下方 birthdayWithin30 统一按北京「今天」口径）
+  // 关系：30 天内有生日的联系人（生日向导三种形态 + 阳历/农历统一换算）
   let upcomingBirthdays = 0;
+  try {
+    const cRows = (
+      await db.prepare('SELECT birthday_type, birthday_calendar, birth_year, birth_month, birth_day, is_deceased FROM contacts').all()
+    ).results || [];
+    upcomingBirthdays = cRows.filter((c) => !c.is_deceased && birthdayWithin30Of(c)).length;
+  } catch (_) { /* 忽略 */ }
 
   const stats = {
     todos: {
@@ -110,11 +107,6 @@ export async function onRequestGet(context) {
   stats.ledger.income = ledgerRow ? Number(ledgerRow.inc) : 0;
   stats.ledger.expense = ledgerRow ? Number(ledgerRow.exp) : 0;
   stats.ledger.balance = stats.ledger.income - stats.ledger.expense;
-
-  const contacts = await db.prepare('SELECT name, relation, birthday FROM contacts').all();
-  stats.relations.upcoming = (contacts.results || []).filter((c) =>
-    birthdayWithin30(c.birthday, today)
-  ).length;
 
   // 「今天要处理」：待办（逾期/今日）+ 今日事件
   const todoRows = await db
@@ -165,7 +157,7 @@ export async function onRequestGet(context) {
 
   const now = cnNow();
   return json({
-    version: '0.3.15',
+    version: '0.4.0',
     brand,
     appearance,
     today,

@@ -1,119 +1,76 @@
 import { json } from '../../_lib.js';
-import { nextBirthday, ageOf } from '../_profile.js';
+import { nextBirthdayOf, ageOfContact } from '../_profile.js';
 
-const AGE_BANDS = {
-  '18岁以下': (a) => a !== null && a < 18,
-  '18-30岁': (a) => a >= 18 && a <= 30,
-  '31-45岁': (a) => a >= 31 && a <= 45,
-  '46-60岁': (a) => a >= 46 && a <= 60,
-  '60岁以上': (a) => a > 60,
-};
-
-// GET /api/profile/list?q=&surname=&gender=&ageBand=&relation=&province=&city=&level=
+// GET /api/profile/list?q=&gender=&group=&tag=
+// v0.4.0 人际关系列表：姓名（A-Z 拼音分组由前端排）、性别、电话；筛选 性别/群组/标签
 export async function onRequestGet(context) {
   const { env, request } = context;
   try {
-    return await handle(context, env, request);
+    return await handle(env, request);
   } catch (err) {
-    const st = (err && err.stack) ? String(err.stack).split('\n').slice(0, 4).join(' | ') : '';
-    return json({ error: '列表查询失败', detail: String(err && err.message || err), at: st }, 500);
+    return json({ error: '列表查询失败', detail: String((err && err.message) || err) }, 500);
   }
 }
 
-async function handle(context, env, request) {
+async function handle(env, request) {
   const u = new URL(request.url);
   const p = (k) => (u.searchParams.get(k) || '').trim();
+  const q = p('q'), gender = p('gender'), group = p('group'), tag = p('tag');
 
-  const q = p('q'), surname = p('surname'), gender = p('gender'),
-    ageBand = p('ageBand'), relation = p('relation'),
-    province = p('province'), city = p('city'), level = p('level');
-
-  const where = [];
+  const where = ['1=1'];
   const args = [];
-  if (surname) { where.push('substr(name,1,1) = ?'); args.push(surname); }
   if (gender) { where.push('gender = ?'); args.push(gender); }
-  if (relation) { where.push('relation = ?'); args.push(relation); }
-  if (province) { where.push('province = ?'); args.push(province); }
-  if (city) { where.push('city = ?'); args.push(city); }
-  if (level) { where.push('level = ?'); args.push(level); }
+  // CSV 集合匹配：把两端补上逗号后做包含匹配，避免「同事」误命中「老同事」
+  if (group) { where.push("(',' || peer_groups || ',') LIKE ?"); args.push(`%,${group},%`); }
+  if (tag) { where.push("(',' || tags || ',') LIKE ?"); args.push(`%,${tag},%`); }
   if (q) {
-    where.push("(IFNULL(name,'') LIKE ? OR IFNULL(alias,'') LIKE ? OR IFNULL(note,'') LIKE ? OR IFNULL(city,'') LIKE ? OR IFNULL(province,'') LIKE ?)");
-    args.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    where.push("(IFNULL(name,'') LIKE ? OR IFNULL(first_name,'') LIKE ? OR IFNULL(nickname,'') LIKE ?" +
+      " OR IFNULL(childhood_name,'') LIKE ? OR IFNULL(former_name,'') LIKE ?" +
+      " OR IFNULL(english_name,'') LIKE ? OR IFNULL(alias,'') LIKE ?" +
+      " OR IFNULL(phone,'') LIKE ? OR IFNULL(note,'') LIKE ?)");
+    for (let i = 0; i < 9; i++) args.push(`%${q}%`);
   }
 
-  // 先取基础列表（避免关联子查询在 D1 上的兼容问题），计数另行批量统计
-  const baseSql = `SELECT id, name,
-            IFNULL(alias,'') AS alias, IFNULL(gender,'') AS gender, IFNULL(birthday,'') AS birthday,
-            IFNULL(idcard_birthday,'') AS idcard_birthday, IFNULL(province,'') AS province,
-            IFNULL(city,'') AS city, IFNULL(relation,'') AS relation, IFNULL(level,'') AS level,
-            IFNULL(job,'') AS job, IFNULL(note,'') AS note, IFNULL(show_lunar,0) AS show_lunar
-     FROM contacts${where.length ? ' WHERE ' + where.join(' AND ') : ''}
-     ORDER BY (birthday IS NULL), name`;
-  // 注意：无筛选条件时不要调用 bind()（D1 对空参数列表敏感）
-  const stmt = env.DB.prepare(baseSql);
+  const sql = `SELECT id, name, first_name, nickname, childhood_name, former_name, english_name, alias,
+      gender, birthday_type, birthday_calendar, birth_year, birth_month, birth_day,
+      birthday_remind, is_deceased, tags, peer_groups, referrer_id, marriage, phone, note
+    FROM contacts WHERE ${where.join(' AND ')} ORDER BY name`;
+  const stmt = env.DB.prepare(sql);
   const rows = (args.length ? await stmt.bind(...args).all() : await stmt.all()).results || [];
 
-  const ids = rows.map((r) => r.id);
-  const cnt = { relatives: {}, interacts: {}, promises: {}, files: {}, phone: {} };
-  if (ids.length && ids.every((x) => x !== undefined && x !== null)) {
-    const ph = ids.map(() => '?').join(',');
-    const grab = async (table, bucket, cond) => {
-      const st = env.DB.prepare(
-        `SELECT person_id, COUNT(*) AS c FROM ${table} WHERE person_id IN (${ph})${cond || ''} GROUP BY person_id`
-      );
-      const rs = (await st.bind(...ids).all()).results || [];
-      rs.forEach((x) => { bucket[x.person_id] = x.c; });
-    };
-    await grab('contact_relatives', cnt.relatives, ' AND dead = 0');
-    await grab('contact_interacts', cnt.interacts, '');
-    await grab('contact_promises', cnt.promises, ' AND done = 0');
-    await grab('contact_files', cnt.files, '');
-    // 主手机号：取该人物未弃用的第一个 phones
-    const phs = (await env.DB.prepare(
-      `SELECT person_id, value FROM contact_contacts WHERE person_id IN (${ph}) AND kind='phones' AND deprecated=0 ORDER BY id`
-    ).bind(...ids).all()).results || [];
-    phs.forEach((x) => { if (!cnt.phone[x.person_id]) cnt.phone[x.person_id] = x.value; });
-  }
+  const list = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    firstName: r.first_name || '',
+    nickname: r.nickname || '',
+    englishName: r.english_name || '',
+    alias: r.alias || '',
+    gender: r.gender || '',
+    phone: r.phone || '',
+    tags: String(r.tags || '').split(',').map((x) => x.trim()).filter(Boolean),
+    groups: String(r.peer_groups || '').split(',').map((x) => x.trim()).filter(Boolean),
+    isDeceased: !!r.is_deceased,
+    birthdayRemind: !!r.birthday_remind,
+    hasBirthday: !!r.birthday_type,
+    nextBirthday: r.is_deceased ? null : nextBirthdayOf(r),
+    age: ageOfContact(r),
+    marriage: r.marriage || '',
+  }));
 
-  let list = rows.map((r) => {
-    try {
-      const bd = r.birthday || r.idcard_birthday || '';
-      const a = ageOf(bd);
-      return {
-        id: r.id, name: r.name, alias: r.alias, gender: r.gender,
-        birthday: bd, age: a, province: r.province, city: r.city,
-        relation: r.relation, level: r.level, job: r.job, note: r.note,
-        showLunar: !!r.show_lunar,
-        phone: cnt.phone[r.id] || '',
-        nextBirthday: nextBirthday(bd),
-        counts: {
-          relatives: cnt.relatives[r.id] || 0,
-          interacts: cnt.interacts[r.id] || 0,
-          promises: cnt.promises[r.id] || 0,
-          files: cnt.files[r.id] || 0,
-        },
-      };
-    } catch (e) {
-      return { id: r.id, name: r.name, alias: '', gender: '', birthday: '', age: null,
-        province: '', city: '', relation: '', level: '', job: '', note: '',
-        showLunar: false, nextBirthday: null, counts: { relatives: 0, interacts: 0, promises: 0, files: 0 } };
-    }
-  });
-
-  if (ageBand && AGE_BANDS[ageBand]) list = list.filter((x) => AGE_BANDS[ageBand](x.age));
-
-  // 筛选项（从现有数据动态提取，避免写死）
-  const all = (await env.DB.prepare('SELECT name, province, city, relation, gender, level FROM contacts').all()).results || [];
-  const uniq = (k) => [...new Set(all.map((x) => x[k]).filter(Boolean))];
-  const surNames = [...new Set(all.map((x) => (x.name ? String(x.name)[0] : '')).filter(Boolean))].sort();
+  // 筛选项：性别固定三项；群组/标签从词库 + 实际数据合并
+  const dict = async (kind) => ((await env.DB.prepare('SELECT word FROM vocab WHERE kind=? ORDER BY hits DESC, word').bind(kind).all()).results || []).map((x) => x.word);
+  const [groupDict, tagDict] = await Promise.all([dict('rel_group'), dict('rel_tag')]);
+  const inData = (k) => [...new Set(rows.map((r) => String(r[k] || '').split(',').map((x) => x.trim()).filter(Boolean)).flat())];
+  const groups = [...new Set([...groupDict, ...inData('peer_groups')])];
+  const tags = [...new Set([...tagDict, ...inData('tags')])];
 
   return json({
-    list, total: list.length,
+    list,
+    total: list.length,
     options: {
-      surnames: surNames,
-      genders: uniq('gender'), relations: uniq('relation'),
-      provinces: uniq('province'), cities: uniq('city'), levels: uniq('level'),
-      ageBands: Object.keys(AGE_BANDS),
+      genders: ['男', '女', '其他'],
+      groups, tags,
+      marriages: ['已婚', '未婚', '离婚', '丧偶'],
     },
   });
 }

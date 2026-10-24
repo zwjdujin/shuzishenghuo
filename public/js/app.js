@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.3.15
-const VERSION = '0.3.15';
+// 数字生活 · 前端逻辑 v0.4.0
+const VERSION = '0.4.0';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'v0.3.15 全量修复：档案保存不再丢字段 / 承诺待办同步 / 北京时区对齐 / 热力图目标值 / 附件上传 / PWA 修复';
+const __BUILD_ID__ = 'v0.4.0 人际关系模块重建：A-Z 分组列表 / 生日向导（阳历·农历）/ 标签群组 / 联系方式 / 婚姻 / 家庭关系 / 公司职位 / 宠物';
 const __BUILD_TIME__ = '2026-10-24';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -698,7 +698,7 @@ async function mergeBirthdays(from, to) {
     const res = await api('/api/contacts');
     const data = await res.json();
     (data.contacts || [])
-      .filter((c) => c.showInCalendar && c.nextBirthday)
+      .filter((c) => c.birthdayRemind && c.nextBirthday)
       .forEach((c) => {
         if (c.nextBirthday < from || c.nextBirthday > to) return;
         calState.events.push({
@@ -1701,27 +1701,9 @@ async function submitTxn(e) {
   } catch { /* 401 已处理 */ }
 }
 
-// ===== 人际关系（联系人弹窗；列表与生日卡片由 profile.js 的 pfLoadList 渲染） =====
-let editingContactId = null;
-
-function openContactModal(c) {
-  editingContactId = c ? c.id : null;
-  const f = $('#contactForm');
-  f.reset();
-  $('#contactModalTitle').textContent = c ? '编辑联系人' : '添加联系人';
-  $('#contactFormError').hidden = true;
-  $('#contactDeleteBtn').hidden = !c;
-  if (c) {
-    f.name.value = c.name;
-    f.relation.value = c.relation || '';
-    f.birthday.value = c.birthday || '';
-    f.phone.value = c.phone || '';
-    f.note.value = c.note || '';
-    f.showInCalendar.checked = !!c.showInCalendar;
-  }
-  $('#contactModal').hidden = false;
-}
-function closeContactModal() { $('#contactModal').hidden = true; }
+// ===== 人际关系 =====
+// v0.4.0 起列表与档案全部由 profile.js（pfLoadList / pfOpenProfile）负责，
+// 添加/编辑走 contactEditModal，此处不再有联系人弹窗。
 
 // ===== 导航切换 =====
 // keepTab：从子菜单进入个人中心时，保留已选中的子页，不强制回到默认页
@@ -2838,43 +2820,6 @@ $$('#ledFlowFilter .lf-btn').forEach((b) => {
   };
 });
 bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; renderTxnList(); });
-
-// ===== 人际关系交互 =====
-$('#addContactBtn').addEventListener('click', () => openContactModal(null));
-$('#contactModalClose').addEventListener('click', closeContactModal);
-$('#contactModal').addEventListener('click', (e) => { if (e.target === $('#contactModal')) closeContactModal(); });
-$('#contactDeleteBtn').addEventListener('click', async () => {
-  if (!editingContactId) return;
-  if (!confirm('确定删除该联系人？')) return;
-  const res = await api(`/api/contacts/${editingContactId}`, { method: 'DELETE' }).catch(() => null);
-  if (res && res.ok) { closeContactModal(); toast('已删除'); markSynced(); pfLoadList(); }
-});
-$('#contactForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const f = e.target;
-  const fd = new FormData(f);
-  const name = String(fd.get('name') || '').trim();
-  if (!name) { const el = $('#contactFormError'); el.textContent = '请填写姓名'; el.hidden = false; return; }
-  const payload = {
-    name, relation: fd.get('relation'), birthday: fd.get('birthday'),
-    phone: fd.get('phone'), note: fd.get('note'),
-    showInCalendar: f.showInCalendar.checked,
-  };
-  try {
-    const url = editingContactId ? '/api/contacts' : '/api/contacts';
-    const res = await api(url, {
-      method: editingContactId ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingContactId ? { ...payload, id: editingContactId } : payload),
-    });
-    if (res.ok) {
-      closeContactModal();
-      toast(editingContactId ? '已更新' : '已添加联系人');
-      markSynced();
-      pfLoadList();
-    }
-  } catch { /* 401 已处理 */ }
-});
 
 // ===== PWA =====
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，

@@ -1,4 +1,4 @@
-// 数字生活 · 人物档案公共帮助
+// 数字生活 · 人物档案公共帮助（v0.4.0 人际关系新数据模型）
 
 // 北京时区（Workers 运行时是 UTC，统一 +8h 后用 UTC 取值器读「北京墙钟」）
 const TZ_CN_MS = 8 * 3600 * 1000;
@@ -30,8 +30,8 @@ const LUNAR_INFO = [
   0x0e968,0x0d520,0x0daa0,0x16aa6,0x056d0,0x04ae0,0x0a9d4,0x0a2d0,0x0d150,0x0f252,
   0x0d520,
 ];
-const CN_NUM = ['〇','一','二','三','四','五','六','七','八','九','十'];
 const MON_NAME = ['正','二','三','四','五','六','七','八','九','十','冬','腊'];
+const CN_NUM = ['〇','一','二','三','四','五','六','七','八','九','十'];
 const ANIMAL = ['鼠','牛','虎','兔','龙','蛇','马','羊','猴','鸡','狗','猪'];
 
 function _leapMonth(y) { const v = LUNAR_INFO[y - 1900]; return v === undefined ? 0 : v & 0xf; }
@@ -53,7 +53,7 @@ function _dayName(d) {
   return pre + (CN_NUM[d % 10] || '');
 }
 
-/** 公历 → 农历（入参约定为 Date.UTC 构造的日期，统一用 UTC 取值器） */
+/** 公历 → 农历（入参为 Date.UTC 构造的日期，统一用 UTC 取值器） */
 export function toLunar(date) {
   const y = date.getUTCFullYear();
   if (y < 1900 || y > 2100) return null;
@@ -78,62 +78,91 @@ export function toLunar(date) {
     monthName: (isLeap ? '闰' : '') + mn + '月', dayName: _dayName(day) };
 }
 
-/** 生日对应的农历（按出生年固定） */
-export function lunarBirthday(birthday) {
-  if (!birthday) return null;
-  const parts = String(birthday).split('-').map(Number);
-  const Y = parts[0], M = parts[1], D = parts[2];
-  if (!Y || !M || !D || Y < 1900 || Y > 2100) return null;
-  const l = toLunar(new Date(Date.UTC(Y, M - 1, D)));
-  if (!l) return null;
-  const ai = ((Y - 4) % 12 + 12) % 12;
-  return {
-    full: (l.isLeap ? '闰' : '') + (MON_NAME[l.month - 1] || '') + '月' + _dayName(l.day),
-    short: l.day === 1 ? l.monthName : l.dayName,
-    month: l.month, day: l.day, isLeap: l.isLeap,
-    animal: ANIMAL[ai] || '',
+// ===== 生日模型（v0.4.0）=====
+// birthday_type: '' 不知道年龄（跳过）| 'monthday' 只知月日 | 'full' 确切生日
+// birthday_calendar: 'solar' 阳历 | 'lunar' 农历
+// birth_year/birth_month/birth_day
+
+/** 解析并校验请求体里的生日字段，返回可写入的列值；出错返回 { error } */
+export function parseBirthdayBody(body) {
+  const type = ['', 'monthday', 'full'].includes(body.birthdayType) ? body.birthdayType : '';
+  const calendar = body.birthdayCalendar === 'lunar' ? 'lunar' : 'solar';
+  const out = {
+    birthday_type: type,
+    birthday_calendar: type ? calendar : 'solar',
+    birth_year: null,
+    birth_month: null,
+    birth_day: null,
   };
+  if (!type) return { data: out };
+  const m = Number(body.birthMonth);
+  const d = Number(body.birthDay);
+  if (!Number.isInteger(m) || m < 1 || m > 12) return { error: '出生月份不正确' };
+  if (!Number.isInteger(d) || d < 1 || d > 31) return { error: '出生日期不正确' };
+  if (d > 30 && calendar === 'lunar') return { error: '农历一个月最多 30 天' };
+  out.birth_month = m;
+  out.birth_day = d;
+  if (type === 'full') {
+    const y = Number(body.birthYear);
+    if (!Number.isInteger(y) || y < 1900 || y > 2100) return { error: '出生年份不正确（1900-2100）' };
+    out.birth_year = y;
+  }
+  return { data: out };
 }
 
-/** 下一次生日：每年都有，取今年或明年（按北京「今天」计算） */
-export function nextBirthday(birthday) {
-  if (!birthday) return null;
-  const [Y, M, D] = String(birthday).split('-').map(Number);
-  if (!M || !D) return null;
+/**
+ * 下一次生日（按北京「今天」；农历生日逐年换算成公历）。
+ * 入参为 contacts 行。无生日（birthday_type 为空）返回 null。
+ */
+export function nextBirthdayOf(c) {
+  if (!c || !c.birthday_type || !c.birth_month || !c.birth_day) return null;
+  const M = c.birth_month, D = c.birth_day;
   const now = cnNow();
   const y = now.getUTCFullYear();
   const today = Date.UTC(y, now.getUTCMonth(), now.getUTCDate());
-  let n = Date.UTC(y, M - 1, D);
-  if (n < today) n = Date.UTC(y + 1, M - 1, D);
-  const nd = new Date(n);
-  const days = Math.round((n - today) / 86400000);
   const p2 = (x) => String(x).padStart(2, '0');
+
+  let nextMs;
+  if (c.birthday_calendar === 'lunar') {
+    // 从今天起逐日换算农历，找到第一个匹配的公历日（农历生日当年可能晚于明年年初，最多扫 400 天）
+    nextMs = null;
+    for (let i = 0; i <= 400; i++) {
+      const t = today + i * 86400000;
+      const l = toLunar(new Date(t));
+      if (l && !l.isLeap && l.month === M && l.day === D) { nextMs = t; break; }
+    }
+    if (nextMs === null) return null;
+  } else {
+    nextMs = Date.UTC(y, M - 1, D);
+    if (nextMs < today) nextMs = Date.UTC(y + 1, M - 1, D);
+  }
+
+  const nd = new Date(nextMs);
+  const days = Math.round((nextMs - today) / 86400000);
+  const age = (c.birthday_type === 'full' && c.birth_year)
+    ? nd.getUTCFullYear() - c.birth_year : null;
   return {
-    days, age: nd.getUTCFullYear() - Y,
-    full: `${nd.getUTCFullYear()}-${p2(M)}-${p2(D)}`,
-    lunar: lunarBirthday(birthday),
+    date: `${nd.getUTCFullYear()}-${p2(M)}-${p2(D)}`,
+    days, age,
+    calendar: c.birthday_calendar || 'solar',
+    text: c.birthday_calendar === 'lunar'
+      ? `农历${(MON_NAME[M - 1] || '')}月${_dayName(D)}`
+      : `${M}月${D}日`,
   };
 }
 
-/** 生日为空时，从身份证第 7-14 位解析出生年月日 */
-export function birthdayFromIdcard(idcard) {
-  if (!/^\d{17}[\dXx]$/.test(String(idcard || ''))) return null;
-  return `${idcard.slice(6, 10)}-${idcard.slice(10, 12)}-${idcard.slice(12, 14)}`;
-}
-
-/** 年龄（按北京「今天」计算） */
-export function ageOf(birthday) {
-  if (!birthday) return null;
-  const [Y] = String(birthday).split('-').map(Number);
-  if (!Y) return null;
+/** 年龄（按北京「今天」；仅确切生日有） */
+export function ageOfContact(c) {
+  if (!c || c.birthday_type !== 'full' || !c.birth_year) return null;
   const now = cnNow();
-  let a = now.getUTCFullYear() - Y;
+  let a = now.getUTCFullYear() - c.birth_year;
   const m = now.getUTCMonth() + 1, d = now.getUTCDate();
-  const [, bm, bd] = String(birthday).split('-').map(Number);
-  if (m < bm || (m === bm && d < bd)) a--;
+  if (m < c.birth_month || (m === c.birth_month && d < c.birth_day)) a--;
   return a >= 0 && a < 130 ? a : null;
 }
 
-/** 逗号分隔数组互转 */
-export const toArr = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
-export const joinArr = (a) => (Array.isArray(a) ? a.filter(Boolean).join(',') : String(a || ''));
+/** 是否 30 天内有生日（首页统计用） */
+export function birthdayWithin30Of(c) {
+  const nb = nextBirthdayOf(c);
+  return !!nb && nb.days <= 30;
+}

@@ -50,8 +50,17 @@ INSERT INTO events(title, start, end, all_day, note) VALUES
   ('部门周会', datetime('now','localtime','+10 hours'), NULL, 0, '每周同步进度'),
   ('妈妈生日', date('now','+6 days'), NULL, 1, '提前准备礼物');
 
--- 人际关系
-INSERT INTO contacts(name, relation, birthday, phone, note) VALUES
-  ('张伟', '朋友', '1990-03-12', NULL, '大学同学'),
-  ('李娜', '同事', '1988-07-25', NULL, '项目组'),
-  ('妈妈', '家人', '1965-11-03', NULL, '下月生日');
+-- 人际关系（v0.4.0 新模型：名字六字段/生日三形态/标签群组/引荐人/婚姻）
+INSERT INTO contacts(name, first_name, gender, birthday_type, birthday_calendar, birth_year, birth_month, birth_day, birthday_remind, tags, peer_groups, marriage, phone, note) VALUES
+  ('张伟', '张伟', '男', 'full',     'solar', 1990, 3,  12, 1, '技术', '大学同学', '已婚', '13800001111', '大学同学'),
+  ('李娜', '李娜', '女', 'monthday', 'solar', NULL, 7,  25, 0, '项目', '同事',     '未婚', '13800002222', '项目组'),
+  ('妈妈', '',     '女', 'monthday', 'lunar', NULL, 11, 3,  1, '家人', '',         '已婚', '13800003333', '农历生日每年提醒');
+
+-- 家庭关系示例（称谓已由 migrate-v0.4.0 预置到词库 rel_kin）
+INSERT INTO contact_relatives(person_id, kin, name) VALUES
+  ((SELECT id FROM contacts WHERE name='张伟'), '同事', '李娜');
+
+-- 词库示例：人脉标签 / 群组
+INSERT OR IGNORE INTO vocab(kind, word) VALUES
+  ('rel_tag', '家人'), ('rel_tag', '朋友'), ('rel_tag', '同事'),
+  ('rel_group', '家人'), ('rel_group', '大学同学'), ('rel_group', '同事');

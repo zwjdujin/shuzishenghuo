@@ -1,143 +1,244 @@
-import { json, todayStr } from '../../_lib.js';
-import { toArr, joinArr, nextBirthday, lunarBirthday, birthdayFromIdcard, ageOf } from '../_profile.js';
+import { json } from '../../_lib.js';
+import { parseBirthdayBody, nextBirthdayOf, ageOfContact, toLunar } from '../_profile.js';
 
-const LEVELS = ['核心', '重要', '普通', '弱连接'];
-const STATUS = ['活跃', '疏远', '失联', '合作中', '已终止'];
+const MARRIAGES = ['已婚', '未婚', '离婚', '丧偶'];
+// 名字六字段：任选其一必填
+const NAME_FIELDS = [
+  ['first_name', 'firstName'],
+  ['nickname', 'nickname'],
+  ['childhood_name', 'childhoodName'],
+  ['former_name', 'formerName'],
+  ['english_name', 'englishName'],
+  ['alias', 'alias'],
+];
 
-// GET /api/profile?id=4 —— 完整档案（13 个模块一次性返回）
+// CSV 存储：词/组里不允许出现逗号
+const csvOf = (v) => (Array.isArray(v) ? v : String(v || '').split(','))
+  .map((x) => String(x).replace(/[,，]/g, '').trim()).filter(Boolean).slice(0, 30)
+  .map((x) => x.slice(0, 20)).join(',');
+
+function displayName(b) {
+  for (const [, key] of NAME_FIELDS) {
+    const v = String(b[key] || '').trim();
+    if (v) return v;
+  }
+  return '';
+}
+
+/** 合并请求体中的基础字段（PUT 局部更新：只动传入的字段） */
+async function mergeBase(env, body, existing) {
+  const cur = existing || {};
+  const get = (col, key) => (body[key] !== undefined ? body[key] : cur[col]);
+  const merged = {};
+  for (const [col, key] of NAME_FIELDS) merged[key] = String(get(col, key) || '').trim();
+  const sets = {};
+
+  // 名字字段有任一传入 → 重算显示名，并校验至少留有一个名字
+  const nameTouched = NAME_FIELDS.some(([, key]) => body[key] !== undefined);
+  if (nameTouched) {
+    const display = displayName(merged);
+    if (!display) return { error: '姓名、昵称、小名、曾用名、英文名、别名至少填一项' };
+    sets.name = display;
+    for (const [col, key] of NAME_FIELDS) sets[col] = merged[key] || null;
+  }
+
+  if (body.gender !== undefined) {
+    const g = String(body.gender || '').trim();
+    if (!['男', '女', '其他'].includes(g)) return { error: '请选择性别' };
+    sets.gender = g;
+  }
+
+  // 生日：传了生日相关任一字段就整体重写生日三元组
+  const birthdayTouched = ['birthdayType', 'birthdayCalendar', 'birthYear', 'birthMonth', 'birthDay']
+    .some((k) => body[k] !== undefined);
+  if (birthdayTouched) {
+    const bd = parseBirthdayBody({
+      birthdayType: body.birthdayType,
+      birthdayCalendar: body.birthdayCalendar,
+      birthYear: body.birthYear,
+      birthMonth: body.birthMonth,
+      birthDay: body.birthDay,
+    });
+    if (bd.error) return { error: bd.error };
+    Object.assign(sets, bd.data);
+  }
+
+  if (body.birthdayRemind !== undefined) sets.birthday_remind = body.birthdayRemind ? 1 : 0;
+  if (body.isDeceased !== undefined) sets.is_deceased = body.isDeceased ? 1 : 0;
+  if (body.tags !== undefined) sets.tags = csvOf(body.tags);
+  if (body.groups !== undefined) sets.peer_groups = csvOf(body.groups);
+  if (body.marriage !== undefined) sets.marriage = MARRIAGES.includes(body.marriage) ? body.marriage : '';
+  if (body.note !== undefined) sets.note = String(body.note || '').trim() || null;
+
+  if (body.referrerId !== undefined) {
+    const rid = Number(body.referrerId) || null;
+    if (rid) {
+      if (existing && rid === existing.id) return { error: '引荐人不能是自己' };
+      const ref = await env.DB.prepare('SELECT id FROM contacts WHERE id=?').bind(rid).first();
+      if (!ref) return { error: '引荐人不存在' };
+    }
+    sets.referrer_id = rid;
+  }
+  return { sets };
+}
+
+// GET /api/profile/detail?id=4 —— 完整档案
 export async function onRequestGet(context) {
   const { env, request } = context;
   const url = new URL(request.url);
   const id = Number(url.searchParams.get('id'));
   if (!id) return json({ error: '缺少联系人 id' }, 400);
 
-  const c = (await env.DB.prepare('SELECT * FROM contacts WHERE id = ?').bind(id).first());
+  const c = await env.DB.prepare('SELECT * FROM contacts WHERE id = ?').bind(id).first();
   if (!c) return json({ error: '联系人不存在' }, 404);
 
   const g = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).all()).results || [];
-  const one = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).first()) || {};
 
-  // 多联系方式
-  const cs = await g('SELECT id,kind,value,deprecated FROM contact_contacts WHERE person_id = ? ORDER BY kind, deprecated, id', id);
-  const pick = (kind) => cs.filter((x) => x.kind === kind).map((x) => ({ id: x.id, v: x.value, ok: x.deprecated ? 0 : 1 }));
+  // 联系方式（电话/邮箱/地址，带备注标签）
+  const cc = await g('SELECT id, kind, value, label FROM contact_contacts WHERE person_id = ? ORDER BY kind, id', id);
+  const methods = { phones: [], emails: [], addresses: [] };
+  cc.forEach((x) => { if (methods[x.kind]) methods[x.kind].push({ id: x.id, value: x.value, label: x.label || '' }); });
 
-  const [edu, rel, work, family, pref, trait, interacts, relatives, promises, files, money, todos] = await Promise.all([
-    g('SELECT * FROM contact_edu WHERE person_id = ? ORDER BY sort_order, id', id),
-    one('SELECT * FROM contact_rel WHERE person_id = ?', id),
-    one('SELECT * FROM contact_work WHERE person_id = ?', id),
-    one('SELECT * FROM contact_family WHERE person_id = ?', id),
-    one('SELECT * FROM contact_pref WHERE person_id = ?', id),
-    one('SELECT * FROM contact_trait WHERE person_id = ?', id),
-    g('SELECT * FROM contact_interacts WHERE person_id = ? ORDER BY date DESC, id DESC', id),
-    g('SELECT * FROM contact_relatives WHERE person_id = ? AND dead = 0 ORDER BY id', id),
-    g('SELECT * FROM contact_promises WHERE person_id = ? ORDER BY done, due', id),
-    g('SELECT * FROM contact_files WHERE person_id = ? ORDER BY id DESC', id),
-    g('SELECT * FROM contact_money WHERE person_id = ? ORDER BY date DESC, id DESC', id),
-    g("SELECT id,title,todo_date,todo_time,list,priority,done FROM todos WHERE person_id = ? AND done = 0 ORDER BY todo_date", id),
-  ]);
+  const work = (await env.DB.prepare('SELECT company, position FROM contact_work WHERE person_id = ?').bind(id).first()) || {};
+  const edus = await g('SELECT * FROM contact_edu WHERE person_id = ? ORDER BY sort_order, id', id);
+  const relatives = await g('SELECT * FROM contact_relatives WHERE person_id = ? ORDER BY id', id);
+  const pets = await g('SELECT * FROM rel_pets WHERE person_id = ? ORDER BY id', id);
 
-  const birthday = c.birthday || c.idcard_birthday || '';
-  const nb = nextBirthday(birthday);
+  // 家庭关系里关联到的联系人姓名
+  const refIds = relatives.map((r) => r.ref_id).filter(Boolean);
+  let refNames = {};
+  if (refIds.length) {
+    const ph = refIds.map(() => '?').join(',');
+    (await env.DB.prepare(`SELECT id, name FROM contacts WHERE id IN (${ph})`).bind(...refIds).all()).results
+      .forEach((x) => { refNames[x.id] = x.name; });
+  }
+  const referrer = c.referrer_id
+    ? (await env.DB.prepare('SELECT id, name FROM contacts WHERE id = ?').bind(c.referrer_id).first()) : null;
+
+  const nb = c.is_deceased ? null : nextBirthdayOf(c);
+  // 农历/阳历生日展示
+  let birthText = '';
+  if (c.birthday_type === 'full') birthText = `${c.birth_year} 年`;
+  else if (c.birthday_type === 'monthday') birthText = '每年';
+  if (c.birthday_type) {
+    const md = c.birthday_calendar === 'lunar'
+      ? `农历${c.birth_month} 月 ${c.birth_day} 日`
+      : `${c.birth_month} 月 ${c.birth_day} 日`;
+    birthText = birthText ? `${birthText} ${md}` : md;
+  }
+  let lunarText = '';
+  if (c.birthday_type && c.birthday_calendar === 'solar') {
+    const l = toLunar(new Date(Date.UTC(
+      c.birthday_type === 'full' ? c.birth_year : 2001, c.birth_month - 1, c.birth_day)));
+    if (l) lunarText = `农历${l.monthName}${l.dayName}`;
+  }
+
+  const dict = async (kind) => (await env.DB.prepare('SELECT word FROM vocab WHERE kind=? ORDER BY hits DESC, word').bind(kind).all()).results.map((x) => x.word);
 
   return json({
     base: {
-      id: c.id, name: c.name, alias: c.alias || '', gender: c.gender || '',
-      birthday, age: ageOf(birthday), showLunar: !!c.show_lunar,
-      lunar: c.show_lunar ? lunarBirthday(birthday) : null,
-      idcard: c.idcard || '', idcardBirthday: c.idcard_birthday || '',
-      core: { phone: firstOf(cs, 'phones'), wechat: firstOf(cs, 'wechats') },
-      phones: pick('phones'), emails: pick('emails'), wechats: pick('wechats'),
-      langs: toArr(pref && pref.langs),
-      native: c.native || '', page: c.page || '',
-      note: c.note || '', province: c.province || '', city: c.city || '',
-      job: c.job || '', company: c.company || '',
-      nextBirthday: nb,
+      id: c.id,
+      firstName: c.first_name || '', nickname: c.nickname || '', childhoodName: c.childhood_name || '',
+      formerName: c.former_name || '', englishName: c.english_name || '', alias: c.alias || '',
+      name: c.name, gender: c.gender || '',
+      birthdayType: c.birthday_type || '', birthdayCalendar: c.birthday_calendar || 'solar',
+      birthYear: c.birth_year, birthMonth: c.birth_month, birthDay: c.birth_day,
+      birthText, lunarText,
+      birthdayRemind: !!c.birthday_remind, isDeceased: !!c.is_deceased,
+      tags: String(c.tags || '').split(',').filter(Boolean),
+      groups: String(c.peer_groups || '').split(',').filter(Boolean),
+      referrer: referrer ? { id: referrer.id, name: referrer.name } : null,
+      marriage: c.marriage || '', note: c.note || '',
+      age: ageOfContact(c), nextBirthday: nb,
     },
-    rel: { type: c.relation || '', level: c.level || '普通', status: c.status || '活跃',
-      via: rel.via || '', intro: rel.intro || '', since: rel.since || '', scene: rel.scene || '', score: rel.score || '' },
-    edus: edu.map((e) => ({ id: e.id, school: e.school || '', major: e.major || '', degree: e.degree || '', start: e.start_year || '', end: e.end_year || '', story: e.story || '' })),
-    work: { company: work.company || c.company || '', dept: work.dept || '', title: work.title || c.job || '', rank: work.rank || '', city: work.city || c.city || '', field: work.field || '', give: work.give || '', infl: work.infl || '', bound: work.bound || '' },
-    family: { father: family.father || '', mother: family.mother || '', spouse: family.spouse || '', child: family.child || '', sibling: family.sibling || '', live: family.live || '', events: family.events || '', pet: family.pet || '' },
-    pref: { foods: toArr(pref.foods), drinks: toArr(pref.drinks), size: pref.size || '', shoes: pref.shoes || '', hobbies: toArr(pref.hobbies), life: pref.life || '', social: pref.social || '' },
-    trait: { tags: toArr(trait.tags), style: trait.style || '', reply: trait.reply || '', taboo: trait.taboo || '', value: trait.value || '', comfort: trait.comfort || '' },
-    interacts: interacts.map((i) => ({ id: i.id, date: i.date, kind: i.kind || '', place: i.place || '', who: i.who || '', topic: i.topic || '', quality: i.quality || '', summary: i.summary || '' })),
-    relatives: relatives.map((r) => ({ id: r.id, name: r.name, kin: r.kin || '', note: r.note || '', refId: r.ref_id || null, linked: !!r.ref_id })),
-    promises: promises.map((p) => ({ id: p.id, side: p.side || '对方', what: p.what, due: p.due || '', status: p.status || '未开始', note: p.note || '', todoId: p.todo_id || null, done: !!p.done })),
-    files: files.map((f) => ({ id: f.id, name: f.name, size: f.size || '', path: f.r2_path })),
-    money: money.map((m) => ({ id: m.id, type: m.type, amount: Number(m.amount), date: m.date, note: m.note || '', txnId: m.txn_id || null })),
-    todos,
-    meta: { levels: LEVELS, statuses: STATUS, today: todayStr() },
+    methods,
+    work: { company: work.company || '', position: work.position || '' },
+    edus: edus.map((e) => ({
+      id: e.id, school: e.school || '', major: e.major || '', degree: e.degree || '',
+      start: e.start_year || '', end: e.end_year || '', story: e.story || '',
+    })),
+    relatives: relatives.map((r) => ({
+      id: r.id, kin: r.kin || '', name: r.name || '',
+      refId: r.ref_id || null, refName: r.ref_id ? (refNames[r.ref_id] || '') : '',
+    })),
+    pets: pets.map((p) => ({ id: p.id, species: p.species || '', name: p.name || '', memorialDate: p.memorial_date || '' })),
+    meta: {
+      genders: ['男', '女', '其他'],
+      marriages: MARRIAGES,
+      kins: await dict('rel_kin'),
+      companies: await dict('rel_company'),
+      positions: await dict('rel_position'),
+      petSpecies: await dict('pet_species'),
+      contactLabels: ['个人', '工作', '家庭', '公司'],
+    },
   });
 }
 
-// PUT /api/profile —— 保存核心字段（生日/身份证/别名等）
-// 只更新 body 中出现的字段，未传的保持原值：
-// 此前是整行 UPDATE，「关系属性」等局部保存会把生日/别名/备注等全部清空。
+// POST /api/profile/detail —— 新建联系人
+export async function onRequestPost(context) {
+  const { env, request } = context;
+  let body = {};
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
+
+  const merged = await mergeBase(env, body, null);
+  if (merged.error) return json({ error: merged.error }, 400);
+  const sets = merged.sets;
+  if (!sets.name) return json({ error: '姓名、昵称、小名、曾用名、英文名、别名至少填一项' }, 400);
+  if (!sets.gender) return json({ error: '请选择性别' }, 400);
+
+  const cols = ['name', ...NAME_FIELDS.map(([c]) => c), 'gender',
+    'birthday_type', 'birthday_calendar', 'birth_year', 'birth_month', 'birth_day',
+    'birthday_remind', 'is_deceased', 'tags', 'peer_groups', 'referrer_id', 'marriage', 'note'];
+  // 未传字段按列默认值补齐（这些列是 NOT NULL，不能绑 null）
+  const DEFAULTS = {
+    gender: '', birthday_type: '', birthday_calendar: 'solar',
+    birthday_remind: 0, is_deceased: 0, tags: '', peer_groups: '', marriage: '',
+  };
+  const vals = cols.map((k) => (sets[k] !== undefined ? sets[k] : (k in DEFAULTS ? DEFAULTS[k] : null)));
+  const res = await env.DB.prepare(
+    `INSERT INTO contacts(${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`
+  ).bind(...vals).run();
+  const id = res.meta && res.meta.last_row_id;
+
+  // 建档时同步录入的联系方式（可选）
+  if (Array.isArray(body.methods)) {
+    for (const m of body.methods) {
+      const kind = String(m.kind || '');
+      const value = String(m.value || '').trim();
+      if (!['phones', 'emails', 'addresses'].includes(kind) || !value) continue;
+      await env.DB.prepare('INSERT INTO contact_contacts(person_id, kind, value, label) VALUES (?,?,?,?)')
+        .bind(id, kind, value.slice(0, 100), String(m.label || '').trim().slice(0, 20) || null).run();
+    }
+    await syncPrimaryPhone(env, id);
+  }
+  return json({ ok: true, id }, 201);
+}
+
+// PUT /api/profile/detail —— 更新基础信息（只更新传入字段）
 export async function onRequestPut(context) {
   const { env, request } = context;
   let body = {};
   try { body = await request.json(); } catch (_) {}
   const id = Number(body.id);
   if (!id) return json({ error: '缺少 id' }, 400);
-  const name = String(body.name || '').trim();
-  if (!name) return json({ error: '请填写姓名' }, 400);
+  const existing = await env.DB.prepare('SELECT * FROM contacts WHERE id = ?').bind(id).first();
+  if (!existing) return json({ error: '联系人不存在' }, 404);
 
-  const sets = { name };
-  const trimOrNull = (v) => (String(v === undefined ? '' : v).trim() || null);
-  if (body.alias !== undefined) sets.alias = trimOrNull(body.alias);
-  if (body.gender !== undefined) sets.gender = ['男', '女', '其他'].includes(body.gender) ? body.gender : null;
-  if (body.province !== undefined) sets.province = trimOrNull(body.province);
-  if (body.city !== undefined) sets.city = trimOrNull(body.city);
-  if (body.job !== undefined) sets.job = trimOrNull(body.job);
-  if (body.company !== undefined) sets.company = trimOrNull(body.company);
-  if (body.relation !== undefined) sets.relation = trimOrNull(body.relation);
-  if (body.level !== undefined) sets.level = LEVELS.includes(body.level) ? body.level : '普通';
-  if (body.status !== undefined) sets.status = STATUS.includes(body.status) ? body.status : '活跃';
-  if (body.note !== undefined) sets.note = trimOrNull(body.note);
-  if (body.native !== undefined) sets.native = trimOrNull(body.native);
-  if (body.page !== undefined) sets.page = trimOrNull(body.page);
-  if (body.showLunar !== undefined) sets.show_lunar = body.showLunar ? 1 : 0;
-
-  // 身份证 / 生日：传了哪个更新哪个；生日优先级仍是 手动填写 > 身份证解析
-  let idcardBday = '';
-  if (body.idcard !== undefined) {
-    const idcard = String(body.idcard || '').trim();
-    if (idcard) {
-      idcardBday = birthdayFromIdcard(idcard) || '';
-      if (!idcardBday) return json({ error: '身份证格式不正确（应为 18 位）' }, 400);
-      sets.idcard = idcard;
-      sets.idcard_birthday = idcardBday;
-    } else {
-      sets.idcard = null;
-      sets.idcard_birthday = null;
-    }
-  }
-  if (body.birthday !== undefined) {
-    const manual = String(body.birthday || '').trim();
-    // 手动填了生日用手动值；否则仅当本次也传了身份证时才用身份证解析结果
-    sets.birthday = manual || (body.idcard !== undefined ? (idcardBday || null) : null);
-  }
-  // 主手机号冗余字段：只有显式传了 phones 才同步，局部保存不动它
-  if (body.phones !== undefined) sets.phone = firstArrVal(body.phones) || null;
-
+  const merged = await mergeBase(env, body, existing);
+  if (merged.error) return json({ error: merged.error }, 400);
+  const sets = merged.sets;
   const cols = Object.keys(sets);
-  await env.DB.prepare(
-    `UPDATE contacts SET ${cols.map((k) => `${k}=?`).join(', ')} WHERE id=?`
-  ).bind(...cols.map((k) => sets[k]), id).run();
-
-  return json({
-    ok: true, id,
-    birthday: sets.birthday !== undefined ? (sets.birthday || '') : '',
-    fromIdcard: !String(body.birthday || '').trim() && !!idcardBday,
-  });
+  if (cols.length) {
+    await env.DB.prepare(`UPDATE contacts SET ${cols.map((k) => `${k}=?`).join(', ')} WHERE id=?`)
+      .bind(...cols.map((k) => sets[k]), id).run();
+  }
+  return json({ ok: true, id });
 }
 
-function firstOf(rows, kind) {
-  const r = rows.find((x) => x.kind === kind && !x.deprecated);
-  return r ? r.value : '';
-}
-function firstArrVal(arr) {
-  if (!Array.isArray(arr)) return '';
-  const ok = arr.find((x) => !x.deprecated && x.value);
-  return ok ? ok.value : '';
+/** 主电话冗余同步：取第一个电话写入 contacts.phone（列表/搜索展示用） */
+export async function syncPrimaryPhone(env, personId) {
+  const row = await env.DB.prepare(
+    "SELECT value FROM contact_contacts WHERE person_id=? AND kind='phones' ORDER BY id LIMIT 1"
+  ).bind(personId).first();
+  await env.DB.prepare('UPDATE contacts SET phone=? WHERE id=?').bind(row ? row.value : null, personId).run();
 }

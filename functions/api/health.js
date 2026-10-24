@@ -1,5 +1,5 @@
 import { json } from '../_lib.js';
 
 export async function onRequestGet() {
-  return json({ ok: true, version: '0.3.15' });
+  return json({ ok: true, version: '0.4.0' });
 }

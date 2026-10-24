@@ -105,22 +105,74 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 人际关系
--- show_in_calendar：生日是否在日历中心显示（1=显示，0=不显示）
+-- 人际关系（v0.4.0 重建）
+-- 名字六字段任选其一必填，name 为显示名；生日三形态（未知/只知月日/确切）+ 阳历或农历
 CREATE TABLE IF NOT EXISTS contacts (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  name              TEXT NOT NULL,
+  first_name        TEXT,
+  nickname          TEXT,
+  childhood_name    TEXT,
+  former_name       TEXT,
+  english_name      TEXT,
+  alias             TEXT,
+  gender            TEXT NOT NULL DEFAULT '',
+  birthday_type     TEXT NOT NULL DEFAULT '',
+  birthday_calendar TEXT NOT NULL DEFAULT 'solar',
+  birth_year        INTEGER,
+  birth_month       INTEGER,
+  birth_day         INTEGER,
+  birthday_remind   INTEGER NOT NULL DEFAULT 0,
+  is_deceased       INTEGER NOT NULL DEFAULT 0,
+  tags              TEXT NOT NULL DEFAULT '',
+  peer_groups       TEXT NOT NULL DEFAULT '',
+  referrer_id       INTEGER,
+  marriage          TEXT NOT NULL DEFAULT '',
+  phone             TEXT,
+  note              TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_contacts_gender ON contacts(gender);
+
+-- 联系方式：电话 / 电子邮件 / 联系地址（可多个，带备注标签）
+CREATE TABLE IF NOT EXISTS contact_contacts (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  relation   TEXT,
-  birthday   TEXT,
-  phone      TEXT,
-  note       TEXT,
-  show_in_calendar INTEGER DEFAULT 0,
+  person_id  INTEGER NOT NULL,
+  kind       TEXT NOT NULL,               -- phones / emails / addresses
+  value      TEXT NOT NULL,
+  label      TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_cc_person ON contact_contacts(person_id, kind);
 
--- v0.3.15：补记人物档案扩展列（线上库此前手工加过，仓库一直漏记，导致本地/新库跑「保存基础信息」报 no such column）
-ALTER TABLE contacts ADD COLUMN native TEXT;   -- 籍贯
-ALTER TABLE contacts ADD COLUMN page TEXT;     -- 主页 / 名片链接
+-- 公司/组织与职位（值可多人共用，候选词在词库 rel_company / rel_position）
+CREATE TABLE IF NOT EXISTS contact_work (
+  person_id INTEGER PRIMARY KEY,
+  company   TEXT,
+  position  TEXT
+);
+
+-- 家庭关系："对方是当前联系人的 ___"（称谓词库 rel_kin 可扩展）
+CREATE TABLE IF NOT EXISTS contact_relatives (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id  INTEGER NOT NULL,
+  kin        TEXT NOT NULL,
+  name       TEXT NOT NULL,
+  ref_id     INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_relatives_person ON contact_relatives(person_id);
+
+-- 宠物（种类候选词在词库 pet_species）
+CREATE TABLE IF NOT EXISTS rel_pets (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id     INTEGER NOT NULL,
+  species       TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  memorial_date TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pets_person ON rel_pets(person_id);
 
 -- 心情一句话（占位，避免 schema 与迁移不一致）
 -- 登录会话（账户安全：展示/登出各登录设备）
