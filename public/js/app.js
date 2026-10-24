@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.3
-const VERSION = '0.5.3';
+// 数字生活 · 前端逻辑 v0.5.4
+const VERSION = '0.5.4';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'v0.5.3 桌面端布局修复：账本页头齿轮与记一笔同行 / 成长打卡空提示居中 / 家庭药箱统计一行五卡';
+const __BUILD_ID__ = 'v0.5.4 P0 安全修复：XSS 转义补齐 / 登录限流 / 恒定时间比较 / 删除级联统一 / 表单防重复 / 版本号归一';
 const __BUILD_TIME__ = '2026-10-24';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -37,6 +37,12 @@ function bind(sel, type, fn) {
   const el = $(sel);
   if (el) el.addEventListener(type, fn);
 }
+
+// HTML 转义：innerHTML 模板里插值用户数据（名称/备注/分类/单位/清单等）必须包一层。
+// 定义在文件顶部，供所有模块使用（勿再各处另写转义实现）。
+const escHtml = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 function money(n) {
   return '¥' + Math.round(Number(n || 0)).toLocaleString('zh-CN');
@@ -595,7 +601,7 @@ function renderPendingHabits(list) {
   list.forEach((h) => {
     const el = document.createElement('div');
     el.className = 'habit-pill';
-    const cat = h.category ? `<small>${h.category}</small>` : '<small>待打卡</small>';
+    const cat = h.category ? `<small>${escHtml(h.category)}</small>` : '<small>待打卡</small>';
     el.innerHTML = `<svg><use href="#i-${h.icon || 'sprout'}"/></svg><b></b>${cat}`;
     el.querySelector('b').textContent = h.name;
     box.appendChild(el);
@@ -1105,9 +1111,9 @@ async function renderTodos() {
       const meta = row.querySelector('.todo-meta');
       meta.innerHTML =
         `<span class="prio-pill ${t.priority}">${t.priority} ${PRIO_DESC[t.priority] || ''}</span>` +
-        `<span class="todo-pill">${t.list}</span>` +
-        (t.overdue ? `<span class="todo-pill high">逾期 ${t.date}</span>` : '') +
-        (t.note ? `<span>${t.note}</span>` : '');
+        `<span class="todo-pill">${escHtml(t.list)}</span>` +
+        (t.overdue ? `<span class="todo-pill high">逾期 ${escHtml(t.date)}</span>` : '') +
+        (t.note ? `<span>${escHtml(t.note)}</span>` : '');
       if (t.time) {
         const tm = document.createElement('span');
         tm.className = 'todo-time';
@@ -1310,9 +1316,6 @@ function ledCatClass(name, flow) {
   if (LED_CAT_IDX[name] !== undefined) return 'dc' + LED_CAT_IDX[name];
   return 'dc' + (name ? hashCat(name) % 10 : 9);
 }
-const escHtml = (s) => String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 async function renderLedger() {
   const box = $('#ledgerStats');
@@ -1836,6 +1839,8 @@ async function submitTxn(e) {
     note: $('#txnNote').value,
   };
   ledgerState.lastAccount = txnDraft.account;
+  const btn = $('#txnSubmitBtn');
+  if (btn) btn.disabled = true;
   try {
     const res = await api(id ? `/api/transactions/${id}` : '/api/transactions', {
       method: id ? 'PUT' : 'POST',
@@ -1852,7 +1857,7 @@ async function submitTxn(e) {
       errEl.textContent = d.error || '保存失败，请稍后重试';
       errEl.hidden = false;
     }
-  } catch { /* 401 已处理 */ }
+  } catch { /* 401 已处理 */ } finally { if (btn) btn.disabled = false; }
 }
 
 /* ---------- 全站统一 时间选择器（v0.5.0，源自「记一笔·选择时间」） ----------
@@ -2514,37 +2519,37 @@ async function renderGrowth() {
 function checkinCard(h) {
   const el = document.createElement('div');
   el.className = 'checkin-card';
-  const cat = `<span class="cat-tag" style="background:${catTint(h.color)};color:${catColor(h.color)}">${h.category}</span>`;
+  const cat = `<span class="cat-tag" style="background:${catTint(h.color)};color:${catColor(h.color)}">${escHtml(h.category)}</span>`;
   let sub, actions;
   if (h.type === 'sleep') {
-    sub = `目标 ${h.bed_time || '--:--'} 前睡 / ${h.rise_time || '--:--'} 前起 / ${h.nap_time || '--:--'} 午睡`;
+    sub = `目标 ${escHtml(h.bed_time || '--:--')} 前睡 / ${escHtml(h.rise_time || '--:--')} 前起 / ${escHtml(h.nap_time || '--:--')} 午睡`;
     const parts = [['bed', '早睡', h.today.done_bed], ['rise', '早起', h.today.done_rise], ['nap', '午睡', h.today.done_nap]];
     actions = parts.map((p) => `<button class="chk-btn ${p[2] ? 'on' : ''}" data-id="${h.id}" data-field="${p[0]}">${p[1]}</button>`).join('');
   } else if (h.method === 'duration') {
     // 按时间打卡：快捷按钮与输入框都跟随所选单位（秒/分钟/小时）
     const UNIT_STEPS = { 秒: [10, 20, 30], 分钟: [15, 30, 60], 小时: [1, 2, 3] };
     const steps = UNIT_STEPS[h.unit] || UNIT_STEPS['分钟'];
-    sub = `按时间打卡 · 目标 ${h.target} ${h.unit}`;
+    sub = `按时间打卡 · 目标 ${h.target} ${escHtml(h.unit)}`;
     const cur = h.today.done || 0;
     const pct = h.target > 0 ? Math.min(100, Math.round((cur / h.target) * 100)) : 0;
     actions = `
       <div class="dur-control">
-        <div class="dur-progress"><i style="width:${pct}%"></i><span>${cur} / ${h.target} ${h.unit}</span></div>
+        <div class="dur-progress"><i style="width:${pct}%"></i><span>${cur} / ${h.target} ${escHtml(h.unit)}</span></div>
         <div class="dur-quick">
           ${steps.map((s) => `<button class="chip" data-id="${h.id}" data-val="${s}">+${s}</button>`).join('')}
         </div>
         <div class="dur-input">
-          <input type="number" min="1" value="10" class="dur-min" data-id="${h.id}" aria-label="${h.unit}">
-          <span>${h.unit}</span>
+          <input type="number" min="1" value="10" class="dur-min" data-id="${h.id}" aria-label="${escHtml(h.unit)}">
+          <span>${escHtml(h.unit)}</span>
           <button class="chk-btn" data-id="${h.id}" data-field="done" data-input="1">记录</button>
         </div>
       </div>`;
   } else {
-    sub = `按次打卡 · 目标 ${h.target} ${h.unit}`;
+    sub = `按次打卡 · 目标 ${h.target} ${escHtml(h.unit)}`;
     actions = `
       <div class="count-control">
         <button class="chk-btn round" data-id="${h.id}" data-field="done" data-dec="1" aria-label="减少">−</button>
-        <span class="cnt">${h.today.done || 0}<i> / ${h.target} ${h.unit}</i></span>
+        <span class="cnt">${h.today.done || 0}<i> / ${h.target} ${escHtml(h.unit)}</i></span>
         <button class="chk-btn" data-id="${h.id}" data-field="done" data-inc="1">打卡 +1</button>
       </div>`;
   }
@@ -2620,13 +2625,13 @@ function renderHabitGrid(habits) {
     if (h.type === 'sleep') {
       prog = `今日 ${h.today.done_bed + h.today.done_rise + h.today.done_nap}/3 完成`;
     } else {
-      prog = `今日 ${h.today.done || 0} / ${h.target} ${h.unit}`;
+      prog = `今日 ${h.today.done || 0} / ${h.target} ${escHtml(h.unit)}`;
     }
     const typeTag = h.type === 'sleep' ? ' · 睡眠' : (h.method === 'duration' ? ' · 按时长' : ' · 按次');
     el.innerHTML = `
       <div class="hc-top">
         <span class="ci-icon" style="background:${catTint(h.color)};color:${catColor(h.color)}"><svg><use href="#i-${h.icon}"/></svg></span>
-        <div class="hc-meta"><b></b><small>${h.category}${typeTag}</small></div>
+        <div class="hc-meta"><b></b><small>${escHtml(h.category)}${typeTag}</small></div>
         <button class="icon-btn edit" data-id="${h.id}" title="编辑" aria-label="编辑"><svg><use href="#i-edit"/></svg></button>
         <button class="icon-btn del" data-id="${h.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
       </div>
@@ -3417,6 +3422,8 @@ bind('#eventForm', 'submit', async (e) => {
     allDay: e.target.allDay.checked,
   };
   if (!payload.start) { const el = $('#eventFormError'); el.textContent = '请选择开始时间'; el.hidden = false; return; }
+  const btn = e.target.querySelector('button[type=submit]');
+  if (btn) btn.disabled = true;
   try {
     const url = editingEventId ? `/api/events?id=${editingEventId}` : '/api/events';
     const method = editingEventId ? 'PUT' : 'POST';
@@ -3435,7 +3442,7 @@ bind('#eventForm', 'submit', async (e) => {
     if (!String(err.message).includes('unauthorized')) {
       const el = $('#eventFormError'); el.textContent = '保存失败'; el.hidden = false;
     }
-  }
+  } finally { if (btn) btn.disabled = false; }
 });
 // 删除事件
 bind('#eventDeleteBtn', 'click', async () => {
@@ -3473,6 +3480,8 @@ bind('#todoForm', 'submit', async (e) => {
   const fd = new FormData(e.target);
   const title = String(fd.get('title') || '').trim();
   if (!title) { const el = $('#todoFormError'); el.textContent = '请填写内容'; el.hidden = false; return; }
+  const btn = e.target.querySelector('button[type=submit]');
+  if (btn) btn.disabled = true;
   try {
     const res = await api('/api/todos', {
       method: 'POST',
@@ -3484,7 +3493,7 @@ bind('#todoForm', 'submit', async (e) => {
       }),
     });
     if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); await renderTodos(); }
-  } catch { /* 401 已处理 */ }
+  } catch { /* 401 已处理 */ } finally { if (btn) btn.disabled = false; }
 });
 
 // ===== 账本交互 =====
@@ -3679,7 +3688,7 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.3.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.4.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定

@@ -47,7 +47,10 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(() => el.classList.remove('show'), 2200);
   }
+  // 401 时走全局 api()（app.js 提供，会弹登录层），会话过期不再卡在“加载中”；
+  // app.js 尚未加载的极端场景下退化为仅抛错
   async function api(path, opts = {}) {
+    if (typeof window.api === 'function') return window.api(path, opts);
     const res = await fetch(path, { credentials: 'same-origin', ...opts });
     if (res.status === 401) throw new Error('unauthorized');
     return res;
@@ -469,6 +472,8 @@
           rx: form.rx.checked ? 1 : 0,
         };
         const editing = state.editingId;
+        const btn = $('#medSubmitBtn');
+        if (btn) btn.disabled = true;
         try {
           const res = editing
             ? await api(`/api/medicines/${editing}`, {
@@ -487,7 +492,7 @@
             markSynced();
             renderMedicine();
           }
-        } catch (_) { /* 401 已处理 */ }
+        } catch (_) { /* 401 已处理 */ } finally { if (btn) btn.disabled = false; }
       });
     }
   }
