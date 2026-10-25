@@ -59,9 +59,9 @@ cp .dev.vars.example .dev.vars
 wrangler d1 create shuzishenghuo
 wrangler r2 bucket create shuzishenghuo
 
-# 4. 初始化表与示例数据（本地）
-wrangler d1 execute shuzishenghuo --local --file=./schema.sql
-wrangler d1 execute shuzishenghuo --local --file=./seed.sql
+# 4. 初始化表结构与预置数据（本地，v0.5.5 起统一走 migrations 目录）
+wrangler d1 migrations apply shuzishenghuo --local
+#   （可选）演示数据：wrangler d1 execute shuzishenghuo --local --file=./seed.sql
 
 # 5. 启动本地预览
 wrangler pages dev ./public --d1 DB=shuzishenghuo --r2 BUCKET=shuzishenghuo
@@ -79,7 +79,8 @@ wrangler pages dev ./public --d1 DB=shuzishenghuo --r2 BUCKET=shuzishenghuo
 3. 构建设置：框架预设选「None / 其他」，构建输出目录填 `public`，构建命令留空。
 4. 在 **设置 → 函数 → D1 数据库** 绑定：`DB` → `shuzishenghuo`；在 **R2** 绑定：`BUCKET` → `shuzishenghuo`。
 5. 在 **设置 → 环境变量** 配置 `ADMIN_USER` / `ADMIN_PASS` / `SESSION_SECRET`（生产建议用 `wrangler secret put`）。
-6. 部署完成后，到 D1 控制台执行 `schema.sql` 与 `seed.sql`（或在 CI 里 `wrangler d1 execute ... --remote`）。
+6. 部署完成后，执行一次数据库迁移（v0.5.5 起统一入口，有执行记录、可增量）：
+   `wrangler d1 migrations apply shuzishenghuo --remote`
 
 ### 方式二：CLI
 ```bash
