@@ -3,6 +3,7 @@
 
 const PF = {
   view: 'list',
+  editMode: false,       // v0.5.19 档案页查看/编辑模式（默认查看）
   pid: null,
   data: null,            // 当前档案
   list: [],              // 列表（当前筛选结果）
@@ -240,6 +241,42 @@ function pfRenderAll() {
   pfRenderPets();
   pfRenderBody();    // v0.6.0：个人信息（尺码 + 身高表 + 体重折线）
   pfRenderFiles();   // v0.6.0：附件（R2）
+  pfSyncEditMode();  // v0.5.19：查看/编辑模式的面板可见性与按钮态
+}
+
+// ===== v0.5.19 查看/编辑模式 =====
+function pfSyncEditMode() {
+  // 按钮：查看模式显示「编辑」（铅笔），编辑模式显示「完成」（对勾）
+  const btn = pfEl('pfEditBtn');
+  if (btn) {
+    btn.innerHTML = PF.editMode
+      ? '<svg><use href="#i-check"/></svg><span class="btn-long">完成</span><span class="btn-short">完成</span>'
+      : '<svg class="btn-ico-long"><use href="#i-edit"/></svg><span class="btn-long">编辑基本信息</span><span class="btn-short">编辑</span>';
+  }
+  // 查看模式隐藏空分区；编辑模式全部展开
+  const b = PF.data || {};
+  const methods = b.methods || {};
+  const methodsAny = METHOD_META.some(([k]) => (methods[k] || []).length);
+  const sizes = (PF.bodyData && PF.bodyData.sizes) || {};
+  const bodyAny = !!(PF.bodyData && ((PF.bodyData.heights || []).length || (PF.bodyData.weights || []).length || Object.values(sizes).some(Boolean)));
+  const filesAny = (PF.filesData || []).length;
+  const hideIfEmpty = !PF.editMode;
+  const visibility = {
+    pfBasicPanel: true,
+    pfSocialPanel: !hideIfEmpty || !!(b.base && (b.base.marriage || b.base.referrer || b.base.note)),
+    pfMethodsPanel: !hideIfEmpty || methodsAny,
+    pfRelativesPanel: !hideIfEmpty || (b.relatives || []).length > 0,
+    pfWorkPanel: !hideIfEmpty || !!(b.work && (b.work.company || b.work.position)),
+    pfEduPanel: !hideIfEmpty || (b.edus || []).length > 0,
+    pfPetsPanel: !hideIfEmpty || (b.pets || []).length > 0,
+    pfFinancePanel: true,
+    pfBodyPanel: !hideIfEmpty || bodyAny,
+    pfFilesPanel: !hideIfEmpty || filesAny,
+  };
+  Object.entries(visibility).forEach(([id, show]) => {
+    const el = pfEl(id);
+    if (el) el.hidden = hideIfEmpty && !show;
+  });
 }
 
 // ===== v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） =====
@@ -283,7 +320,38 @@ async function pfRenderBody() {
   const heights = (data.records || []).filter((r) => r.kind === 'height').reverse(); // 新记录在前
   const weights = (data.records || []).filter((r) => r.kind === 'weight');
   const sz = data.sizes || {};
+  PF.bodyData = { heights, weights, sizes: sz }; // 供空面板判断
   const t = pfToday();
+
+  if (!PF.editMode) {
+    // 查看模式：身高表（无删除钮）+ 体重折线 + 尺码文字，无任何输入控件
+    const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
+    if (!hasAny) { box.innerHTML = '<div class="empty-hint">暂无身高体重与尺码记录</div>'; return; }
+    const sizeItems = [['衣裤', sz.clothing], ['鞋子', sz.shoe], ['戒指', sz.ring], ['手镯', sz.bracelet]].filter(([, v]) => v);
+    box.innerHTML = `
+      <div class="pf-hm">
+        <div class="pf-hm-block">
+          <b class="pm-block-title">身高记录 <span class="muted">cm</span></b>
+          ${heights.length ? `
+          <div class="pf-hm-table">
+            <div class="pf-hm-tr pf-hm-th"><span>日期</span><span>身高</span></div>
+            ${heights.map((r) => `<div class="pf-hm-tr"><span>${pfEsc(r.date)}</span><b>${r.value} cm</b></div>`).join('')}
+          </div>` : '<div class="empty-hint">暂无身高记录</div>'}
+        </div>
+        <div class="pf-hm-block">
+          <b class="pm-block-title">体重趋势 <span class="muted">kg</span></b>
+          ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">暂无体重记录</div>'}
+        </div>
+      </div>
+      ${sizeItems.length ? `
+      <div class="pf-sizes">
+        <b class="pm-block-title">尺码</b>
+        <div class="pm-grid">
+          ${sizeItems.map(([k, v]) => `<div class="pm-item"><span>${k}</span><b>${pfEsc(v)}</b></div>`).join('')}
+        </div>
+      </div>` : ''}`;
+    return;
+  }
 
   box.innerHTML = `
     <div class="pf-hm">
@@ -339,6 +407,7 @@ async function pfRenderBody() {
     });
   });
   box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
+  pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性
 }
 
 // ===== v0.6.0：附件（照片 / 视频 / 文档，R2 桶 rjgx/姓名+手机号/） =====
@@ -368,6 +437,10 @@ async function pfRenderFiles() {
     if (res.ok) data = await res.json();
   } catch (_) { /* 401 已处理 */ }
   if (hint) hint.textContent = data.folder ? `rjgx/${data.folder}/` : '';
+  PF.filesData = data.files || [];
+  // 查看模式：上传入口隐藏，文件只读预览/下载
+  const uploadBtn = pfEl('pfFileBtn');
+  if (uploadBtn) uploadBtn.style.display = PF.editMode ? '' : 'none';
   const fs = data.files || [];
   box.innerHTML = fs.length ? fs.map((f) => {
     const url = `/api/profile/files?id=${PF.pid}&fid=${f.id}`;
@@ -382,10 +455,11 @@ async function pfRenderFiles() {
       </div>
       <div class="pf-file-ops">
         <a class="icon-btn" href="${url}&dl=1" title="下载"><svg><use href="#i-upload"/></svg></a>
-        <button class="icon-btn" data-act="fdel" data-id="${f.id}" data-name="${pfEsc(f.name)}" title="删除"><svg><use href="#i-x"/></svg></button>
+        ${PF.editMode ? `<button class="icon-btn" data-act="fdel" data-id="${f.id}" data-name="${pfEsc(f.name)}" title="删除"><svg><use href="#i-x"/></svg></button>` : ''}
       </div>
     </div>`;
-  }).join('') : '<div class="empty-hint">暂无附件。照片、视频、文档都可上传，存在你自己的对象存储里。</div>';
+  }).join('') : (PF.editMode ? '<div class="empty-hint">暂无附件。照片、视频、文档都可上传，存在你自己的对象存储里。</div>' : '<div class="empty-hint">暂无附件</div>');
+  pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性
 }
 
 function pfRenderHero() {
@@ -430,11 +504,21 @@ function pfRenderBasic() {
       <div class="pm-item"><span>性别</span><b>${pfEsc(b.gender || '—')}</b></div>
       <div class="pm-item"><span>生日</span><b>${pfEsc(bdLine)}</b></div>
     </div>
-    <div class="form-actions"><button class="btn ghost" type="button" data-act="edit-basic">编辑基本信息</button></div>`;
+    ${PF.editMode ? '<div class="form-actions"><button class="btn ghost" type="button" data-act="edit-basic">编辑基本信息</button></div>' : ''}`;
 }
 
 function pfRenderSocial() {
   const b = PF.data.base;
+  if (!PF.editMode) {
+    // 查看模式：纯展示，无选择框
+    pfEl('pfSocial').innerHTML = `
+      <div class="pm-grid">
+        <div class="pm-item"><span>婚姻状况</span><b>${pfEsc(b.marriage || '—')}</b></div>
+        <div class="pm-item"><span>引荐人</span><b>${b.referrer ? pfEsc(b.referrer.name) : '—'}</b></div>
+        <div class="pm-item"><span>备注</span><b>${pfEsc(b.note || '—')}</b></div>
+      </div>`;
+    return;
+  }
   pfEl('pfSocial').innerHTML = `
     <label class="field"><span>婚姻状况</span>
       <select id="pfMarriageSel">
@@ -456,14 +540,30 @@ function pfRenderSocial() {
 
 // ===== 联系方式 =====
 const METHOD_META = [
-  ['phones', '电话号码', '如：13800000000', ['个人', '工作', '家庭']],
-  ['emails', '电子邮件', '如：name@example.com', ['个人', '工作']],
-  ['qq', 'QQ 号', '如：123456789', ['个人', '工作']],
-  ['wechat', '微信号', '如：wxid_xxx 或手机号', ['个人', '工作']],
-  ['addresses', '联系地址', '如：江苏省南京市××路×号', ['家庭', '公司']],
+  ['phones', '电话号码', '如：13800000000', ['个人', '工作', '家庭'], '📞'],
+  ['emails', '电子邮件', '如：name@example.com', ['个人', '工作'], '✉️'],
+  ['qq', 'QQ 号', '如：123456789', ['个人', '工作'], '🐧'],
+  ['wechat', '微信号', '如：wxid_xxx 或手机号', ['个人', '工作'], '💬'],
+  ['addresses', '联系地址', '如：江苏省南京市××路×号', ['家庭', '公司'], '🏠'],
 ];
+const METHOD_ICON = Object.fromEntries(METHOD_META.map(([k, , , , ico]) => [k, ico]));
 function pfRenderMethods() {
   const m = PF.data.methods;
+  if (!PF.editMode) {
+    // 查看模式：图标 + 内容纯展示
+    const blocks = METHOD_META.map(([kind, title]) => ({ kind, title, items: m[kind] || [] })).filter((x) => x.items.length);
+    pfEl('pfMethods').innerHTML = blocks.length ? blocks.map(({ kind, title, items }) => `
+      <div class="pm-block" data-kind="${kind}">
+        <b class="pm-block-title">${title}</b>
+        ${items.map((x) => `
+          <div class="pf-vrow">
+            <span class="pf-vico">${METHOD_ICON[kind]}</span>
+            <b>${pfEsc(x.value)}</b>
+            ${x.label ? `<span class="contact-badge">${pfEsc(x.label)}</span>` : ''}
+          </div>`).join('')}
+      </div>`).join('') : '<div class="empty-hint">暂无联系方式</div>';
+    return;
+  }
   pfEl('pfMethods').innerHTML = METHOD_META.map(([kind, title, ph, labels]) => `
     <div class="pm-block" data-kind="${kind}">
       <b class="pm-block-title">${title}</b>
@@ -489,6 +589,16 @@ function pfRenderMethods() {
 function pfRenderRelatives() {
   const d = PF.data;
   pfEl('pfKinTitle').textContent = `「${d.base.name}」的家庭关系`;
+  if (!PF.editMode) {
+    // 查看模式：纯展示
+    pfEl('pfRelatives').innerHTML = `
+      ${(d.relatives || []).map((r) => `
+        <div class="pm-row" data-id="${r.id}">
+          <b>${r.refId ? `<a class="rel-link" data-act="ropen" data-id="${r.refId}">${pfEsc(r.name)} 🔗</a>` : pfEsc(r.name)}</b>
+          <span class="contact-badge">是${pfEsc(d.base.name)}的${pfEsc(r.kin)}</span>
+        </div>`).join('') || '<div class="empty-hint">暂无家庭关系</div>'}`;
+    return;
+  }
   const kinOpts = d.meta.kins || [];
   const nameOpts = PF.allNames.filter((x) => x.id !== PF.pid);
   pfEl('pfRelatives').innerHTML = `
@@ -497,7 +607,6 @@ function pfRenderRelatives() {
         <b>${r.refId ? `<a class="rel-link" data-act="ropen" data-id="${r.refId}">${pfEsc(r.name)} 🔗</a>` : pfEsc(r.name)}</b>
         <span class="contact-badge">是${pfEsc(d.base.name)}的${pfEsc(r.kin)}</span>
         <span class="pm-ops">
-          <button class="icon-btn" data-act="redit" data-id="${r.id}" title="编辑"><svg><use href="#i-edit"/></svg></button>
           <button class="icon-btn" data-act="rdel" data-id="${r.id}" title="删除"><svg><use href="#i-x"/></svg></button>
         </span>
       </div>`).join('') || '<div class="empty-hint">暂无家庭关系，在下方添加</div>'}
@@ -509,13 +618,22 @@ function pfRenderRelatives() {
       <datalist id="relNameList">${nameOpts.map((x) => `<option value="${pfEsc(x.name)}">`).join('')}</datalist>
       <button class="btn ghost" type="submit">添加</button>
     </form>
-    <p class="field-hint">关系不在列表里？直接输入新称谓，保存后下次可直接选择。</p>`;
+    ${PF.editMode ? '<p class="field-hint">关系不在列表里？直接输入新称谓，保存后下次可直接选择。</p>' : ''}`;
 }
 
 // ===== 公司/组织与职位 =====
 function pfRenderWork() {
   const w = PF.data.work;
   const m = PF.data.meta;
+  if (!PF.editMode) {
+    // 查看模式：纯展示
+    pfEl('pfWork').innerHTML = (w.company || w.position) ? `
+      <div class="pm-grid">
+        ${w.company ? `<div class="pm-item"><span>公司/组织</span><b>${pfEsc(w.company)}</b></div>` : ''}
+        ${w.position ? `<div class="pm-item"><span>职位</span><b>${pfEsc(w.position)}</b></div>` : ''}
+      </div>` : '<div class="empty-hint">暂无职业信息</div>';
+    return;
+  }
   pfEl('pfWork').innerHTML = `
     <form class="pm-add" id="workForm">
       <label class="field"><span>公司/组织</span>
@@ -535,6 +653,16 @@ function pfRenderWork() {
 function pfRenderEdu() {
   const list = PF.data.edus || [];
   const degrees = PF.vocab.edu || ['高中', '大专', '本科', '硕士', '博士'];
+  if (!PF.editMode) {
+    // 查看模式：经历卡片
+    pfEl('pfEdu').innerHTML = (list || []).length ? (list || []).map((e) => `
+      <div class="rep-box">
+        <div class="rep-h"><b>${pfEsc(e.school || '学校未填')}</b>${e.degree ? `<span class="contact-badge">${pfEsc(e.degree)}</span>` : ''}</div>
+        <div class="pf-vmeta">${[e.major && '专业 ' + e.major, (e.start || e.end) && `${e.start || '?'} ~ ${e.end || '现在'}`].filter(Boolean).map(pfEsc).join(' · ') || '&nbsp;'}</div>
+        ${e.story ? `<div class="pf-vmeta">${pfEsc(e.story)}</div>` : ''}
+      </div>`).join('') : '<div class="empty-hint">暂无教育经历</div>';
+    return;
+  }
   pfEl('pfEdu').innerHTML = `
     ${(list || []).map((e, i) => `
       <form class="rep-box" data-edu-id="${e.id}">
@@ -570,6 +698,15 @@ function pfRenderEdu() {
 // ===== 宠物 =====
 function pfRenderPets() {
   const list = PF.data.pets || [];
+  if (!PF.editMode) {
+    // 查看模式：纯展示
+    pfEl('pfPets').innerHTML = (list || []).length ? (list || []).map((p) => `
+      <div class="pm-row" data-pet-id="${p.id}">
+        <b>🐾 ${pfEsc(p.species)} · ${pfEsc(p.name)}</b>
+        ${p.memorialDate ? `<span class="contact-badge">纪念日 ${pfEsc(p.memorialDate)}</span>` : ''}
+      </div>`).join('') : '<div class="empty-hint">暂无宠物记录</div>';
+    return;
+  }
   pfEl('pfPets').innerHTML = `
     ${(list || []).map((p) => `
       <form class="pm-row" data-pet-id="${p.id}">
@@ -584,7 +721,7 @@ function pfRenderPets() {
       <input class="inp" data-k="memorial_date" type="date" aria-label="纪念日（选填）">
       <button class="btn ghost" type="submit">添加</button>
     </form>
-    <p class="field-hint">纪念日选填，可用于纪念离开的毛孩子；种类输入一次后会自动成为备选。</p>`;
+    ${PF.editMode ? '<p class="field-hint">纪念日选填，可用于纪念离开的毛孩子；种类输入一次后会自动成为备选。</p>' : ''}`;
 }
 
 // ===== 财务往来（v0.5.0：账本流水按联系人自动关联） =====
@@ -1000,7 +1137,16 @@ function pfBindEvents() {
   // 档案视图
   const back = pfEl('pfBack'); if (back) back.addEventListener('click', pfBackToList);
   const del = pfEl('pfDelete'); if (del) del.addEventListener('click', pfDeletePerson);
-  const edit = pfEl('pfEditBtn'); if (edit) edit.addEventListener('click', pfOpenEditModal);
+  const edit = pfEl('pfEditBtn'); if (edit) edit.addEventListener('click', () => {
+    PF.editMode = !PF.editMode;
+    pfRenderAll();
+  });
+  // 编辑模式下「编辑基本信息」打开弹窗（查看模式该按钮不渲染）
+  const basicPanel = pfEl('pfBasicPanel');
+  if (basicPanel) basicPanel.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act=edit-basic]');
+    if (btn) pfLoadNames().then(() => pfOpenEditModal());
+  });
 
   // 编辑弹窗
   const modal = pfEl('contactEditModal');

@@ -1629,3 +1629,17 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .rel-touch-sel{max-width:100%}
   .rel-touch-now{padding:4px 6px}
 }
+
+/* --- v0.5.19 档案页查看/编辑模式 --- */
+/* 查看模式展示行：图标 + 内容 + 标签 */
+.pf-vrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:13.5px;min-width:0}
+.pm-block .pf-vrow:first-of-type{border-top:0}
+.pf-vico{flex:0 0 auto;font-size:15px;width:22px;text-align:center}
+.pf-vrow b{font-weight:600;overflow-wrap:anywhere}
+.pf-vmeta{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.6}
+.rep-box .pf-vmeta{margin-top:6px}
+/* 英雄区抛光：名字更醒目 */
+.pf-hero h2{font-size:24px;letter-spacing:.5px}
+.pf-hero small{font-size:13px;color:var(--muted);font-weight:400}
+/* 编辑模式提示条 */
+.pf-editbar{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:12.5px;color:var(--terra)}
