@@ -1494,3 +1494,47 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .ai-model-row,.token-row{flex-direction:column;align-items:stretch;gap:8px}
   .ai-model-ops{justify-content:flex-end}
 }
+
+/* --- v0.5.10 日历 · 经期 --- */
+/* 周/月历叠加：过去经期＝梅子色软底；下次预估＝虚线框 */
+.mcell.pday{background:var(--plum-soft);border-color:var(--plum)}
+.mcell.pday .mcell-day{color:var(--plum-deep);font-weight:700}
+.mcell.pday-pred{border:1px dashed var(--plum);background:transparent}
+.mcell.pday-pred::after{content:"预估";font-size:9px;color:var(--plum);align-self:center;line-height:1}
+.cal-week-head .wh.pday{background:var(--plum-soft);box-shadow:inset 0 -3px 0 var(--plum)}
+.cal-week-head .wh.pday-pred{box-shadow:inset 0 -3px 0 var(--plum);border:1px dashed var(--plum)}
+/* 经期页模式下：上/下页·今天·新增日程隐藏，头部只留标签 */
+.cal-period-mode .cal-nav,.cal-period-mode #calToday,.cal-period-mode #addEventBtn{display:none}
+/* 概览三格 */
+.pd-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.pd-stat{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:14px 16px}
+.pd-stat span{display:block;font-size:12px;color:var(--muted)}
+.pd-stat strong{display:block;margin-top:5px;font:700 22px/1.15 var(--font-serif);color:var(--plum-deep)}
+.pd-stat small{display:block;margin-top:3px;font-size:11px;color:var(--muted)}
+/* 快捷行 + 隐私开关 */
+.pd-quick{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pd-priv{display:inline-flex;align-items:center;gap:7px;margin-left:auto;font-size:12.5px;color:var(--ink);cursor:pointer}
+.pd-priv input{width:16px;height:16px;accent-color:var(--plum)}
+/* 历史列表 */
+.pd-list-head{display:flex;align-items:baseline;justify-content:space-between;margin:18px 0 8px}
+.pd-list-head b{font:700 15px/1.3 var(--font-serif)}
+.pd-list{display:flex;flex-direction:column;gap:8px}
+.pd-row{display:flex;align-items:center;gap:12px;justify-content:space-between;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 14px}
+.pd-row-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;flex:1}
+.pd-row-main b{font-size:13.5px}
+.pd-row-main small{width:100%;font-size:12px;color:var(--muted)}
+.pd-flow-badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--plum);color:var(--plum)}
+.pd-flow-badge.f1{border-color:var(--sage);color:var(--sage)}
+.pd-flow-badge.f3{border-color:var(--terra);color:var(--terra)}
+.pd-ops{display:flex;gap:2px;flex:0 0 auto}
+/* 补录/编辑表单 */
+.pd-form{margin-top:18px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--surface);padding:16px 18px}
+.pd-form-title{display:block;margin-bottom:12px;font:700 14px/1.3 var(--font-serif)}
+.pd-flow-seg{display:flex;gap:8px;margin-top:8px}
+.pd-flow-chip{border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);padding:6px 16px;font-size:12.5px;cursor:pointer}
+.pd-flow-chip.on{border-color:var(--plum);background:var(--plum-soft);color:var(--plum-deep);font-weight:600}
+@media (max-width:640px){
+  .pd-stats{grid-template-columns:1fr 1fr}
+  .pd-stat:first-child{grid-column:1/-1}
+  .pd-priv{margin-left:0;width:100%}
+}

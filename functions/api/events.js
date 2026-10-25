@@ -1,4 +1,4 @@
-import { json } from '../_lib.js';
+import { json, todayStr } from '../_lib.js';
 
 const CALENDARS = ['工作', '生活', '家庭', '健康'];
 
@@ -31,7 +31,40 @@ export async function onRequestGet(context) {
     location: r.location || '',
     note: r.note || '',
   }));
-  return json({ events, calendars: CALENDARS });
+
+  // ---- v0.5.10 经期叠加（隐私开关 period_visible，关=日历完全不留痕迹）----
+  // periods：与范围重叠的经期区间；prediction：下次开始预估日（不落库，纯推算）
+  let periods = [];
+  let prediction = null;
+  let periodVisible = false;
+  try {
+    const vis = await env.DB.prepare("SELECT value FROM app_settings WHERE key='period_visible'").first();
+    periodVisible = vis ? vis.value !== '0' : true;
+    if (periodVisible) {
+      const prows = (await env.DB.prepare(
+        `SELECT start_date, end_date FROM period_logs
+         WHERE start_date <= ? AND (end_date IS NULL OR end_date = '' OR end_date >= ?)
+         ORDER BY start_date`
+      ).bind(to, from).all()).results || [];
+      periods = prows.map((p) => ({ start: p.start_date, end: p.end_date || todayStr() }));
+      const all = (await env.DB.prepare('SELECT start_date FROM period_logs ORDER BY start_date').all()).results || [];
+      const starts = all.map((r) => r.start_date);
+      const diffs = [];
+      for (let i = 1; i < starts.length; i++) {
+        const d = Math.round((new Date(starts[i] + 'T00:00') - new Date(starts[i - 1] + 'T00:00')) / 86400000);
+        if (d >= 15 && d <= 60) diffs.push(d);
+      }
+      if (starts.length && diffs.length) {
+        const avg = Math.round(diffs.slice(-6).reduce((s, x) => s + x, 0) / Math.min(diffs.length, 6));
+        const last = starts[starts.length - 1];
+        const pd = new Date(last + 'T00:00');
+        pd.setDate(pd.getDate() + avg);
+        prediction = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}-${String(pd.getDate()).padStart(2, '0')}`;
+      }
+    }
+  } catch (_) { /* 表未建/未迁移时静默 */ }
+
+  return json({ events, calendars: CALENDARS, periods, prediction, periodVisible });
 }
 
 // POST /api/events —— 新增事件

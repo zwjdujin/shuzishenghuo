@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.9
-const VERSION = '0.5.9';
+// 数字生活 · 前端逻辑 v0.5.10
+const VERSION = '0.5.10';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '智能管理：AI 模型多配置与默认模型（界面化管理，回退环境变量）；API Token + 按功能读写授权 + MCP 端点(/mcp JSON-RPC)与 /api/ext 外部数据接口；数据安全更名（原数据处理）+ 备份统计新表全部中文化';
+const __BUILD_ID__ = '日历中心新增经期记录：独立经期标签页（周期概览/今天来了/今天结束/历史补录编辑/经量备注）+ 周月历叠加显示与下次预估；隐私开关「在周历月历中显示」关=日历零痕迹；period_logs 迁移 0006；end_date 空串改绑 NULL（否则叠加查询漏行）';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -994,7 +994,7 @@ function ymd(d) {
 }
 function todayStrLocal() { return ymd(new Date()); }
 
-let calState = { view: 'week', anchor: new Date(), events: [] };
+let calState = { view: 'week', anchor: new Date(), events: [], periods: [], prediction: null };
 
 // 年月选择器：年份可手输/步进，月份下拉
 function initCalPicker() {
@@ -1043,6 +1043,8 @@ async function loadCalEvents() {
     const res = await api(`/api/events?from=${from}&to=${to}`);
     const data = await res.json();
     calState.events = data.events || [];
+    calState.periods = data.periods || [];       // v0.5.10 经期叠加（隐私开关关闭时后端直接不给）
+    calState.prediction = data.prediction || null;
     fillCalendarSel('#eventCalendarSel', data.calendars || Object.keys(CAL_COLOR));
     renderCalLegend(data.calendars || Object.keys(CAL_COLOR));
     // 合并勾选了「在日历中显示」的联系人生日
@@ -1119,6 +1121,14 @@ function renderCalView() {
   const title = $('#calTitle');
   const eyebrow = $('#calEyebrow');
   if (!box) return;
+  if (calState.view === 'period') {
+    title.textContent = '经期记录';
+    if (eyebrow) eyebrow.textContent = '日历中心 · 经期';
+    box.innerHTML = '<div class="empty-hint">加载中…</div>';
+    renderPeriodView();
+    syncCalNavLabels();
+    return;
+  }
   if (calState.view === 'week') {
     const s = startOfWeek(calState.anchor);
     const e = addDays(s, 6);
@@ -1208,10 +1218,13 @@ function buildMonthView(anchor) {
 }
 
 function makeCell(date, out, today) {
+  const ds = ymd(date);
+  const isPeriod = periodOn(ds);
+  const isPred = calState.prediction === ds;
   const cell = document.createElement('div');
-  cell.className = 'mcell' + (out ? ' out' : '') + (ymd(date) === today ? ' today' : '');
+  cell.className = 'mcell' + (out ? ' out' : '') + (ds === today ? ' today' : '') + (isPeriod ? ' pday' : '') + (isPred ? ' pday-pred' : '');
   const lun = lunarLabel(date);
-  const evs = eventsOn(ymd(date));
+  const evs = eventsOn(ds);
 
   const top = document.createElement('div');
   top.className = 'mcell-top';
@@ -1238,7 +1251,11 @@ function makeCell(date, out, today) {
     box.appendChild(more);
   }
   cell.appendChild(box);
-  cell.addEventListener('click', () => openEventModal(null, ymd(date)));
+  // 经期日点击直达经期页（其余日期照常新增日程）
+  cell.addEventListener('click', () => {
+    if (isPeriod || isPred) switchCalView('period');
+    else openEventModal(null, ds);
+  });
   return cell;
 }
 
@@ -1248,6 +1265,187 @@ function eventsOn(dateStr) {
     const s = String(ev.start || '').slice(0, 10);
     const e = ev.end ? String(ev.end).slice(0, 10) : s;
     return s <= dateStr && dateStr <= e;
+  });
+}
+
+// ===== v0.5.10 经期叠加：该日是否在经期区间内 / 是否为下次预估日 =====
+function periodOn(dateStr) {
+  return calState.periods.some((p) => p.start <= dateStr && dateStr <= p.end);
+}
+
+// ===== v0.5.10 经期记录页 =====
+let periodFlow = 2;       // 表单当前选中量 1少/2中/3多
+let periodEditing = null; // 编辑中的记录 id
+
+function pdFmt(ds) {
+  if (!ds) return '—';
+  const [, m, d] = ds.split('-');
+  return `${Number(m)}月${Number(d)}日`;
+}
+
+async function renderPeriodView() {
+  const box = $('#calViewBox');
+  if (!box) return;
+  let data = { logs: [], stats: {}, visible: true };
+  try {
+    const res = await api('/api/period');
+    data = await res.json();
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载经期数据失败</div>';
+    return;
+  }
+  const st = data.stats || {};
+  const logs = data.logs || [];
+  const ongoing = logs.find((l) => l.id === st.ongoingId) || null;
+
+  const statsHtml = `
+    <div class="pd-stats">
+      <div class="pd-stat"><span>当前周期</span><strong>${st.cycleDay ? '第 ' + st.cycleDay + ' 天' : '未在经期'}</strong>
+        <small>${ongoing ? pdFmt(ongoing.startDate) + ' 开始' : '点「今天来了」开始记录'}</small></div>
+      <div class="pd-stat"><span>平均周期</span><strong>${st.cycleAvg ? st.cycleAvg + ' 天' : '—'}</strong>
+        <small>${st.samples ? '近 ' + st.samples + ' 次推算' : '有两次记录后自动算'}</small></div>
+      <div class="pd-stat"><span>下次预计</span><strong>${st.nextPredicted ? pdFmt(st.nextPredicted) : '—'}</strong>
+        <small>${st.nextPredicted ? '预估，仅供参考' : '记录后自动推算'}</small></div>
+    </div>`;
+
+  const historyHtml = logs.length ? logs.map((l) => `
+    <div class="pd-row" data-id="${l.id}">
+      <div class="pd-row-main">
+        <b>${pdFmt(l.startDate)}${l.endDate ? ' ~ ' + pdFmt(l.endDate) + ' · ' + l.days + ' 天' : ' 开始 · 进行中'}</b>
+        <span class="pd-flow-badge f${l.flow}">${['', '量少', '量中', '量多'][l.flow] || ''}</span>
+        ${l.note ? `<small>${escHtml(l.note)}</small>` : ''}
+      </div>
+      <div class="pd-ops">
+        <button class="icon-btn" data-pd="edit" data-id="${l.id}" title="编辑"><svg><use href="#i-edit"/></svg></button>
+        <button class="icon-btn" data-pd="del" data-id="${l.id}" title="删除"><svg><use href="#i-x"/></svg></button>
+      </div>
+    </div>`).join('') : '<div class="empty-hint">还没有记录。点上面的「今天来了」，或用下方表单补录过去的经期。</div>';
+
+  box.innerHTML = `
+    <div class="pd-wrap">
+      ${statsHtml}
+      <div class="pd-quick">
+        <button class="btn primary" data-pd="start" type="button"${ongoing ? ' disabled title="已有进行中的经期"' : ''}>今天来了</button>
+        <button class="btn ghost" data-pd="end" type="button"${ongoing ? '' : ' disabled title="没有进行中的经期"'}>今天结束</button>
+        <label class="pd-priv"><input type="checkbox" id="pdVisible"${data.visible ? ' checked' : ''}><span>在周历/月历中显示</span></label>
+      </div>
+      <p class="ts-hint">隐私开关只控制日历上的显示；关闭后周历/月历完全不留痕迹，这里仍可查看和记录。</p>
+      <div class="pd-list-head"><b>历史记录</b><span class="muted">${logs.length} 次</span></div>
+      <div class="pd-list">${historyHtml}</div>
+      <form class="pd-form" id="pdForm">
+        <b class="pd-form-title" id="pdFormTitle">补录一次经期</b>
+        <div class="field-row">
+          <label class="field"><span>开始日期</span>
+            <input type="hidden" id="pdStartInput">
+            <button type="button" class="dt-btn" data-dt="pdStart" data-ph="选择开始日期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
+          <label class="field"><span>结束日期（留空＝进行中）</span>
+            <input type="hidden" id="pdEndInput">
+            <button type="button" class="dt-btn" data-dt="pdEnd" data-ph="选择结束日期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+          </label>
+        </div>
+        <div class="field"><span>经量</span>
+          <div class="pd-flow-seg">
+            ${[1, 2, 3].map((f) => `<button type="button" class="pd-flow-chip${f === periodFlow ? ' on' : ''}" data-flow="${f}">${['', '量少', '量中', '量多'][f]}</button>`).join('')}
+          </div>
+        </div>
+        <label class="field"><span>备注（选填）</span><input id="pdNote" maxlength="60" placeholder="如：痛经、出差"></label>
+        <div class="settings-actions" style="gap:10px">
+          <button class="btn ghost" type="button" id="pdCancelEdit" hidden>取消编辑</button>
+          <button class="btn primary" type="submit">保存记录</button>
+        </div>
+      </form>
+    </div>`;
+
+  // 日期按钮接全站统一选择器（动态元素，直接挂 openSitePicker）
+  box.querySelectorAll('.dt-btn[data-dt]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const inp = document.getElementById(btn.dataset.dt + 'Input');
+      if (!inp) return;
+      openSitePicker({
+        mode: 'date', date: inp.value || '', title: btn.dataset.dt === 'pdStart' ? '开始日期' : '结束日期',
+        allowClear: btn.dataset.dt === 'pdEnd',
+        onDone: ({ date }) => { inp.value = date || ''; window.syncDtBtns(box); },
+      });
+    });
+  });
+  // 经量芯片
+  box.querySelectorAll('.pd-flow-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      periodFlow = Number(chip.dataset.flow);
+      box.querySelectorAll('.pd-flow-chip').forEach((c) => c.classList.toggle('on', c === chip));
+    });
+  });
+  // 快捷 + 隐私开关
+  box.querySelector('[data-pd=start]').addEventListener('click', async () => {
+    const res = await api('/api/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start_date: todayStrLocal(), flow: periodFlow }) });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) { toast('已记录：本次经期开始'); renderPeriodView(); }
+    else toast(d.error || '记录失败');
+  });
+  box.querySelector('[data-pd=end]').addEventListener('click', async () => {
+    if (!st.ongoingId) { toast('当前没有进行中的经期'); return; }
+    const res = await api('/api/period', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: st.ongoingId, end_date: todayStrLocal() }) });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) { toast('已记录：本次经期结束'); renderPeriodView(); }
+    else toast(d.error || '记录失败');
+  });
+  box.querySelector('#pdVisible').addEventListener('change', async (e) => {
+    const res = await api('/api/period', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visible: e.target.checked }) });
+    if (res.ok) toast(e.target.checked ? '已开启：周历/月历会显示经期' : '已关闭：日历上不留任何痕迹');
+    else { e.target.checked = !e.target.checked; toast('设置失败'); }
+  });
+  // 历史：编辑 / 删除
+  box.querySelector('.pd-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-pd]');
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    const log = logs.find((l) => l.id === id);
+    if (!log) return;
+    if (btn.dataset.pd === 'edit') {
+      periodEditing = id;
+      $('#pdStartInput').value = log.startDate;
+      $('#pdEndInput').value = log.endDate || '';
+      periodFlow = log.flow || 2;
+      $('#pdNote').value = log.note || '';
+      $('#pdFormTitle').textContent = '编辑这次经期（' + pdFmt(log.startDate) + '）';
+      $('#pdCancelEdit').hidden = false;
+      window.syncDtBtns(box);
+      box.querySelectorAll('.pd-flow-chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.flow) === periodFlow));
+      box.querySelector('.pd-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (btn.dataset.pd === 'del') {
+      if (!(await confirmModal(`删除 ${pdFmt(log.startDate)} 开始的这次经期记录？`))) return;
+      const res = await api('/api/period?id=' + id, { method: 'DELETE' });
+      if (res.ok) { toast('已删除'); renderPeriodView(); }
+    }
+  });
+  // 取消编辑
+  $('#pdCancelEdit').addEventListener('click', () => {
+    periodEditing = null;
+    $('#pdForm').reset();
+    $('#pdStartInput').value = '';
+    $('#pdEndInput').value = '';
+    periodFlow = 2;
+    $('#pdFormTitle').textContent = '补录一次经期';
+    $('#pdCancelEdit').hidden = true;
+    window.syncDtBtns(box);
+    box.querySelectorAll('.pd-flow-chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.flow) === 2));
+  });
+  // 提交（新增 / 编辑共用）
+  $('#pdForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const start = $('#pdStartInput').value;
+    if (!start) { toast('请选择开始日期'); return; }
+    const payload = { start_date: start, end_date: $('#pdEndInput').value || null, flow: periodFlow, note: $('#pdNote').value.trim() };
+    const res = periodEditing
+      ? await api('/api/period', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: periodEditing, ...payload }) })
+      : await api('/api/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) {
+      toast(periodEditing ? '已保存修改' : '已记录');
+      periodEditing = null;
+      renderPeriodView();
+    } else toast(d.error || '保存失败');
   });
 }
 
@@ -1311,12 +1509,15 @@ function buildWeekView(start) {
   head.appendChild(corner);
   for (let i = 0; i < 7; i++) {
     const d = addDays(start, i);
+    const ds = ymd(d);
     const lun = lunarLabel(d);
+    const pDay = periodOn(ds);
+    const pPred = calState.prediction === ds;
     const h = document.createElement('div');
-    h.className = 'wh' + (ymd(d) === today ? ' today' : '');
+    h.className = 'wh' + (ds === today ? ' today' : '') + (pDay ? ' pday' : '') + (pPred ? ' pday-pred' : '');
     h.innerHTML = `<b>周${WK[d.getDay()]}</b><small></small>`;
     h.querySelector('small').textContent = `${d.getMonth() + 1}/${d.getDate()} ${lun.text}`;
-    h.addEventListener('click', () => openEventModal(null, ymd(d)));
+    h.addEventListener('click', () => openEventModal(null, ds));
     head.appendChild(h);
   }
   scroll.appendChild(head);
@@ -1376,9 +1577,14 @@ function evsInHour(date, hour) {
 async function switchCalView(v) {
   calState.view = v;
   $$('.cal-view').forEach((b) => b.classList.toggle('active', b.dataset.calview === v));
+  // 经期页没有「上/下页 / 今天 / 新增日程」，头部只留标签
+  const sec = $('#view-calendar');
+  if (sec) sec.classList.toggle('cal-period-mode', v === 'period');
+  if (v === 'period') { renderCalView(); return; }  // 经期页不依赖 events
   await loadCalEvents();
 }
 function calShift(dir) {
+  if (calState.view === 'period') return; // 经期页没有上/下页
   const a = calState.anchor;
   if (calState.view === 'week') calState.anchor = addDays(a, dir * 7);
   else calState.anchor = new Date(a.getFullYear(), a.getMonth() + dir, 1);

@@ -15,6 +15,7 @@ export const TABLE_LABELS = {
   med_plans: '家庭药箱 · 服药方案',
   med_logs: '家庭药箱 · 服药记录',
   events: '日历事件',
+  period_logs: '日历 · 经期记录',
   contacts: '人际关系 · 联系人',
   contact_contacts: '人际关系 · 联系方式',
   contact_relatives: '人际关系 · 家庭关系',
