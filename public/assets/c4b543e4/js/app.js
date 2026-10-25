@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.7
-const VERSION = '0.5.7';
+// 数字生活 · 前端逻辑 v0.5.8
+const VERSION = '0.5.8';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '热修复：档案页个人信息日期按钮误传元素给 attachSitePicker 致 querySelector 报错，改为直接调用 openSitePicker';
+const __BUILD_ID__ = '界面修复：档案页基础身份/社会关系两面板补两列布局与间距（此前缺 display:grid 纵向紧贴）；账本本月预算容器误挂进度条样式(.lb-bar 10px高+overflow:hidden)致整块内容被裁，改 .lb-total；待办页开启通知按钮移入页头新增待办左侧（含移动端右对齐）';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）

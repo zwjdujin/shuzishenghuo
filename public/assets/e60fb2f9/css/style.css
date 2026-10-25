@@ -703,8 +703,10 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 /* 列表视图与档案视图内部模块间距统一（面板之间固定 22px） */
 #relListView>*,#relProfileView>*{margin-bottom:22px}
 #relListView>*:last-child,#relProfileView>*:last-child{margin-bottom:0}
-#relProfileView .rel-two{margin-bottom:22px}
+/* 档案页双列组：基础身份 | 社会关系 并排（此前缺 display:grid，两面板纵向紧贴无间隔） */
+#relProfileView .rel-two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
 #relProfileView .rel-two>.panel{margin-bottom:0}
+@media (max-width:860px){#relProfileView .rel-two{grid-template-columns:1fr}}
 .rel-search{display:flex;gap:9px;margin-bottom:12px}
 /* 搜索框：与其他输入框统一风格（--line 描边、圆角、聚焦高亮） */
 .rel-search .inp{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:13.5px;color:var(--ink);flex:1;min-width:0}
@@ -1289,6 +1291,8 @@ html[data-mode="night"] .txn-flow-seg .seg-item:has(input:checked){color:#fff!im
     flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
   #view-todos .growth-head h2,#view-growth .growth-head h2,#relListView .growth-head h2,#view-ledger .growth-head h2{font-size:19px}
   #view-todos .growth-head .btn,#view-growth .growth-head .btn,#relListView .growth-head .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
+  /* 待办页头动作组（开启通知 + 新增待办）：窄屏换行时整组靠右，与标题对齐 */
+  #view-todos .gh-actions{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
   /* 账本：齿轮+记一笔为右侧动作组；月份导航换行独占一行 */
   #view-ledger .gh-actions{display:flex;align-items:center;gap:8px;order:2}
   #view-ledger .gh-actions .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
@@ -1385,6 +1389,9 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 @media (max-width:640px){.rv-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.rv-item:nth-child(4),.rv-item:nth-child(5){grid-column:span 1}}
 
 /* --- 分类预算行 --- */
+/* lb-total：总额度块容器（内部才是一条 .lb-bar 进度条）。
+   此前容器误挂 .lb-bar（height:10px + overflow:hidden），整块内容被裁成一条——v0.5.8 修复 */
+.lb-total{margin-top:14px}
 .lb-tip{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.6}
 .bg-list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .bg-list:empty{display:none}

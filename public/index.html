@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/754fb133/css/style.css">
+  <link rel="stylesheet" href="./assets/e60fb2f9/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -282,7 +282,11 @@
       <section class="view" id="view-todos" data-title="待办提醒">
         <div class="growth-head">
           <div><p class="eyebrow">待办提醒</p><h2>今天要做的事</h2></div>
-          <button class="btn primary" id="addTodoBtn" type="button"><svg><use href="#i-plus"/></svg>新增待办</button>
+          <!-- v0.5.8：开启待办通知移入页头（新增待办左侧）；原先在筛选面板"提醒"行 -->
+          <div class="gh-actions">
+            <button class="btn ghost" id="enableNotifyBtn" type="button"><svg><use href="#i-bell"/></svg>开启待办通知</button>
+            <button class="btn primary" id="addTodoBtn" type="button"><svg><use href="#i-plus"/></svg>新增待办</button>
+          </div>
         </div>
         <article class="panel todo-filter-panel">
           <div class="tf-row">
@@ -292,10 +296,6 @@
           <div class="tf-row">
             <span class="tf-label">类别</span>
             <div class="tf-chips" id="tfList"></div>
-          </div>
-          <div class="tf-row">
-            <span class="tf-label">提醒</span>
-            <button class="btn ghost" id="enableNotifyBtn" type="button"><svg><use href="#i-bell"/></svg>开启待办通知</button>
           </div>
         </article>
         <article class="panel">
@@ -331,7 +331,7 @@
               <button class="icon-btn" id="budgetAddBtn" title="设置分类预算" aria-label="设置分类预算"><svg><use href="#i-plus"/></svg></button>
             </div>
           </div>
-          <div class="lb-bar" id="lbTotalBar"></div>
+          <div class="lb-total" id="lbTotalBar"></div>
           <div class="bg-list" id="budgetList"></div>
         </article>
 
@@ -1325,6 +1325,6 @@
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/cb9ae58d/js/profile.js"></script>
   <script src="./assets/71b130e7/js/medicine.js"></script>
-  <script src="./assets/e416d4a4/js/app.js"></script>
+  <script src="./assets/c4b543e4/js/app.js"></script>
 </body>
 </html>
