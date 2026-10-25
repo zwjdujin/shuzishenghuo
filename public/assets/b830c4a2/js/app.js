@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.19
-const VERSION = '0.5.19';
+// 数字生活 · 前端逻辑 v0.5.20
+const VERSION = '0.5.20';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '人际关系档案页重构为查看/编辑双模式：点姓名进入纯展示视图（分门别类、空分区自动隐藏、身高体重尺码附件只读），右上角编辑进入编辑模式才显示各分区录入控件（完成按钮退出）；修复编辑基本信息按钮无响应的历史问题';
+const __BUILD_ID__ = '随手记 AI 解析升级为多笔：一句话多笔账/待办混合分别成行，预览弹窗逐行可改可删，确认后批量入账；AI 已配置但未识别为账目时明确提示已存备忘';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -659,7 +659,7 @@ async function quickNoteSubmit(e) {
   if (!text) return;
   btn.disabled = true;
   try {
-    let parsed = null;
+    let drafts = null;
     try {
       const res = await api('/api/ai/parse', {
         method: 'POST',
@@ -667,80 +667,149 @@ async function quickNoteSubmit(e) {
         body: JSON.stringify({ text }),
       });
       const d = await res.json();
-      if (d.ok) parsed = d.draft;
+      if (d.ok && Array.isArray(d.drafts)) drafts = d.drafts;
     } catch (_) { /* AI 不可用走 memo */ }
-    if (parsed && (parsed.module === 'transaction' || parsed.module === 'todo')) {
-      openAiPreview(text, parsed);   // 人做最后确认
+    const actionable = (drafts || []).some((x) => x.module === 'transaction' || x.module === 'todo');
+    if (actionable) {
+      openAiPreview(text, drafts.filter((x) => x.module !== 'memo' || drafts.length === 1));   // 人做最后确认
     } else {
       const res = await api('/api/memos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text }),
       });
-      if (res.ok) { toast('已记下'); markSynced(); await refreshP3Memos(); }
+      if (res.ok) {
+        // AI 已配置却没识别出账目/待办时说明一句，避免误以为记账成功
+        const aiOn = drafts !== null;
+        toast(aiOn ? 'AI 未识别为账目，已存为备忘' : '已记下');
+        markSynced(); await refreshP3Memos();
+      }
     }
     input.value = '';
   } catch (_) { /* 401 已处理 */ } finally { btn.disabled = false; }
 }
 
-/** AI 解析预览弹窗：字段可改，确认后入库 */
-function openAiPreview(rawText, draft) {
+/** v0.5.20 AI 多笔解析预览：每笔一行（类型/收支/金额/分类/日期可改，可删行），确认后批量入库 */
+let aiRowsData = [];
+async function openAiPreview(rawText, drafts) {
   const m = $('#aiPreviewModal');
   if (!m) return;
   $('#aiRawText').textContent = '「' + rawText + '」';
-  const mod = draft.module === 'todo' ? 'todo' : 'transaction';
-  $('#aiModule').value = mod;
-  $('#aiFlow').value = draft.flow === 'income' ? 'income' : 'expense';
-  $('#aiAmount').value = draft.amount != null ? draft.amount : '';
-  $('#aiCategory').value = draft.category || '';
-  $('#aiDate').value = draft.date || todayStrLocal();
-  $('#aiTitle').value = draft.title || rawText.slice(0, 40);
-  $('#aiTodoDate').value = draft.date || todayStrLocal();
-  aiPreviewToggleFields();
+  // 分类联想（catTree 在账本页渲染后才有，首页直达时拉一次）
+  if (!catTree || (!catTree.expense.length && !catTree.income.length)) {
+    try {
+      const t = await (await api('/api/txn-categories')).json();
+      if (t && t.expense) catTree = t;
+    } catch (_) { /* 忽略 */ }
+  }
+  const dl = $('#aiCatList');
+  if (dl && catTree) dl.innerHTML = [...(catTree.expense || []), ...(catTree.income || [])].map((c) => `<option value="${escHtml(c.name)}">`).join('');
+
+  const today = todayStrLocal();
+  aiRowsData = (drafts || []).map((x, i) => ({
+    module: ['transaction', 'todo', 'memo'].includes(x.module) ? x.module : 'memo',
+    flow: x.flow === 'income' ? 'income' : 'expense',
+    amount: Number(x.amount) > 0 ? Number(x.amount) : '',
+    category: x.category || '',
+    date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : today,
+    title: x.title || String(x.note || rawText).slice(0, 40),
+    note: x.note || rawText,
+  }));
+  renderAiRows();
   openModal(m);
 }
-function aiPreviewToggleFields() {
-  const mod = $('#aiModule').value;
-  $('#aiTxnFields').hidden = mod !== 'transaction';
-  $('#aiTodoFields').hidden = mod !== 'todo';
-  $('#aiOkBtn').querySelector('span').textContent = mod === 'transaction' ? '确认入账' : (mod === 'todo' ? '添加待办' : '存为备忘');
+
+function renderAiRows() {
+  const box = $('#aiRows');
+  if (!box) return;
+  box.innerHTML = aiRowsData.map((r, i) => `
+    <div class="ai-row" data-i="${i}">
+      <div class="ai-row-head">
+        <select class="inp" data-k="module" data-i="${i}">
+          <option value="transaction"${r.module === 'transaction' ? ' selected' : ''}>账单</option>
+          <option value="todo"${r.module === 'todo' ? ' selected' : ''}>待办</option>
+          <option value="memo"${r.module === 'memo' ? ' selected' : ''}>备忘</option>
+        </select>
+        <button type="button" class="icon-btn" data-k="del" data-i="${i}" title="删除这行"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div class="ai-row-body" data-i="${i}"></div>
+    </div>`).join('');
+  box.querySelectorAll('[data-k=module]').forEach((sel) => sel.addEventListener('change', () => {
+    aiRowsData[Number(sel.dataset.i)].module = sel.value;
+    renderAiRowBody(Number(sel.dataset.i));
+  }));
+  box.querySelectorAll('[data-k=del]').forEach((btn) => btn.addEventListener('click', () => {
+    aiRowsData.splice(Number(btn.dataset.i), 1);
+    renderAiRows();
+  }));
+  aiRowsData.forEach((_, i) => renderAiRowBody(i));
 }
+
+function renderAiRowBody(i) {
+  const r = aiRowsData[i];
+  const body = document.querySelector(`.ai-row-body[data-i="${i}"]`);
+  if (!body) return;
+  if (r.module === 'transaction') {
+    body.innerHTML = `
+      <div class="ai-fields">
+        <select class="inp" data-k="flow"><option value="expense"${r.flow === 'expense' ? ' selected' : ''}>支出</option><option value="income"${r.flow === 'income' ? ' selected' : ''}>收入</option></select>
+        <input class="inp" data-k="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="金额" value="${r.amount}">
+        <input class="inp" data-k="category" maxlength="20" list="aiCatList" placeholder="分类" value="${escHtml(r.category)}">
+        <input class="inp" data-k="date" placeholder="YYYY-MM-DD" value="${r.date}">
+      </div>`;
+  } else if (r.module === 'todo') {
+    body.innerHTML = `
+      <div class="ai-fields">
+        <input class="inp" data-k="title" maxlength="40" placeholder="待办内容" value="${escHtml(r.title)}">
+        <input class="inp" data-k="date" placeholder="YYYY-MM-DD" value="${r.date}">
+      </div>`;
+  } else {
+    body.innerHTML = `<div class="ai-memo-text">${escHtml(r.note)}</div>`;
+  }
+  body.querySelectorAll('[data-k]').forEach((el) => el.addEventListener('input', () => {
+    const k = el.dataset.k;
+    aiRowsData[i][k] = k === 'amount' ? (el.value === '' ? '' : Number(el.value)) : el.value;
+  }));
+  const flowSel = body.querySelector('[data-k=flow]');
+  if (flowSel) flowSel.addEventListener('change', () => { aiRowsData[i].flow = flowSel.value; });
+}
+
 async function aiPreviewConfirm() {
-  const mod = $('#aiModule').value;
-  try {
-    if (mod === 'transaction') {
-      const amount = Number($('#aiAmount').value);
-      if (!Number.isFinite(amount) || amount <= 0) { toast('请填写有效金额'); return; }
-      const res = await api('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          flow: $('#aiFlow').value, amount,
-          category: $('#aiCategory').value.trim() || '其他',
-          date: $('#aiDate').value.trim() || todayStrLocal(),
-          note: $('#aiRawText').textContent.replace(/[「」]/g, '').slice(0, 60),
-        }),
-      });
-      if (!res.ok) { toast('保存失败'); return; }
-      toast('已记账'); markSynced();
-    } else if (mod === 'todo') {
-      const title = $('#aiTitle').value.trim();
-      if (!title) { toast('请填写内容'); return; }
-      const res = await api('/api/todos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, date: $('#aiTodoDate').value.trim() || todayStrLocal(), list: '生活' }),
-      });
-      if (!res.ok) { toast('保存失败'); return; }
-      toast('已添加待办'); markSynced();
-    } else {
-      const raw = $('#aiRawText').textContent.replace(/[「」]/g, '');
-      await api('/api/memos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: raw }) });
-      toast('已记下'); markSynced();
-    }
-    closeModal($('#aiPreviewModal'));
-    refreshP3Memos();
-  } catch (_) { /* 401 已处理 */ }
+  if (!aiRowsData.length) { closeModal($('#aiPreviewModal')); return; }
+  let okN = 0, failN = 0;
+  for (const r of aiRowsData) {
+    try {
+      if (r.module === 'transaction') {
+        const amount = Number(r.amount);
+        if (!(amount > 0)) { failN++; continue; }
+        const res = await api('/api/transactions', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            flow: r.flow, amount,
+            category: String(r.category || '').trim() || '其他',
+            date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : todayStrLocal(),
+            note: String(r.note || '').slice(0, 60),
+          }),
+        });
+        res.ok ? okN++ : failN++;
+      } else if (r.module === 'todo') {
+        const title = String(r.title || '').trim();
+        if (!title) { failN++; continue; }
+        const res = await api('/api/todos', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : todayStrLocal(), list: '生活' }),
+        });
+        res.ok ? okN++ : failN++;
+      } else {
+        const res = await api('/api/memos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: String(r.note || '').slice(0, 500) }) });
+        res.ok ? okN++ : failN++;
+      }
+    } catch (_) { failN++; }
+  }
+  toast(okN && !failN ? `已记下 ${okN} 条` : `成功 ${okN} 条${failN ? '，失败 ' + failN + ' 条' : ''}`);
+  markSynced();
+  closeModal($('#aiPreviewModal'));
+  refreshP3Memos();
 }
 
 async function refreshP3Memos() {
@@ -4791,7 +4860,6 @@ bind('#qnForm', 'submit', quickNoteSubmit);
 bind('#otdRefresh', 'click', renderOnThisDay);
 bind('#aiPreviewClose', 'click', () => closeModal($('#aiPreviewModal')));
 bind('#aiPreviewModal', 'click', (e) => { if (e.target === $('#aiPreviewModal')) closeModal($('#aiPreviewModal')); });
-bind('#aiModule', 'change', aiPreviewToggleFields);
 bind('#aiCancelBtn', 'click', () => closeModal($('#aiPreviewModal')));
 bind('#aiOkBtn', 'click', aiPreviewConfirm);
 bind('#recurringBtn', 'click', openRecurringModal);

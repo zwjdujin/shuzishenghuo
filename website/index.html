@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数字生活 · 部署在你自己 Cloudflare 账号里的个人工作台</title>
+<meta name="description" content="数字生活 shuzishenghuo —— 开源自托管的个人数字生活工作台：成长打卡、待办提醒、记账账本、家庭药箱、日历与人际关系、经期记录，全部安放在一个站点里。数据 100% 存在你自己的 Cloudflare 账号，个人使用 0 成本。">
+<meta property="og:title" content="数字生活 · 个人数字生活工作台">
+<meta property="og:description" content="成长打卡、待办提醒、记账账本、家庭药箱、日历与人际关系，部署在你自己的 Cloudflare 账号里，0 成本运行。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23952e3a'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23fdf7f2' font-family='serif' font-weight='700'%3E数%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- 顶部滚动提示条 -->
+<div class="ticker" aria-label="项目动态">
+  <div class="ticker-inner container">
+    <span class="ticker-icon" aria-hidden="true">💡</span>
+    <span class="ticker-text" id="tickerText">个人使用完全落在 Cloudflare 免费额度内，无需绑卡</span>
+  </div>
+</div>
+
+<!-- 导航 -->
+<header class="nav" id="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-seal" aria-hidden="true">数</span>
+      <span class="brand-name">数字生活</span>
+      <span class="brand-ver">v0.5.19</span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="页面导航">
+      <a href="#features">功能</a>
+      <a href="#why">为什么</a>
+      <a href="#deploy">部署</a>
+      <a href="#cost">0 成本</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn-ghost" href="https://github.com/zwjdujin/shuzishenghuo" target="_blank" rel="noopener" aria-label="GitHub 仓库">
+        <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a class="btn-primary" href="#deploy">立即部署</a>
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero" id="top">
+  <div class="hero-deco" aria-hidden="true">
+    <span class="hero-char">数</span>
+    <i class="glow glow-1"></i><i class="glow glow-2"></i>
+  </div>
+  <div class="container hero-grid">
+    <div class="hero-copy reveal">
+      <p class="hero-badge"><span class="dot"></span>开源 · 自托管 · 数据 100% 自有</p>
+      <h1>数字生活</h1>
+      <p class="hero-sub">一个部署在<strong>你自己 Cloudflare 账号</strong>里的个人数字生活工作台</p>
+      <p class="hero-desc">成长打卡、待办提醒、记账账本、家庭药箱、日历与人际关系、经期记录——全部安放在一个站点里。纯浏览器访问，手机「添加到主屏幕」当 APP 用，个人使用 0 成本。</p>
+      <div class="hero-cta">
+        <a class="btn-primary btn-lg" href="#deploy">查看部署指南</a>
+        <a class="btn-outline btn-lg" href="https://github.com/zwjdujin/shuzishenghuo" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+      </div>
+      <ul class="hero-points">
+        <li>不经过任何第三方</li>
+        <li>无需绑卡 · 免费额度内运行</li>
+        <li>零基础约 20 分钟上线</li>
+      </ul>
+    </div>
+    <div class="hero-visual reveal">
+      <!-- 应用预览（纯 CSS 模拟） -->
+      <div class="mock" role="img" aria-label="数字生活应用界面预览：左侧模块导航，右侧今日总览、打卡热力图与 AI 随手记">
+        <div class="mock-bar">
+          <span class="mdot"></span><span class="mdot"></span><span class="mdot"></span>
+          <span class="mock-url">🔒 shuzishenghuo.pages.dev</span>
+        </div>
+        <div class="mock-body">
+          <aside class="mock-side">
+            <div class="mock-logo"><span class="mock-seal">数</span>数字生活</div>
+            <a class="mnav active">🏠 个人首页</a>
+            <a class="mnav">🌱 成长打卡</a>
+            <a class="mnav">✅ 待办提醒</a>
+            <a class="mnav">💰 我的账本</a>
+            <a class="mnav">💊 家庭药箱</a>
+            <a class="mnav">📅 日历中心</a>
+            <a class="mnav">🤝 人际关系</a>
+          </aside>
+          <div class="mock-main">
+            <div class="mock-greet">
+              <div>
+                <strong>早上好，今天也要好好生活</strong>
+                <span>10月25日 星期日</span>
+              </div>
+              <span class="mock-avatar">晨</span>
+            </div>
+            <div class="mock-stats">
+              <div class="mstat"><b>3</b><span>今日待办</span></div>
+              <div class="mstat"><b>¥128.5</b><span>今日支出</span></div>
+              <div class="mstat"><b>12 天</b><span>连续打卡</span></div>
+              <div class="mstat"><b>1 位</b><span>本周生日</span></div>
+            </div>
+            <div class="mock-card">
+              <div class="mock-card-hd">🌱 成长打卡 · 最近 12 周</div>
+              <div class="mock-heat" id="mockHeat"></div>
+            </div>
+            <div class="mock-card">
+              <div class="mock-card-hd">✏️ 随手记</div>
+              <div class="mock-input">午餐和地铁一共花了 32 块，下午记得取快递</div>
+              <div class="mock-chips">
+                <span class="mchip ai">✨ AI 解析</span>
+                <span class="mchip">记账 · 餐饮交通 · ¥32.00</span>
+                <span class="mchip">待办 · 取快递 · 今天</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="float-tag float-1" aria-hidden="true">🔔 服药到点 · Web Push 推送</div>
+      <div class="float-tag float-2" aria-hidden="true">🔒 数据在你的 D1 + R2</div>
+      <div class="float-tag float-3" aria-hidden="true">📱 添加到主屏幕即成 APP</div>
+    </div>
+  </div>
+</section>
+
+<!-- 数据带 -->
+<section class="stats-band">
+  <div class="container stats-grid">
+    <div class="stat reveal"><b>¥0<i>/月</i></b><span>个人使用运行成本</span></div>
+    <div class="stat reveal"><b>≈20<i>分钟</i></b><span>零基础部署上线</span></div>
+    <div class="stat reveal"><b>9<i>大</i></b><span>日常功能模块</span></div>
+    <div class="stat reveal"><b>100<i>%</i></b><span>数据存在自己账号</span></div>
+  </div>
+</section>
+
+<!-- 功能一览 -->
+<section class="section" id="features">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="kicker">功能一览</p>
+      <h2>九大模块，安放你的日常</h2>
+      <p class="sec-desc">从一个站点出发，把生活里值得记录的一切都管起来。所有功能开箱即用，无需任何第三方服务。</p>
+    </div>
+    <div class="feature-grid">
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/></svg></div>
+        <h3>个人首页</h3>
+        <p>今日总览、快捷入口、随手记一句话（AI 自动解析为记账 / 待办 / 备忘）、那年今天、本周回顾。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 9h18"/><path d="m9 14.5 2 2 4-4"/></svg></div>
+        <h3>成长打卡</h3>
+        <p>习惯管理、频率目标（每周 N 次 / 每 N 天）、打卡热力图、习惯强度，让坚持看得见。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/><path d="m17 15 2 2 4-4" transform="translate(-1.5)"/></svg></div>
+        <h3>待办提醒</h3>
+        <p>优先级四象限、到期 Web Push 推送到手机、安卓系统闹钟联动，重要的事不再错过。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/><path d="M7 6V4M17 6V4"/></svg></div>
+        <h3>我的账本</h3>
+        <p>收支与转账、自定义分类、月度 / 分类预算、周期账单自动入账、月度与分类报表。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16M7 4v5M17 4v5M7 9h4M13 9h4"/></svg></div>
+        <h3>家庭药箱</h3>
+        <p>药品库存与效期、服药计划与打卡、分类 / 剂型 / 存放位置自定义、外用药与处方药标志，临期自动提醒。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 2v5M16 2v5M3 10h18"/><circle cx="12" cy="15.5" r="2.5"/></svg></div>
+        <h3>日历中心</h3>
+        <p>周历 / 月历 / 农历、日程管理、联系人生日联动、经期记录与周期预测，生活节奏一目了然。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M16 5.5a3 3 0 0 1 0 5M18.5 15.6c1.6.8 2.6 2.2 3 4.4"/></svg></div>
+        <h3>人际关系</h3>
+        <p>联系人档案、家庭关系、保持联系节奏提醒、身高体重记录，照片 / 视频 / 文档附件（存你自己的 R2）。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19"/><circle cx="12" cy="12" r="3.5"/></svg></div>
+        <h3>智能管理</h3>
+        <p>配置多个大模型（OpenAI 兼容）驱动 AI 随手记；API Token 与 MCP 接入，按功能授权读写。</p>
+      </article>
+      <article class="feature reveal">
+        <div class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.5 20 5v6c0 5-3.4 9-8 10.5C7.4 20 4 16 4 11V5l8-2.5Z"/><path d="m8.8 11.8 2.2 2.2 4.2-4.5"/></svg></div>
+        <h3>数据安全</h3>
+        <p>一键下载全量数据备份（JSON）、清空重建，登录态 HMAC 签名 Cookie 会话，品牌与主题自由定制。</p>
+      </article>
+    </div>
+    <p class="feature-note reveal">⏰ 推送提醒由 Cloudflare Worker 定时任务驱动：待办与服药到点（每分钟）、生日 / 保持联系 / 药品临期（每日早上）。</p>
+  </div>
+</section>
+
+<!-- 为什么是数字生活 -->
+<section class="section why" id="why">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="kicker">为什么是数字生活</p>
+      <h2>把数字生活的主权，拿回自己手里</h2>
+      <p class="sec-desc">不是又一个要求你注册、上传、看广告的在线服务，而是真正属于你自己的私人工作台。</p>
+    </div>
+
+    <div class="why-row reveal">
+      <div class="why-copy">
+        <h3>🔐 数据只属于你</h3>
+        <p>所有数据 100% 存在你自己的 Cloudflare 账号里（D1 数据库 + R2 对象存储），不经过任何第三方，没有广告与追踪。「数据安全」页随时一键下载全量 JSON 备份，想走就走。</p>
+        <ul class="chip-list">
+          <li>D1 结构化数据</li><li>R2 附件存储</li><li>全量 JSON 备份</li><li>零第三方依赖</li>
+        </ul>
+      </div>
+      <div class="why-visual" aria-hidden="true">
+        <div class="vault-card">
+          <div class="vault-row"><span class="v-tag">D1</span><div class="v-bar" style="--w:78%"><i>账本 · 待办 · 档案</i></div></div>
+          <div class="vault-row"><span class="v-tag">R2</span><div class="v-bar" style="--w:46%"><i>照片 · 视频 · 文档</i></div></div>
+          <div class="vault-row"><span class="v-tag">JSON</span><div class="v-bar" style="--w:92%"><i>全量备份，一键带走</i></div></div>
+          <p class="vault-foot">☁️ 你的 Cloudflare 账号 · 别人拿不到</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="why-row rev reveal">
+      <div class="why-copy">
+        <h3>📱 手机秒变 APP</h3>
+        <p>纯浏览器访问，手机浏览器「添加到主屏幕」即可全屏使用（PWA）；也可以打包成 TWA 安装包（APK）侧载。配合 Web Push 推送：待办与服药到点提醒、生日问候、保持联系、药品临期，一个不落。</p>
+        <ul class="chip-list">
+          <li>添加到主屏幕</li><li>全屏 PWA</li><li>Web Push 推送</li><li>TWA 打包 APK</li>
+        </ul>
+      </div>
+      <div class="why-visual" aria-hidden="true">
+        <div class="push-stack">
+          <div class="push-card"><span class="p-ico">✅</span><div><b>待办提醒</b><i>「交房租」已到期待办</i></div><span class="p-time">刚刚</span></div>
+          <div class="push-card"><span class="p-ico">💊</span><div><b>服药打卡</b><i>维生素 D · 每天 1 粒</i></div><span class="p-time">1 分钟前</span></div>
+          <div class="push-card"><span class="p-ico">🎂</span><div><b>生日提醒</b><i>妈妈 · 本周五（农历九月十九）</i></div><span class="p-time">今早 06:00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="why-row reveal">
+      <div class="why-copy">
+        <h3>✨ AI 就在你手边</h3>
+        <p>随手记一句话，AI 自动解析成记账、待办或备忘。支持配置多个 OpenAI 兼容大模型（如智谱 GLM），API Token 与 MCP 接入按功能授权读写——让 AI 成为你自己的助手，而不是你的房东。</p>
+        <ul class="chip-list">
+          <li>随手记 AI 解析</li><li>多模型可切换</li><li>API Token 授权</li><li>MCP 接入</li>
+        </ul>
+      </div>
+      <div class="why-visual" aria-hidden="true">
+        <div class="ai-flow">
+          <div class="ai-bubble in">「昨晚和爸妈吃了火锅 386，周末要还花呗」</div>
+          <div class="ai-arrow">✨ AI 解析 ↓</div>
+          <div class="ai-out"><span>💰 记账 · 餐饮 · ¥386.00</span><span>✅ 待办 · 还花呗 · 周末</span><span>🤝 人际 · 和爸妈聚餐已记录</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <p class="why-quote reveal">「记住生活，不必把生活交给别人。」</p>
+  </div>
+</section>
+
+<!-- 部署 -->
+<section class="section deploy" id="deploy">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="kicker">部署上线</p>
+      <h2>约 20 分钟，把站点搬进你的账号</h2>
+      <p class="sec-desc">不需要写代码，全程照抄命令即可。完整图文版见 <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/DEPLOY.md" target="_blank" rel="noopener">DEPLOY.md 零基础部署指南</a>。</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step reveal">
+        <span class="step-no">1</span>
+        <div>
+          <h3>准备账号与工具</h3>
+          <p>注册 Cloudflare（免费套餐就够用），安装 Node.js LTS 与命令行工具 wrangler，Fork 本仓库到你的 GitHub。</p>
+          <code>npm install -g wrangler && wrangler login</code>
+        </div>
+      </li>
+      <li class="step reveal">
+        <span class="step-no">2</span>
+        <div>
+          <h3>创建 D1 数据库与 R2 存储桶</h3>
+          <p>名称均填 <code>shuzishenghuo</code>（控制台或命令行皆可），把数据库 ID 填进 <code>wrangler.toml</code>。</p>
+          <code>wrangler d1 create shuzishenghuo<br>wrangler r2 bucket create shuzishenghuo</code>
+        </div>
+      </li>
+      <li class="step reveal">
+        <span class="step-no">3</span>
+        <div>
+          <h3>连接 Cloudflare Pages</h3>
+          <p>Workers 和 Pages → Pages → 连接 Git 仓库；构建命令留空，构建输出目录填 <code>public</code>。</p>
+        </div>
+      </li>
+      <li class="step reveal">
+        <span class="step-no">4</span>
+        <div>
+          <h3>配置环境变量</h3>
+          <p>设置管理员账号与会话密钥：三个变量缺一不可。</p>
+          <code>ADMIN_USER · ADMIN_PASS · SESSION_SECRET</code>
+        </div>
+      </li>
+      <li class="step reveal">
+        <span class="step-no">5</span>
+        <div>
+          <h3>绑定数据库与存储桶</h3>
+          <p>Pages 项目 → 设置 → 绑定：D1 数据库绑定为 <code>DB</code>，R2 存储桶绑定为 <code>BUCKET</code>，保存后重新部署。</p>
+        </div>
+      </li>
+      <li class="step reveal">
+        <span class="step-no">6</span>
+        <div>
+          <h3>初始化数据库，开始使用</h3>
+          <p>应用全部数据库迁移，然后打开 <code>你的项目名.pages.dev</code> 登录，去「个人中心」挑一个喜欢的主题。</p>
+          <code>wrangler d1 migrations apply shuzishenghuo --remote</code>
+        </div>
+      </li>
+    </ol>
+
+    <div class="agent-deploy reveal">
+      <div class="agent-head">
+        <h3>🤖 不想动手？把部署交给 AI Agent</h3>
+        <p>将下方提示词整段复制，发送给你的 AI 编码助手（如 ZCode、Claude Code、Cursor 等），由它代你完成部署。执行过程中如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。</p>
+      </div>
+      <div class="agent-box">
+        <button class="copy-btn" type="button" data-copy-target="agentPrompt">复制提示词</button>
+        <pre id="agentPrompt"><code>请在线完成「数字生活」部署：
+1. Fork https://github.com/zwjdujin/shuzishenghuo 到我的 GitHub 账号。
+2. 在我的 Cloudflare 账号中创建 D1 数据库 shuzishenghuo 与 R2 存储桶
+   shuzishenghuo，并把数据库 ID 写入仓库的 wrangler.toml。
+3. 将该 Fork 导入 Cloudflare Pages：生产分支 main，构建命令留空，
+   构建输出目录 public。
+4. 为 Pages 项目添加环境变量 ADMIN_USER、ADMIN_PASS、SESSION_SECRET
+   （强密码与随机长字符串），并绑定 D1 数据库为 DB、R2 存储桶为 BUCKET。
+5. 执行 wrangler d1 migrations apply shuzishenghuo --remote 初始化数据库；
+   打开站点，用设置的用户名密码验证登录成功。
+6. 完成后提醒我：如需推送提醒与 AI 速记，分别参考 PUSH_SETUP.md 和
+   站内「个人中心 → 智能管理」进行可选配置。</code></pre>
+      </div>
+    </div>
+
+    <div class="oneclick reveal">
+      <div class="oc-head">
+        <h3>不想走 Git？一键脚本全搞定</h3>
+        <p>脚本会自动创建缺失的 D1 / R2 并替换 <code>wrangler.toml</code> 里的 ID。</p>
+      </div>
+      <pre><code>CLOUDFLARE_API_TOKEN=你的API令牌 \
+CLOUDFLARE_ACCOUNT_ID=你的账户ID \
+ADMIN_PASS=你的管理员密码 \
+bash scripts/deploy-cloudflare.sh</code></pre>
+    </div>
+
+    <div class="doc-cards">
+      <a class="doc-card reveal" href="https://github.com/zwjdujin/shuzishenghuo/blob/main/DEPLOY.md" target="_blank" rel="noopener">
+        <b>📦 零基础部署指南</b><span>从注册 Cloudflare 到上线的完整图文步骤（DEPLOY.md）</span>
+      </a>
+      <a class="doc-card reveal" href="https://github.com/zwjdujin/shuzishenghuo/blob/main/PUSH_SETUP.md" target="_blank" rel="noopener">
+        <b>🔔 推送提醒配置</b><span>部署提醒 Worker 与 VAPID 密钥，让提醒推到手机（PUSH_SETUP.md）</span>
+      </a>
+      <a class="doc-card reveal" href="https://github.com/zwjdujin/shuzishenghuo/blob/main/TWA_BUILD.md" target="_blank" rel="noopener">
+        <b>🤖 打包安卓 APP</b><span>生成 TWA 安装包（APK）侧载到手机（TWA_BUILD.md）</span>
+      </a>
+      <a class="doc-card reveal" href="https://github.com/zwjdujin/shuzishenghuo#发版与更新" target="_blank" rel="noopener">
+        <b>🚀 日常更新</b><span>release.mjs 处理版本号与缓存，d1 migrations 增量升级不丢数据</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- 0 成本 -->
+<section class="cost" id="cost">
+  <div class="container">
+    <div class="sec-head reveal">
+      <p class="kicker">0 成本运行</p>
+      <h2>一个免费 Cloudflare 账号，全都够用</h2>
+      <p class="sec-desc light">数字生活的每一部分都跑在 Cloudflare 免费套餐上，个人使用完全落在免费额度内，无需绑卡、没有订阅、没有广告。</p>
+    </div>
+    <div class="cost-grid">
+      <div class="cost-card reveal">
+        <div class="cost-top"><b>Cloudflare Pages</b><span class="cost-zero">¥0</span></div>
+        <p>托管整个站点与后端接口，<strong>请求数不限</strong>。前端零构建、纯 HTML/CSS/JS，加载飞快。</p>
+      </div>
+      <div class="cost-card reveal">
+        <div class="cost-top"><b>D1 数据库</b><span class="cost-zero">¥0</span></div>
+        <p>每天 <strong>500 万行读取</strong>、10 万行写入的免费额度——个人记账、打卡、日程根本用不完。</p>
+      </div>
+      <div class="cost-card reveal">
+        <div class="cost-top"><b>R2 对象存储</b><span class="cost-zero">¥0</span></div>
+        <p><strong>10GB 免费</strong>存储空间，放联系人照片、视频与文档绰绰有余，开通同样无需绑卡。</p>
+      </div>
+      <div class="cost-card reveal">
+        <div class="cost-top"><b>Workers 定时任务</b><span class="cost-zero">¥0</span></div>
+        <p>免费额度跑一个每分钟的 Cron 绰绰有余，负责待办、服药、生日与临期的推送提醒。</p>
+      </div>
+    </div>
+    <div class="cost-compare reveal">
+      <p>同类效率套件订阅动辄 <s>¥300+/年</s>，数字生活把它降到 <b>¥0</b> —— 你唯一需要的，是一个免费的 Cloudflare 账号。</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="container container-narrow">
+    <div class="sec-head reveal">
+      <p class="kicker">常见问题</p>
+      <h2>你可能想问</h2>
+    </div>
+    <div class="faq-list">
+      <details class="faq reveal">
+        <summary>需要会写代码吗？<i></i></summary>
+        <p>不需要。DEPLOY.md 是为零基础写的完整部署指南，全程复制粘贴命令，约 20~30 分钟（大部分是等待）。还有不用 GitHub 的一键部署脚本。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>我的数据存在哪里？安全吗？<i></i></summary>
+        <p>数据只存在你自己的 Cloudflare 账号里（D1 数据库 + R2 对象存储），不经过任何第三方。「数据安全」页可以随时下载全量 JSON 备份，随时可迁走。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>真的 0 成本吗？以后会不会收费？<i></i></summary>
+        <p>个人使用完全落在 Cloudflare 免费额度内：Pages 请求数不限、D1 每天 500 万行读取、R2 10GB 存储。数字生活本身开源免费，也不存在订阅。免费额度以 Cloudflare 官方政策为准。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>手机上怎么用？<i></i></summary>
+        <p>用手机浏览器打开站点 → 菜单 →「添加到主屏幕」，即可全屏当 APP 用（PWA）。也可以按 TWA_BUILD.md 打包成 APK 安装包侧载。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>推送提醒怎么开启？<i></i></summary>
+        <p>推送是可选项：按 PUSH_SETUP.md 额外部署一个小 Worker 并配置 VAPID 密钥即可。待办与服药到点每分钟检查，生日 / 保持联系 / 药品临期每天早上提醒。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>AI 功能必须配置吗？<i></i></summary>
+        <p>可选。在站内「个人中心 → 智能管理」添加一个大模型（OpenAI 兼容接口，如智谱 GLM）并填入 API Key，随手记即可自动解析；不配置也不影响其他任何功能。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>能给家人一起用吗？<i></i></summary>
+        <p>目前是单管理员模式，适合个人或家庭自用（知道账号密码即可共用）。多用户方案在规划中。</p>
+      </details>
+      <details class="faq reveal">
+        <summary>部署遇到问题怎么办？<i></i></summary>
+        <p>先查 DEPLOY.md 文末常见问题表：接口 401 多为环境变量未配好；模块全部加载失败多为数据库 ID 未替换或绑定缺失；附件上传失败多为 R2 桶未创建；也可到 GitHub 提 Issue。</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- 技术栈跑马灯 -->
+<div class="marquee" aria-label="技术栈">
+  <div class="marquee-track">
+    <span>Cloudflare Pages</span><span>Pages Functions</span><span>D1 数据库</span><span>R2 对象存储</span><span>Workers Cron</span><span>PWA / Service Worker</span><span>Web Push</span><span>HMAC 签名会话</span><span>OpenAI 兼容 API</span><span>MCP 接入</span><span>纯 HTML/CSS/JS · 零构建</span>
+    <span>Cloudflare Pages</span><span>Pages Functions</span><span>D1 数据库</span><span>R2 对象存储</span><span>Workers Cron</span><span>PWA / Service Worker</span><span>Web Push</span><span>HMAC 签名会话</span><span>OpenAI 兼容 API</span><span>MCP 接入</span><span>纯 HTML/CSS/JS · 零构建</span>
+  </div>
+</div>
+
+<!-- 页脚 -->
+<footer class="footer">
+  <div class="container footer-grid">
+    <div class="footer-brand">
+      <div class="brand"><span class="brand-seal">数</span><span class="brand-name">数字生活</span></div>
+      <p>部署在你自己 Cloudflare 账号里的个人数字生活工作台。记住生活，不必把生活交给别人。</p>
+    </div>
+    <div class="footer-col">
+      <b>页面</b>
+      <a href="#features">功能一览</a>
+      <a href="#why">为什么是数字生活</a>
+      <a href="#deploy">部署上线</a>
+      <a href="#cost">0 成本运行</a>
+      <a href="#faq">常见问题</a>
+    </div>
+    <div class="footer-col">
+      <b>文档</b>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/README.md" target="_blank" rel="noopener">README</a>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/DEPLOY.md" target="_blank" rel="noopener">部署指南</a>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/PUSH_SETUP.md" target="_blank" rel="noopener">推送提醒</a>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/TWA_BUILD.md" target="_blank" rel="noopener">安卓 APP 打包</a>
+    </div>
+    <div class="footer-col">
+      <b>仓库</b>
+      <a href="https://github.com/zwjdujin/shuzishenghuo" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/releases" target="_blank" rel="noopener">Releases</a>
+    </div>
+  </div>
+  <div class="container footer-bottom">
+    <p>© <span id="year">2026</span> 数字生活 shuzishenghuo · 基于 Cloudflare 免费套餐构建 · 独立开源项目，与 Cloudflare 官方无关</p>
+    <p>个人使用为主，代码与结构欢迎参考；部署后请在页面内把品牌设置改成你自己的。</p>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
