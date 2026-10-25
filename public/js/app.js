@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.5.4
-const VERSION = '0.5.4';
+// 数字生活 · 前端逻辑 v0.5.5
+const VERSION = '0.5.5';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'v0.5.4 P0 安全修复：XSS 转义补齐 / 登录限流 / 恒定时间比较 / 删除级联统一 / 表单防重复 / 版本号归一';
-const __BUILD_TIME__ = '2026-10-24';
+const __BUILD_ID__ = 'P1 流程地基（hash 发布/迁移管理/CI）+ P2 体验修复（hash 路由/首屏三件套/confirmModal/CSS 清理/外键/小修包）';
+const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -61,6 +61,68 @@ async function api(path, opts = {}) {
     throw new Error('unauthorized');
   }
   return res;
+}
+
+// ===== 弹窗统一管理（v0.5.5）=====
+// openModal/closeModal：登记弹窗栈，负责 aria-modal、初始焦点与关闭后焦点归还。
+// Esc 关闭走全局监听（见下方 keydown），优先触发各弹窗自己的关闭按钮以复用其清理逻辑。
+const modalStack = [];
+function openModal(m, { onEsc } = {}) {
+  if (typeof m === 'string') m = $(m);
+  if (!m || !m.hidden) return;
+  modalStack.push({ m, onEsc, prevFocus: document.activeElement });
+  m.hidden = false;
+  m.setAttribute('role', 'dialog');
+  m.setAttribute('aria-modal', 'true');
+  const first = m.querySelector('.modal-card button, .modal-card input, .modal-card select, .modal-card textarea');
+  if (first && first.focus) { try { first.focus(); } catch (_) {} }
+}
+function closeModal(m) {
+  if (typeof m === 'string') m = $(m);
+  if (!m || m.hidden) return;
+  const idx = modalStack.findIndex((x) => x.m === m);
+  const prev = idx >= 0 ? modalStack[idx].prevFocus : null;
+  if (idx >= 0) modalStack.splice(idx, 1);
+  m.hidden = true;
+  m.removeAttribute('aria-modal');
+  if (prev && prev.focus && document.contains(prev)) { try { prev.focus(); } catch (_) {} }
+}
+// Esc：关闭最上层可见弹窗。带 onEsc 的（如 confirmModal）走回调保证其 Promise 被 resolve；
+// 其余优先点它自己的 Close 按钮（复用其表单清理逻辑），找不到才直接隐藏。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const open = $$('.modal-overlay:not([hidden])');
+  const m = open[open.length - 1];
+  if (!m) return;
+  const entry = modalStack.find((x) => x.m === m);
+  if (entry && entry.onEsc) { entry.onEsc(); return; }
+  const id = m.id || '';
+  const closer = $('#' + id + 'Close') || $('#' + id.replace(/Modal$/, '') + 'Close');
+  if (closer) closer.click();
+  else closeModal(m);
+});
+
+// 自绘确认弹窗（替代 confirm()：TWA/WebView 里原生 confirm 不可靠且不可控）
+// 用法：if (!(await confirmModal('确定删除？'))) return;
+function confirmModal(msg, { okText = '确定', cancelText = '取消', danger = true } = {}) {
+  return new Promise((resolve) => {
+    const m = $('#confirmModal');
+    if (!m) { resolve(window.confirm(msg)); return; } // HTML 未就绪时兜底
+    $('#confirmMsg').textContent = msg;
+    const ok = $('#confirmOkBtn');
+    const cancel = $('#confirmCancelBtn');
+    if (ok) { ok.textContent = okText; ok.classList.toggle('danger', !!danger); }
+    if (cancel) cancel.textContent = cancelText;
+    const done = (v) => {
+      ok.onclick = null; cancel.onclick = null; m.onclick = null;
+      closeModal(m);
+      resolve(v);
+    };
+    ok.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+    m.onclick = (e) => { if (e.target === m) done(false); };
+    openModal(m, { onEsc: () => done(false) });
+  });
 }
 
 // ===== 主题配色（v0.3.8 全新设计） =====
@@ -191,23 +253,36 @@ function applyTheme(name) {
   const key = THEMES[name] ? name : DEFAULT_THEME;
   currentTheme = key;
   const { day: d, night: n } = THEMES[key];
-  const put = (p, v) => document.documentElement.style.setProperty(p, v);
-  put('--t-day-plum', d.main);     put('--t-day-accent', d.accent);
-  put('--t-day-soft', d.soft);     put('--t-day-card', d.card);
-  put('--t-day-paper', d.paper);   put('--t-day-side', d.side);
-  put('--t-day-ink', d.ink);       put('--t-day-muted', d.muted);
-  put('--t-day-line', d.line);     put('--t-day-deep', d.accent);
-  /* 首页 Hero 大模块渐变：日间用主色→突显色（都够深，白字可读），夜间用主题暗色 */
-  put('--t-day-hero', `linear-gradient(135deg,${d.main},${d.accent})`);
-  put('--t-night-plum', n.main);   put('--t-night-accent', n.accent);
-  put('--t-night-soft', n.soft);   put('--t-night-card', n.card);
-  put('--t-night-surface', n.surface);
-  put('--t-night-hero', `linear-gradient(135deg,${n.soft},${n.card})`);
-  put('--t-night-paper', n.paper); put('--t-night-side', n.side);
-  put('--t-night-ink', n.ink);     put('--t-night-muted', n.muted);
-  put('--t-night-line', n.line);   put('--t-night-deep', n.accent);
+  const vars = {
+    // 主色：浅色自动压深到「白字可读」的亮度，深色保持原汁原味
+    '--t-day-plum': d.main,   '--t-day-accent': d.accent,
+    '--t-day-soft': d.soft,   '--t-day-card': d.card,
+    '--t-day-paper': d.paper, '--t-day-side': d.side,
+    '--t-day-ink': d.ink,     '--t-day-muted': d.muted,
+    '--t-day-line': d.line,   '--t-day-deep': d.accent,
+    /* 首页 Hero 大模块渐变：日间用主色→突显色（都够深，白字可读），夜间用主题暗色 */
+    '--t-day-hero': `linear-gradient(135deg,${d.main},${d.accent})`,
+    '--t-night-plum': n.main,   '--t-night-accent': n.accent,
+    '--t-night-soft': n.soft,   '--t-night-card': n.card,
+    '--t-night-surface': n.surface,
+    '--t-night-hero': `linear-gradient(135deg,${n.soft},${n.card})`,
+    '--t-night-paper': n.paper, '--t-night-side': n.side,
+    '--t-night-ink': n.ink,     '--t-night-muted': n.muted,
+    '--t-night-line': n.line,   '--t-night-deep': n.accent,
+  };
+  const root = document.documentElement;
+  Object.keys(vars).forEach((p) => root.style.setProperty(p, vars[p]));
   syncThemeColor();
+  persistBootVars(vars);
   try { localStorage.setItem('pf_theme', key); } catch (_) {}
+}
+/** 首屏外观变量缓存：head 里的内联脚本读取后提前上色，避免先闪默认主题再被主脚本纠正 */
+function persistBootVars(patch) {
+  try {
+    const all = JSON.parse(localStorage.getItem('pf_vars') || '{}');
+    Object.assign(all, patch);
+    localStorage.setItem('pf_vars', JSON.stringify(all));
+  } catch (_) { /* 隐私模式忽略 */ }
 }
 function hasLocalTheme() {
   try { return !!localStorage.getItem('pf_theme'); } catch (_) { return false; }
@@ -364,6 +439,19 @@ function pickFont(name) {
   toast('已切换字体：' + FONTS[currentFont].label);
 }
 
+// 霞鹜文楷的 webfont CSS 按需注入：只有用户选中该字体才拉取 jsDelivr
+// （整包是数百个 CJK 分片约 1MB+，默认加载会拖慢首屏，且该 CDN 在大陆不稳定）
+let lxgwInjected = false;
+function ensureLxgwLink() {
+  if (lxgwInjected || document.querySelector('link[data-lxgw]')) { lxgwInjected = true; return; }
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.setAttribute('data-lxgw', '1');
+  l.href = 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css';
+  document.head.appendChild(l);
+  lxgwInjected = true;
+}
+
 function applyFont(name) {
   currentFont = FONTS[name] ? name : 'default';
   const f = FONTS[currentFont];
@@ -373,11 +461,20 @@ function applyFont(name) {
   root.style.setProperty('--f-serif', f.serif);
   root.style.setProperty('--font-ui', f.stack);
   root.style.setProperty('--font-serif', f.serif);
+  if (currentFont === 'lxgwwk') ensureLxgwLink();
+  persistBootVars({
+    '--f-ui': f.stack, '--f-serif': f.serif,
+    '--font-ui': f.stack, '--font-serif': f.serif,
+  });
   try { localStorage.setItem('pf_font', currentFont); } catch (_) {}
 }
 
 // ===== 登录 =====
 function showLogin() {
+  const splash = $('#bootSplash');
+  if (splash) splash.hidden = true;
+  const fail = $('#bootErr');
+  if (fail) fail.hidden = true;
   $('#appShell').hidden = true;
   $('#loginOverlay').hidden = false;
   $('#loginError').hidden = true;
@@ -413,6 +510,7 @@ bind('#loginForm', 'submit', async (e) => {
     // 登录成功：进入主界面
     $('#loginOverlay').hidden = true;
     $('#appShell').hidden = false;
+    routeFromHash();   // 登录前若带了深链（#/ledger 等），登录后直达
     try {
       await loadHome();
     } catch (err) {
@@ -438,11 +536,17 @@ async function boot() {
   $('#versionText').textContent = 'v' + VERSION;
   const lv = $('#loginVersion');
   if (lv) lv.textContent = '当前版本：v' + VERSION;
+  const splash = $('#bootSplash');
+  const fail = $('#bootErr');
+  if (fail) fail.hidden = true;
+  if (splash) splash.hidden = false;
   try {
     const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
     if (res.ok) {
+      if (splash) splash.hidden = true;
       $('#loginOverlay').hidden = true;
       $('#appShell').hidden = false;
+      routeFromHash();           // 深链：#/ledger、#/relations/5、#/settings/style 直接进入
       await loadHome();
       maybeNotifyTodos();
       document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeNotifyTodos(); });
@@ -450,9 +554,13 @@ async function boot() {
       showLogin();
     }
   } catch {
-    showLogin();
+    // 网络异常 ≠ 未登录：不再误踢到登录页，给出重试入口
+    if (splash) splash.hidden = true;
+    if (fail) fail.hidden = false;
+    else showLogin();
   }
 }
+bind('#bootRetryBtn', 'click', boot);
 
 // ===== 加载首页数据 =====
 async function loadHome() {
@@ -890,7 +998,12 @@ function makeCell(date, out, today) {
 }
 
 function eventsOn(dateStr) {
-  return calState.events.filter((ev) => ymd(new Date(ev.start.replace(' ', 'T'))) === dateStr);
+  // 按区间匹配：跨天日程出现在 start..end 的每一天（无 end 即当天）
+  return calState.events.filter((ev) => {
+    const s = String(ev.start || '').slice(0, 10);
+    const e = ev.end ? String(ev.end).slice(0, 10) : s;
+    return s <= dateStr && dateStr <= e;
+  });
 }
 
 // 周历：7 天 × 全天 0:00-23:00 竖向时间轴；点某个小时格子即在该日该点新增日程
@@ -1002,11 +1115,16 @@ function buildWeekView(start) {
 }
 
 function evsInHour(date, hour) {
+  // 区间匹配：14:00-17:00 的日程出现在 14/15/16 点的格子里（无 end 按开始所在小时）
   const ds = ymd(date);
+  const cellStart = new Date(ds + 'T' + String(hour).padStart(2, '0') + ':00');
+  const cellEnd = new Date(cellStart.getTime() + 3600000);
   return calState.events.filter((ev) => {
     if (ev.allDay) return false;
-    const dt = new Date(ev.start.replace(' ', 'T'));
-    return ymd(dt) === ds && dt.getHours() === hour;
+    const s = new Date(String(ev.start).replace(' ', 'T'));
+    let e = ev.end ? new Date(String(ev.end).replace(' ', 'T')) : new Date(s.getTime() + 3600000);
+    if (e <= s) e = new Date(s.getTime() + 3600000); // end 早于 start 的脏数据按 1 小时兜底
+    return s < cellEnd && e > cellStart;
   });
 }
 
@@ -1177,7 +1295,7 @@ async function finishTodo(id) {
   } catch { /* 401 已处理 */ }
 }
 async function removeTodo(id, title) {
-  if (!confirm(`确定删除待办「${title}」？`)) return;
+  if (!(await confirmModal(`确定删除待办「${title}」？`))) return;
   try {
     const res = await api(`/api/todos/${id}/delete`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); await renderTodos(); }
@@ -1660,7 +1778,7 @@ function buildTxnRow(t) {
 }
 
 async function removeTxn(id) {
-  if (!confirm('确定删除这笔记录？')) return;
+  if (!(await confirmModal('确定删除这笔记录？'))) return;
   try {
     const res = await api(`/api/transactions/${id}`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); await renderLedger(); }
@@ -2174,6 +2292,8 @@ function renderAcctPick() {
 
 /* ---------- 联系人选择（来自人际关系，选中即关联） ---------- */
 let contactCache = null;
+// profile.js 增删改联系人成功后调用，避免「记一笔→联系人」仍是旧名单
+window.invalidateContacts = function () { contactCache = null; };
 async function openContactPicker() {
   const m = $('#contactPickModal');
   if (!m) return;
@@ -2349,7 +2469,7 @@ function ledsetRow(cat, level, opt = {}) {
     const tip = level === 'top'
       ? `删除「${cat.name}」？其下二级分类一并删除，历史流水会归并到「其他」。`
       : `删除二级分类「${cat.name}」？`;
-    if (!confirm(tip)) return;
+    if (!(await confirmModal(tip))) return;
     const res = await api(`/api/txn-categories/${cat.id}`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); renderLedgerSet(); renderLedger(); }
     else toast((await res.json().catch(() => ({}))).error || '删除失败');
@@ -2436,15 +2556,26 @@ function bindLedgerDrag(handle, row, level, parentId) {
 
 // ===== 导航切换 =====
 // keepTab：从子菜单进入个人中心时，保留已选中的子页，不强制回到默认页
+let currentView = 'home';   // hash 路由去重用（HTML 默认激活 view-home）
+let routingLock = false;    // switchView 写 hash 时防止 hashchange 回环
+function setHash(h) {
+  if (location.hash === h) return;
+  routingLock = true;
+  location.hash = h;
+  setTimeout(() => { routingLock = false; }, 0); // 未触发 hashchange（如同值）也能解锁
+}
 function switchView(name, opts = {}) {
   const target = $('#view-' + name);
   if (!target) return;
+  currentView = name;
   $$('.view').forEach((v) => v.classList.remove('active'));
   target.classList.add('active');
   $$('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.nav === name));
   $$('.mobile-nav > button, .mnav-profile > button').forEach((n) =>
     n.classList.toggle('active', n.dataset.nav === name)
   );
+  // 地址栏同步为 #/视图名（PWA 返回键 / 刷新恢复 / 深链分享）
+  if (!opts.fromHash) setHash('#/' + name);
   if (name === 'growth') renderGrowth();
   if (name === 'settings') {
     renderSettings();
@@ -2465,6 +2596,44 @@ document.addEventListener('click', (e) => {
   if (navEl && navEl.id !== 'profileBtnMobile') {
     switchView(navEl.dataset.nav);
   }
+});
+
+// ===== hash 路由（v0.5.5）=====
+// #/home #/ledger …（全部视图）+ 深链 #/relations/{id} 与 #/settings/{tab}。
+// TWA/PWA 里按系统返回键 = 回上一视图，而不是退出应用。
+const ROUTE_VIEWS = ['home', 'growth', 'todos', 'ledger', 'ledgerset', 'medicine', 'calendar', 'relations', 'relset', 'settings'];
+function routeFromHash() {
+  const h = (location.hash || '').replace(/^#\/?/, '');
+  const seg = h.split('/')[0];
+  const arg = h.split('/')[1] || '';
+  if (!seg) {
+    if (currentView !== 'home') switchView('home', { fromHash: true });
+    return;
+  }
+  if (seg === 'relations' && /^\d+$/.test(arg)) {
+    // 已在该档案上则不重复加载（pfOpenProfile 写 hash 会触发本函数）
+    if (window.pfOpenByHash) {
+      switchView('relations', { fromHash: true });
+      window.pfOpenByHash(Number(arg));
+    }
+    return;
+  }
+  if (seg === 'settings' && arg && typeof PROFILE_TITLES !== 'undefined' && PROFILE_TITLES[arg]) {
+    if (currentView === 'settings' && currentProfileTab === arg) return;
+    switchProfileTab(arg);
+    switchView('settings', { keepTab: true, fromHash: true });
+    return;
+  }
+  if (ROUTE_VIEWS.includes(seg)) {
+    if (seg === currentView && !arg) return; // 同视图去重，避免重复拉数据
+    switchView(seg, { fromHash: true });
+  } else if (currentView !== 'home') {
+    switchView('home', { fromHash: true });
+  }
+}
+window.addEventListener('hashchange', () => {
+  if (routingLock) { routingLock = false; return; }
+  routeFromHash();
 });
 
 // ===== 成长打卡 =====
@@ -2644,7 +2813,7 @@ function renderHabitGrid(habits) {
 }
 
 async function deleteHabit(id, name) {
-  if (!confirm(`确定删除习惯「${name}」？其打卡记录也会一并清除。`)) return;
+  if (!(await confirmModal(`确定删除习惯「${name}」？其打卡记录也会一并清除。`))) return;
   try {
     const res = await api(`/api/habits/${id}`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); await renderGrowth(); }
@@ -2961,7 +3130,7 @@ async function renderSessions() {
 }
 
 async function revokeSession(sid) {
-  if (!confirm('确定登出该设备？该设备上的登录将立即失效。')) return;
+  if (!(await confirmModal('确定登出该设备？该设备上的登录将立即失效。'))) return;
   try {
     const res = await api(`/api/sessions/${sid}`, { method: 'DELETE' });
     if (res.ok) {
@@ -3447,16 +3616,16 @@ bind('#eventForm', 'submit', async (e) => {
 // 删除事件
 bind('#eventDeleteBtn', 'click', async () => {
   if (!editingEventId) return;
-  if (!confirm('确定删除该日程？')) return;
+  if (!(await confirmModal('确定删除该日程？'))) return;
   const res = await api(`/api/events?id=${editingEventId}`, { method: 'DELETE' }).catch(() => null);
   if (res && res.ok) { closeEventModal(); toast('已删除'); markSynced(); loadCalEvents(); }
 });
 // 双击事件块也能删除
-document.addEventListener('dblclick', (e) => {
+document.addEventListener('dblclick', async (e) => {
   const ev = e.target.closest('[data-evid]');
   if (!ev) return;
   const id = Number(ev.dataset.evid);
-  if (!confirm('确定删除该日程？')) return;
+  if (!(await confirmModal('确定删除该日程？'))) return;
   api(`/api/events?id=${id}`, { method: 'DELETE' }).then((r) => {
     if (r.ok) { toast('已删除'); markSynced(); loadCalEvents(); }
   }).catch(() => {});
@@ -3688,7 +3857,7 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw-v0.5.4.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 
 // 人物档案模块（v0.3.1）事件绑定

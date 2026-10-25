@@ -6,12 +6,36 @@
   <meta name="theme-color" content="#4d3045">
   <meta name="description" content="数字生活——把成长打卡、待办提醒、账本、药箱、日历与人际关系安放在一个地方。">
   <link rel="manifest" href="./manifest.webmanifest">
-  <!-- 免费商用字体：霞鹜文楷（OFL 协议，可商用）
-       经 jsDelivr 加载 webfont 版（Google Fonts 未收录该字体，原链接恒 400） -->
+  <!-- 免费商用字体：霞鹜文楷（OFL 协议，可商用）——webfont CSS 已改为按需注入
+       （用户在「主题风格」选中该字体时才加载，见 app.js applyFont 与下方内联脚本），不再默认拉取 -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
+  <script>
+  /* 首屏外观恢复（v0.5.5）：提前应用主题变量 / 明暗模式 / 字体，避免先闪默认「胭脂红」再被主脚本纠正 */
+  (function () {
+    try {
+      var vars = JSON.parse(localStorage.getItem('pf_vars') || 'null') || {};
+      var s = document.documentElement.style;
+      for (var k in vars) s.setProperty(k, vars[k]);
+      var mode = localStorage.getItem('pf_mode');
+      if (mode === 'night' || mode === 'light') {
+        document.documentElement.setAttribute('data-mode', mode);
+      } else {
+        // auto：粗略按钟点先判一次（6-19 点视为日间），精确的日出日落计算由主脚本接管
+        var h = new Date().getHours();
+        if (h < 6 || h >= 19) document.documentElement.setAttribute('data-mode', 'night');
+      }
+      if (localStorage.getItem('pf_font') === 'lxgwwk') {
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.setAttribute('data-lxgw', '1');
+        l.href = 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css';
+        document.head.appendChild(l);
+      }
+    } catch (_) {}
+  })();
+  </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/v0.5.4/css/style.css">
+  <link rel="stylesheet" href="./assets/2ef79358/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -52,8 +76,8 @@
     <symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-9.46z"/></symbol>
   </svg>
 
-  <!-- 登录遮罩 -->
-  <div class="login-overlay" id="loginOverlay">
+  <!-- 登录遮罩（v0.5.5：boot() 判定登录态前保持隐藏，由启动骨架占位，不再闪登录页） -->
+  <div class="login-overlay" id="loginOverlay" hidden>
     <div class="login-card">
       <div class="login-mark">数</div>
       <h1>数字生活</h1>
@@ -65,6 +89,17 @@
         <button class="btn primary full" type="submit"><svg><use href="#i-logout"/></svg>登录</button>
         <p class="login-error" id="loginError" hidden></p>
       </form>
+    </div>
+  </div>
+
+  <!-- 启动骨架（v0.5.5）：判定登录态期间显示 -->
+  <div class="boot-splash" id="bootSplash"><span class="boot-mark">数</span><small>数字生活</small></div>
+  <!-- 网络异常重试（boot 失败时显示；网络错误不再误判为未登录踢到登录页） -->
+  <div class="boot-err" id="bootErr" hidden>
+    <div class="boot-err-card">
+      <b>网络异常</b>
+      <p id="bootErrMsg">无法连接服务器，请检查网络后重试。</p>
+      <button class="btn primary" id="bootRetryBtn" type="button">重试</button>
     </div>
   </div>
 
@@ -1091,9 +1126,20 @@
     </div>
   </div>
 
-  <script src="./assets/v0.5.4/js/lunar.js"></script>
-  <script src="./assets/v0.5.4/js/profile.js"></script>
-  <script src="./assets/v0.5.4/js/medicine.js"></script>
-  <script src="./assets/v0.5.4/js/app.js"></script>
+  <!-- 通用确认弹窗（v0.5.5：替代原生 confirm()，TWA/WebView 下 confirm 不可靠） -->
+  <div class="modal-overlay" id="confirmModal" hidden>
+    <div class="modal-card confirm-card">
+      <p id="confirmMsg">确定吗？</p>
+      <div class="confirm-actions">
+        <button class="btn ghost" id="confirmCancelBtn" type="button">取消</button>
+        <button class="btn danger" id="confirmOkBtn" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./assets/c5cb3fe4/js/lunar.js"></script>
+  <script src="./assets/77d42057/js/profile.js"></script>
+  <script src="./assets/cb0f1021/js/medicine.js"></script>
+  <script src="./assets/9156f506/js/app.js"></script>
 </body>
 </html>

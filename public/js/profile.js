@@ -87,10 +87,16 @@ async function pfLoadList() {
     pfRenderFilters();
     pfRenderList();
     markSynced();
+    // 无筛选时列表接口返回的已是全量，直接复用，省一次相同请求（v0.5.5 前这里会重复拉一遍）
+    if (!qs.toString()) {
+      PF.allNames = PF.list.map((p) => ({ id: p.id, name: p.name }));
+    } else {
+      pfLoadNames();
+    }
   } catch (err) {
     if (!String(err.message).includes('unauthorized') && box) box.innerHTML = '<div class="empty-hint">加载联系人失败</div>';
+    pfLoadNames();
   }
-  pfLoadNames();
 }
 
 async function pfLoadNames() {
@@ -152,6 +158,8 @@ function pfRenderList() {
 async function pfOpenProfile(id) {
   PF.pid = Number(id);
   PF.view = 'profile';
+  // 深链：#/relations/{id}（hash 路由回环由 pfOpenByHash 去重）
+  if (location.hash !== '#/relations/' + PF.pid) location.hash = '#/relations/' + PF.pid;
   pfEl('relListView').hidden = true;
   pfEl('relProfileView').hidden = false;
   ['pfHero', 'pfBasic', 'pfSocial', 'pfMethods', 'pfRelatives', 'pfWork', 'pfEdu', 'pfPets']
@@ -175,10 +183,17 @@ function pfBackToList() {
   PF.view = 'list';
   PF.pid = null;
   PF.data = null;
+  if (location.hash !== '#/relations') location.hash = '#/relations';
   pfEl('relProfileView').hidden = true;
   pfEl('relListView').hidden = false;
   pfLoadList();
 }
+
+// hash 路由入口（app.js 的 routeFromHash 调用）：已在当前档案上则不重复加载
+window.pfOpenByHash = function (id) {
+  if (PF.view === 'profile' && PF.pid === Number(id)) return;
+  pfOpenProfile(id);
+};
 
 function pfRenderAll() {
   const d = PF.data;
@@ -679,6 +694,7 @@ async function pfSubmitEdit(e) {
     pfCloseEditModal();
     toast(PF.editingId ? '已保存' : '已添加联系人');
     markSynced();
+    if (window.invalidateContacts) window.invalidateContacts(); // 「记一笔→联系人」名单同步失效
     if (PF.editingId) await pfOpenProfile(PF.editingId);
     else { PF.view = 'list'; await pfLoadList(); }
   } catch (e2) {
@@ -691,12 +707,13 @@ async function pfSubmitEdit(e) {
 // ===== 删除联系人 =====
 async function pfDeletePerson() {
   if (!PF.pid || !PF.data) return;
-  if (!confirm(`确定删除「${PF.data.base.name}」？其联系方式、家庭关系、教育与宠物记录会一并删除，且不可恢复。`)) return;
+  if (!(await confirmModal(`确定删除「${PF.data.base.name}」？其联系方式、家庭关系、教育与宠物记录会一并删除，且不可恢复。`))) return;
   const res = await api(`/api/profile/delete?id=${PF.pid}`, { method: 'DELETE' }).catch(() => null);
   if (res && res.ok) {
     const d = await res.json().catch(() => ({}));
     toast(`已删除「${d.name || ''}」`);
     markSynced();
+    if (window.invalidateContacts) window.invalidateContacts();
     pfBackToList();
   } else {
     toast('删除失败，请重试');
@@ -819,7 +836,7 @@ function pfBindEvents() {
         const d = await res.json().catch(() => ({}));
         if (res.ok) { toast('已添加'); pfOpenProfile(PF.pid); } else toast(d.error || '添加失败');
       } else if (act === 'mdel') {
-        if (!confirm('确定删除这条联系方式？')) return;
+        if (!(await confirmModal('确定删除这条联系方式？'))) return;
         const res = await api(`/api/profile/contacts?id=${btn.dataset.id}`, { method: 'DELETE' });
         if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
       } else if (act === 'medit') {
@@ -857,7 +874,7 @@ function pfBindEvents() {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
       if (btn.dataset.act === 'rdel') {
-        if (!confirm('确定删除这条家庭关系？')) return;
+        if (!(await confirmModal('确定删除这条家庭关系？'))) return;
         const res = await api(`/api/profile/relatives?id=${btn.dataset.id}`, { method: 'DELETE' });
         if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
       } else if (btn.dataset.act === 'redit') {
@@ -897,7 +914,7 @@ function pfBindEvents() {
     eBox.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-act=edel]');
       if (!btn) return;
-      if (!confirm('确定删除这段教育经历？')) return;
+      if (!(await confirmModal('确定删除这段教育经历？'))) return;
       const res = await api(`/api/profile/edu?id=${btn.dataset.id}`, { method: 'DELETE' });
       if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
     });
@@ -923,7 +940,7 @@ function pfBindEvents() {
     pBox.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-act=pdel]');
       if (!btn) return;
-      if (!confirm('确定删除这条宠物记录？')) return;
+      if (!(await confirmModal('确定删除这条宠物记录？'))) return;
       const res = await api(`/api/profile/pets?id=${btn.dataset.id}`, { method: 'DELETE' });
       if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
     });

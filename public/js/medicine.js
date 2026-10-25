@@ -432,7 +432,7 @@
           const id = Number(del.dataset.medDel);
           const item = state.all.find((m) => m.id === id);
           if (!item) return;
-          if (!confirm(`确定删除「${item.name}」吗？此操作不可撤销。`)) return;
+          if (!(await confirmModal(`确定删除「${item.name}」吗？此操作不可撤销。`))) return;
           try {
             const res = await api(`/api/medicines/${id}`, { method: 'DELETE' });
             if (res.ok) { toast('已删除'); markSynced(); renderMedicine(); }
