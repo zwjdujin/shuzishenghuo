@@ -19,9 +19,15 @@ export async function onRequestPost(context) {
   if (!ai) return json({ notConfigured: true, error: 'AI 未配置（在 个人中心 → 智能管理 添加大模型，或设置 AI_API_KEY 环境变量）' }, 200);
   if (image && !ai.vision) return json({ error: '当前默认模型未开启图片支持（智能管理 → 编辑模型 → 勾选「支持图片」）' }, 200);
 
-  // 把真实的分类清单与常用联系人喂给模型，减少幻觉
+  // 把真实的分类清单（含二级）与常用联系人喂给模型，减少幻觉
   const catTree = await loadCatTree(env);
-  const cats = [...catTree.expense.map((c) => c.name), ...catTree.income.map((c) => c.name)];
+  const catDesc = [...catTree.expense, ...catTree.income]
+    .filter((c) => !c.hidden)
+    .map((c) => {
+      const kids = (c.children || []).filter((k) => !k.hidden).map((k) => k.name);
+      return c.name + (kids.length ? '（二级：' + kids.join('、') + '）' : '');
+    })
+    .join('；');
   let contactNames = [];
   try {
     contactNames = ((await env.DB.prepare('SELECT name FROM contacts ORDER BY id DESC LIMIT 30').all()).results || [])
@@ -31,15 +37,16 @@ export async function onRequestPost(context) {
   const today = todayStr();
   // v0.5.20：多笔解析——一句话可含多笔账/待办（"吃饭20，买菜44"→两笔支出）
   // v0.5.21：名片/联系人 → relation；药品/说明书/药盒 → medicine
+  // v0.5.24：提示词枚举每个分类的合法二级，模型能输出准确的 sub
   let system =
     '你是「数字生活」记账/待办/档案助手。把用户的一句话（或图片）解析成 JSON 数组，只输出 JSON 数组，不要任何解释。' +
-    '数组每个元素的字段：module（transaction|todo|relation|medicine|memo）、flow（expense|income）、amount（数字）、category、sub（二级分类）、' +
+    '数组每个元素的字段：module（transaction|todo|relation|medicine|memo）、flow（expense|income）、amount（数字）、category、sub（二级分类，仅可从所属一级分类括号里列出的二级中选，没有合适的就留空）、' +
     'date（YYYY-MM-DD，相对日期按今天=' + today + '推算）、time（HH:MM 或空）、contact（联系人名，仅当明确提到且在名单中）、' +
     'title（todo 用）、note、confidence（0-1）。' +
     'relation 额外字段：rname（姓名）、phone、wechat、qq、company（公司）、position（职位）。' +
     'medicine 额外字段：mname（药品名）、spec（规格）、form（剂型如 片剂/胶囊剂）、dosage（用法用量）、expiry（有效期 YYYY-MM-DD 或空）。' +
     '规则：一句话里有几笔金额就输出几条 transaction，每条只含一笔金额；' +
-    '金额找不到就 null；category 必须从这个名单里选：' + cats.join('、') + '。' +
+    'category 及其二级分类必须从这个清单里选：' + catDesc + '。' +
     '联系人仅可从名单里选：' + (contactNames.join('、') || '无') + '。' +
     '待办与记账混在一句话时分别各出一条。' +
     '图片或文字是名片/联系人信息（姓名电话微信公司等）时输出 relation；是药品/药盒/说明书时输出 medicine（可再附一条购药 transaction）。' +

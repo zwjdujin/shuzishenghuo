@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.23
-const VERSION = '0.5.23';
+// 数字生活 · 前端逻辑 v0.5.24
+const VERSION = '0.5.24';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '随手记带金额内容改为弹出「记一笔」完整表单并预填 AI 识别（分类自动补芯片/日期/备注），多笔逐笔确认，待办/联系人/药品走确认弹窗；修复模型配置「支持图片」勾选保存后丢失（submitAiModel 漏传 vision 字段）';
+const __BUILD_ID__ = '随手记 AI 解析识别二级分类：提示词枚举每个分类的合法二级清单（隐藏项排除），记一笔预填时二级芯片自动选中（AI 给出树外二级时临时补芯片）；多行预览与批量入库支持二级分类';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -755,6 +755,7 @@ async function openAiPreview(rawText, drafts) {
     flow: x.flow === 'income' ? 'income' : 'expense',
     amount: Number(x.amount) > 0 ? Number(x.amount) : '',
     category: x.category || '',
+    sub: String(x.sub || '').slice(0, 20),
     date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : today,
     title: x.title || String(x.note || rawText).slice(0, 40),
     note: x.note || rawText,
@@ -808,6 +809,7 @@ function renderAiRowBody(i) {
         <select class="inp" data-k="flow"><option value="expense"${r.flow === 'expense' ? ' selected' : ''}>支出</option><option value="income"${r.flow === 'income' ? ' selected' : ''}>收入</option></select>
         <input class="inp" data-k="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="金额" value="${r.amount}">
         <input class="inp" data-k="category" maxlength="20" list="aiCatList" placeholder="分类" value="${escHtml(r.category)}">
+        <input class="inp" data-k="sub" maxlength="20" placeholder="二级分类" value="${escHtml(r.sub || '')}">
         <input class="inp" data-k="date" placeholder="YYYY-MM-DD" value="${r.date}">
       </div>`;
   } else if (r.module === 'relation') {
@@ -859,6 +861,7 @@ async function aiPreviewConfirm() {
           body: JSON.stringify({
             flow: r.flow, amount,
             category: String(r.category || '').trim() || '其他',
+            sub: String(r.sub || '').trim(),
             date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : todayStrLocal(),
             note: String(r.note || '').slice(0, 60),
           }),
@@ -2755,18 +2758,27 @@ let aiChaining = false;
 function openTxnFromAi(draft) {
   const flow = draft.flow === 'income' ? 'income' : 'expense';
   const cat = String(draft.category || '').trim() || '其他';
+  const sub = String(draft.sub || '').trim().slice(0, 20);
   openTxnModal(null);
   txnDraft.flow = flow;
   txnDraft.category = cat;
+  txnDraft.sub = sub;
   txnDraft.date = /^\d{4}-\d{2}-\d{2}$/.test(draft.date || '') ? draft.date : todayStrLocal();
   if (draft.time) txnDraft.time = draft.time;
   $('#txnAmount').value = String(draft.amount);
   $('#txnNote').value = String(draft.note || '').slice(0, 30);
   const radio = $('#txnForm').querySelector(`[name=flow][value="${flow}"]`);
   if (radio) radio.checked = true;
-  // AI 分类不在分类树时临时补一枚芯片（保存后如需常驻可去分类管理添加）
+  // AI 分类/二级不在分类树时临时补芯片（保存后如需常驻可去分类管理添加），
+  // 保证 AI 识别的 sub 在「记一笔」里以选中态可见
   const tree = catTree[flow] || [];
   if (!tree.some((c) => c.name === cat)) tree.push({ name: cat, children: [] });
+  if (sub) {
+    const cur = tree.find((c) => c.name === cat) || { name: cat, children: [] };
+    cur.children = cur.children || [];
+    if (!cur.children.some((k) => k.name === sub)) cur.children.push({ name: sub });
+    if (!tree.some((c) => c.name === cat)) tree.push(cur);
+  }
   catTree[flow] = tree;
   syncFlowUI();
   renderCatChips();
