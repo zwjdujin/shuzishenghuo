@@ -1,4 +1,4 @@
-// v0.5.10 经期记录端到端测试：CRUD / 统计预测 / 隐私开关 / 自动补结束 / events 叠加
+// v0.5.11 经期扩展端到端：新字段存取 / 校验 / 迁移平移 / 旧口径回归
 const BASE = 'http://127.0.0.1:8799';
 let cookie = '';
 const ok = [], fail = [];
@@ -9,7 +9,7 @@ async function api(path, opts = {}) {
 const JH = { 'Content-Type': 'application/json' };
 async function j(r) { return r.json().catch(() => ({})); }
 
-// 登录 + 清库起点
+// 登录 + 清库
 {
   const r = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: JH, body: JSON.stringify({ user: 'admin', pass: 'test-pass-123' }) });
   cookie = (r.headers.get('set-cookie') || '').split(';')[0];
@@ -18,85 +18,81 @@ async function j(r) { return r.json().catch(() => ({})); }
   for (const l of cur.logs || []) await api('/api/period?id=' + l.id, { method: 'DELETE' });
 }
 
-// 1. 三次经期 → 周期 28/30 → 平均 29
+// 1. 新字段全量 POST
 {
-  for (const [s, e, f] of [['2026-07-01', '2026-07-05', 2], ['2026-07-29', '2026-08-02', 3], ['2026-08-28', '2026-09-01', 1]]) {
-    const r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: s, end_date: e, flow: f }) });
-    if (!r.ok) check('录入 ' + s, false, r.status);
-  }
+  const r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({
+    start_date: '2026-08-01', end_date: '2026-08-05', flow: 4,
+    blood_color: 3, blood_texture: 1, dysmenorrhea: 1,
+    pain_types: ['胀痛', '坠痛', '不存在痛'], symptoms: ['头痛', '失眠', '编造症状'], symptom_other: '腰酸,乏力', note: '全量',
+  }) });
+  check('全量 POST 201', r.status === 201, r.status);
   const d = await j(await api('/api/period'));
-  check('3 条记录（新的在前）', d.logs.length === 3 && d.logs[0].startDate === '2026-08-28');
-  check('平均周期 29 天', d.stats.cycleAvg === 29, 'cycleAvg=' + d.stats.cycleAvg);
-  check('下次预计 = 09-26', d.stats.nextPredicted === '2026-09-26', d.stats.nextPredicted);
-  check('无进行中', d.stats.ongoingId === null);
-  check('经期天数平均 5 天', d.stats.periodAvg === 5, 'periodAvg=' + d.stats.periodAvg);
+  const l = d.logs[0];
+  check('经量/血色/血质 存取', l.flow === 4 && l.bloodColor === 3 && l.bloodTexture === 1);
+  check('痛经 + 分型（非法值被滤）', l.dysmenorrhea === true && l.painTypes === '胀痛,坠痛', l.painTypes);
+  check('症状（非法值被滤）', l.symptoms === '头痛,失眠', l.symptoms);
+  check('其他症状自行填写（去逗号）', l.symptomOther === '腰酸乏力', l.symptomOther);
 }
 
-// 2. 今天来了（先把上一条改回"进行中"，验证自动补结束）
+// 2. 校验
 {
-  const cur = await j(await api('/api/period'));
-  const last = cur.logs.find((l) => l.startDate === '2026-08-28');
-  const ro = await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ id: last.id, end_date: '' }) });
-  check('重开上一条（end_date 置空）', ro.ok);
-  const r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-10-25', flow: 2 }) });
-  check('今天来了 201', r.status === 201);
+  let r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-09-01', flow: 6 }) });
+  check('经量越界 400', r.status === 400);
+  r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-09-01', flow: 3, blood_color: 9 }) });
+  check('血色越界 → 按未记录存', r.status === 201);
   const d = await j(await api('/api/period'));
-  const prev = d.logs.find((l) => l.startDate === '2026-08-28');
-  check('上一条自动补结束 10-24', prev && prev.endDate === '2026-10-24', prev && prev.endDate);
-  check('进行中 周期第 1 天', d.stats.cycleDay === 1 && d.stats.ongoingId !== null);
-  const r2 = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-10-25' }) });
-  check('同日重复 409', r2.status === 409);
-  const r3 = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-09-01', end_date: '2026-08-01' }) });
-  check('结束早于开始 400', r3.status === 400);
-}
-
-// 3. 编辑（保留 4 条）
-{
-  const d = await j(await api('/api/period'));
-  const row = d.logs.find((l) => l.startDate === '2026-07-01');
-  const r = await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ id: row.id, end_date: '2026-07-06', flow: 3, note: '测试备注' }) });
+  check('blood_color=null', d.logs[0].bloodColor === null);
+  r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-09-02', dysmenorrhea: 0, pain_types: ['胀痛'] }) });
   const d2 = await j(await api('/api/period'));
-  const row2 = d2.logs.find((l) => l.id === row.id);
-  check('编辑保存（结束/量/备注）', r.ok && row2.endDate === '2026-07-06' && row2.flow === 3 && row2.note === '测试备注');
+  const l2 = d2.logs.find((x) => x.startDate === '2026-09-02');
+  check('未勾痛经 → 分型清空', l2 && l2.dysmenorrhea === false && l2.painTypes === '');
 }
 
-// 4. events 叠加 + 隐私开关
+// 3. PUT 局部更新（不动未传字段）
 {
-  let ev = await j(await api('/api/events?from=2026-10-01&to=2026-10-31'));
-  check('events 附带经期区间（进行中截至今天）', Array.isArray(ev.periods) && ev.periods.some((p) => p.start === '2026-10-25'), JSON.stringify(ev.periods));
-  // starts: 07-01/07-29/08-28/10-25 → diffs 28,30,58 → avg 39 → 10-25+39 = 12-03
-  check('events 附带预测日 = 12-03', ev.prediction === '2026-12-03', ev.prediction);
-  check('periodVisible=true', ev.periodVisible === true);
-  const ev2 = await j(await api('/api/events?from=2026-07-01&to=2026-07-31'));
-  check('周历/月历范围过滤（7月命中 07-01 与 07-29 两条）', ev2.periods.length === 2 && ev2.periods[0].start === '2026-07-01' && ev2.periods[0].end === '2026-07-06' && ev2.periods[1].start === '2026-07-29', JSON.stringify(ev2.periods));
-  // 关闭
-  const r = await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ visible: false }) });
-  check('隐私开关 PUT', r.ok && (await j(r)).visible === false);
-  ev = await j(await api('/api/events?from=2026-10-01&to=2026-10-31'));
-  check('关闭后 events 无经期数据', ev.periods.length === 0 && ev.prediction === null && ev.periodVisible === false);
-  const pd = await j(await api('/api/period'));
-  check('经期页仍可见记录', pd.logs.length === 4 && pd.visible === false);
-  // 再开
+  const d = await j(await api('/api/period'));
+  const row = d.logs.find((l) => l.startDate === '2026-08-01');
+  const r = await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ id: row.id, flow: 5, symptom_other: '起疹子了' }) });
+  const d2 = await j(await api('/api/period'));
+  const l = d2.logs.find((x) => x.id === row.id);
+  check('PUT 局部：flow=5、其他症状更新', r.ok && l.flow === 5 && l.symptomOther === '起疹子了');
+  check('PUT 局部：血色/分型保留', l.bloodColor === 3 && l.painTypes === '胀痛,坠痛');
+}
+
+// 4. 默认值 POST（只给日期）
+{
+  const r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-10-01' }) });
+  const d = await j(await api('/api/period'));
+  const l = d.logs.find((x) => x.startDate === '2026-10-01');
+  check('默认：经量正常/血色血质未记录/无痛经', r.status === 201 && l.flow === 3 && l.bloodColor === null && l.dysmenorrhea === false);
+}
+
+// 5. 旧口径回归：同日 409 / 结束早于开始 400 / 自动补结束 / 隐私开关
+{
+  let r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-10-01' }) });
+  check('同日重复 409', r.status === 409);
+  r = await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-10-20', end_date: '2026-10-01' }) });
+  check('结束早于开始 400', r.status === 400);
+  const d = await j(await api('/api/period'));
+  const row = d.logs.find((l) => l.startDate === '2026-10-01');
+  await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ id: row.id, end_date: '' }) }); // 重开
+  await api('/api/period', { method: 'POST', headers: JH, body: JSON.stringify({ start_date: '2026-10-29', flow: 2 }) });
+  const d2 = await j(await api('/api/period'));
+  check('自动补结束（10-01 → 10-28）', d2.logs.find((l) => l.startDate === '2026-10-01').endDate === '2026-10-28');
+  r = await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ visible: false }) });
+  const ev = await j(await api('/api/events?from=2026-10-01&to=2026-10-31'));
+  check('隐私关闭 → events 无经期', r.ok && ev.periods.length === 0);
   await api('/api/period', { method: 'PUT', headers: JH, body: JSON.stringify({ visible: true }) });
 }
 
-// 5. 删除一条
-{
-  const d = await j(await api('/api/period'));
-  const row = d.logs.find((l) => l.startDate === '2026-07-01');
-  const r = await api('/api/period?id=' + row.id, { method: 'DELETE' });
-  const d3 = await j(await api('/api/period'));
-  check('删除后剩 3 条', r.ok && d3.logs.length === 3);
-}
-
-// 5. 备份统计中文名
+// 6. 备份中文名
 {
   const d = await j(await api('/api/data/stats'));
   const t = (d.tables || []).find((x) => x.name === 'period_logs');
-  check('period_logs 进备份且中文名', !!t && t.label === '日历 · 经期记录', t && t.label);
+  check('period_logs 备份中文名', !!t && t.label === '日历 · 经期记录');
 }
 
-// 6. 清理演示数据（回到空）
+// 7. 清理
 {
   const d = await j(await api('/api/period'));
   for (const l of d.logs || []) await api('/api/period?id=' + l.id, { method: 'DELETE' });

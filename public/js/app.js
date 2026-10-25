@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.10
-const VERSION = '0.5.10';
+// 数字生活 · 前端逻辑 v0.5.11
+const VERSION = '0.5.11';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '日历中心新增经期记录：独立经期标签页（周期概览/今天来了/今天结束/历史补录编辑/经量备注）+ 周月历叠加显示与下次预估；隐私开关「在周历月历中显示」关=日历零痕迹；period_logs 迁移 0006；end_date 空串改绑 NULL（否则叠加查询漏行）';
+const __BUILD_ID__ = '经期记录扩展：经量5档(极少~极多)+血色4选1+血质3选1+痛经勾选(分型6项可多选)+其他症状11项多选与自行填写；修复经期页被 fitCalView 固定高度顶出面板边框（经期模式恢复 auto 高度）；period_logs 重建迁移 0007（去 CHECK、旧 flow+1 平移）';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -1125,6 +1125,10 @@ function renderCalView() {
     title.textContent = '经期记录';
     if (eyebrow) eyebrow.textContent = '日历中心 · 经期';
     box.innerHTML = '<div class="empty-hint">加载中…</div>';
+    // fitCalView 给视图定过固定高（周/月历铺满一屏用）；经期页内容更高，
+    // 不放开会溢出面板边框——恢复 auto，回到周/月历时 fitCalView 会重新设回。
+    const sec = $('#view-calendar');
+    if (sec) sec.style.height = 'auto';
     renderPeriodView();
     syncCalNavLabels();
     return;
@@ -1274,13 +1278,57 @@ function periodOn(dateStr) {
 }
 
 // ===== v0.5.10 经期记录页 =====
-let periodFlow = 2;       // 表单当前选中量 1少/2中/3多
-let periodEditing = null; // 编辑中的记录 id
+const PD_FLOWS = ['', '极少', '偏少', '正常', '偏多', '极多'];
+const PD_COLORS = ['', '血色浅淡', '血色正常', '血色深红', '血色深黑'];
+const PD_TEXTURES = ['', '质地稀薄', '正常血样', '质地粘稠'];
+const PD_PAINS = ['胀痛', '刺痛', '冷痛', '绞痛', '坠痛', '不知道啥痛就是痛'];
+const PD_SYMPTOMS = ['乳房胀痛', '头痛', '身痛', '失眠', '情绪异常', '泄泻', '浮肿', '口腔溃疡', '吐血/流鼻血', '发热', '起疹子'];
+let periodFlow = 3;        // 经量 1-5（默认正常）
+let periodColor = 2;       // 血色 1-4（默认血色正常）
+let periodTexture = 2;     // 血质 1-3（默认正常血样）
+let periodPains = new Set();
+let periodSymptoms = new Set();
+let periodEditing = null;  // 编辑中的记录 id
 
 function pdFmt(ds) {
   if (!ds) return '—';
   const [, m, d] = ds.split('-');
   return `${Number(m)}月${Number(d)}日`;
+}
+/** 历史行的详情摘要：血色/血质/痛经分型/症状/其他 */
+function pdDetail(l) {
+  const bits = [];
+  if (l.bloodColor) bits.push(PD_COLORS[l.bloodColor]);
+  if (l.bloodTexture) bits.push(PD_TEXTURES[l.bloodTexture]);
+  if (l.dysmenorrhea) bits.push('痛经' + (l.painTypes ? '：' + l.painTypes.split(',').join('、') : ''));
+  if (l.symptoms) bits.push(l.symptoms.split(',').join('、'));
+  if (l.symptomOther) bits.push('其他：' + l.symptomOther);
+  return bits.join(' · ');
+}
+/** 重置表单为默认值（新增态） */
+function pdResetForm(box) {
+  periodFlow = 3; periodColor = 2; periodTexture = 2;
+  periodPains = new Set(); periodSymptoms = new Set();
+  $('#pdStartInput').value = ''; $('#pdEndInput').value = '';
+  $('#pdNote').value = ''; $('#pdOtherInput').value = '';
+  $('#pdDys').checked = false;
+  $('#pdPainBox').hidden = true;
+  $('#pdOtherInput').hidden = true;
+  $('#pdFormTitle').textContent = '补录一次经期';
+  $('#pdCancelEdit').hidden = true;
+  window.syncDtBtns(box);
+  pdSyncChips(box);
+}
+function pdSyncChips(box) {
+  box.querySelectorAll('.pd-chip[data-kind]').forEach((chip) => {
+    const k = chip.dataset.kind, v = chip.dataset.val;
+    const on = k === 'flow' ? Number(v) === periodFlow
+      : k === 'color' ? Number(v) === periodColor
+      : k === 'texture' ? Number(v) === periodTexture
+      : k === 'pain' ? periodPains.has(v)
+      : periodSymptoms.has(v);
+    chip.classList.toggle('on', on);
+  });
 }
 
 async function renderPeriodView() {
@@ -1308,18 +1356,27 @@ async function renderPeriodView() {
         <small>${st.nextPredicted ? '预估，仅供参考' : '记录后自动推算'}</small></div>
     </div>`;
 
-  const historyHtml = logs.length ? logs.map((l) => `
+  const historyHtml = logs.length ? logs.map((l) => {
+    const detail = pdDetail(l);
+    return `
     <div class="pd-row" data-id="${l.id}">
       <div class="pd-row-main">
         <b>${pdFmt(l.startDate)}${l.endDate ? ' ~ ' + pdFmt(l.endDate) + ' · ' + l.days + ' 天' : ' 开始 · 进行中'}</b>
-        <span class="pd-flow-badge f${l.flow}">${['', '量少', '量中', '量多'][l.flow] || ''}</span>
+        <span class="pd-flow-badge f${l.flow}">${PD_FLOWS[l.flow] || ''}</span>
+        ${detail ? `<small>${escHtml(detail)}</small>` : ''}
         ${l.note ? `<small>${escHtml(l.note)}</small>` : ''}
       </div>
       <div class="pd-ops">
         <button class="icon-btn" data-pd="edit" data-id="${l.id}" title="编辑"><svg><use href="#i-edit"/></svg></button>
         <button class="icon-btn" data-pd="del" data-id="${l.id}" title="删除"><svg><use href="#i-x"/></svg></button>
       </div>
-    </div>`).join('') : '<div class="empty-hint">还没有记录。点上面的「今天来了」，或用下方表单补录过去的经期。</div>';
+    </div>`;
+  }).join('') : '<div class="empty-hint">还没有记录。点上面的「今天来了」，或用下方表单补录过去的经期。</div>';
+
+  const chipRow = (label, kind, values, names) => `
+    <div class="field"><span>${label}</span>
+      <div class="pd-chip-row">${values.map((v) => `<button type="button" class="pd-chip" data-kind="${kind}" data-val="${v}">${names[v]}</button>`).join('')}</div>
+    </div>`;
 
   box.innerHTML = `
     <div class="pd-wrap">
@@ -1344,12 +1401,18 @@ async function renderPeriodView() {
             <button type="button" class="dt-btn" data-dt="pdEnd" data-ph="选择结束日期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
           </label>
         </div>
-        <div class="field"><span>经量</span>
-          <div class="pd-flow-seg">
-            ${[1, 2, 3].map((f) => `<button type="button" class="pd-flow-chip${f === periodFlow ? ' on' : ''}" data-flow="${f}">${['', '量少', '量中', '量多'][f]}</button>`).join('')}
-          </div>
+        ${chipRow('经量', 'flow', [1, 2, 3, 4, 5], PD_FLOWS)}
+        ${chipRow('血色', 'color', [1, 2, 3, 4], PD_COLORS)}
+        ${chipRow('血质', 'texture', [1, 2, 3], PD_TEXTURES)}
+        <label class="pd-check-line"><input type="checkbox" id="pdDys"><span>痛经</span></label>
+        <div class="field" id="pdPainBox" hidden><span>痛感类型（可多选）</span>
+          <div class="pd-chip-row">${PD_PAINS.map((p) => `<button type="button" class="pd-chip" data-kind="pain" data-val="${p}">${p}</button>`).join('')}</div>
         </div>
-        <label class="field"><span>备注（选填）</span><input id="pdNote" maxlength="60" placeholder="如：痛经、出差"></label>
+        <div class="field"><span>其他症状（可多选）</span>
+          <div class="pd-chip-row">${PD_SYMPTOMS.map((s) => `<button type="button" class="pd-chip" data-kind="sym" data-val="${s}">${s}</button>`).join('')}<button type="button" class="pd-chip" data-kind="sym" data-val="其他">其他</button></div>
+          <input class="inp" id="pdOtherInput" placeholder="请描述其他症状" maxlength="30" style="margin-top:8px" hidden>
+        </div>
+        <label class="field"><span>备注（选填）</span><input id="pdNote" maxlength="60" placeholder="如：出差、熬夜"></label>
         <div class="settings-actions" style="gap:10px">
           <button class="btn ghost" type="button" id="pdCancelEdit" hidden>取消编辑</button>
           <button class="btn primary" type="submit">保存记录</button>
@@ -1369,12 +1432,25 @@ async function renderPeriodView() {
       });
     });
   });
-  // 经量芯片
-  box.querySelectorAll('.pd-flow-chip').forEach((chip) => {
+  // 芯片：flow/color/texture 单选；pain/sym 多选；"其他"带出填空
+  box.querySelectorAll('.pd-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
-      periodFlow = Number(chip.dataset.flow);
-      box.querySelectorAll('.pd-flow-chip').forEach((c) => c.classList.toggle('on', c === chip));
+      const kind = chip.dataset.kind, val = chip.dataset.val;
+      if (kind === 'flow') periodFlow = Number(val);
+      else if (kind === 'color') periodColor = Number(val);
+      else if (kind === 'texture') periodTexture = Number(val);
+      else if (kind === 'pain') { periodPains.has(val) ? periodPains.delete(val) : periodPains.add(val); }
+      else if (kind === 'sym') {
+        periodSymptoms.has(val) ? periodSymptoms.delete(val) : periodSymptoms.add(val);
+        $('#pdOtherInput').hidden = !periodSymptoms.has('其他');
+      }
+      pdSyncChips(box);
     });
+  });
+  // 痛经勾选 → 分型展开
+  box.querySelector('#pdDys').addEventListener('change', (e) => {
+    $('#pdPainBox').hidden = !e.target.checked;
+    if (!e.target.checked) { periodPains = new Set(); pdSyncChips(box); }
   });
   // 快捷 + 隐私开关
   box.querySelector('[data-pd=start]').addEventListener('click', async () => {
@@ -1406,13 +1482,21 @@ async function renderPeriodView() {
       periodEditing = id;
       $('#pdStartInput').value = log.startDate;
       $('#pdEndInput').value = log.endDate || '';
-      periodFlow = log.flow || 2;
+      periodFlow = log.flow || 3;
+      periodColor = log.bloodColor || 2;
+      periodTexture = log.bloodTexture || 2;
+      periodPains = new Set(log.painTypes ? log.painTypes.split(',') : []);
+      periodSymptoms = new Set(log.symptoms ? log.symptoms.split(',') : []);
       $('#pdNote').value = log.note || '';
+      $('#pdOtherInput').value = log.symptomOther || '';
+      $('#pdDys').checked = !!log.dysmenorrhea;
+      $('#pdPainBox').hidden = !log.dysmenorrhea;
+      $('#pdOtherInput').hidden = !periodSymptoms.has('其他');
       $('#pdFormTitle').textContent = '编辑这次经期（' + pdFmt(log.startDate) + '）';
       $('#pdCancelEdit').hidden = false;
       window.syncDtBtns(box);
-      box.querySelectorAll('.pd-flow-chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.flow) === periodFlow));
-      box.querySelector('.pd-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pdSyncChips(box);
+      box.querySelector('.pd-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (btn.dataset.pd === 'del') {
       if (!(await confirmModal(`删除 ${pdFmt(log.startDate)} 开始的这次经期记录？`))) return;
       const res = await api('/api/period?id=' + id, { method: 'DELETE' });
@@ -1420,23 +1504,22 @@ async function renderPeriodView() {
     }
   });
   // 取消编辑
-  $('#pdCancelEdit').addEventListener('click', () => {
-    periodEditing = null;
-    $('#pdForm').reset();
-    $('#pdStartInput').value = '';
-    $('#pdEndInput').value = '';
-    periodFlow = 2;
-    $('#pdFormTitle').textContent = '补录一次经期';
-    $('#pdCancelEdit').hidden = true;
-    window.syncDtBtns(box);
-    box.querySelectorAll('.pd-flow-chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.flow) === 2));
-  });
+  $('#pdCancelEdit').addEventListener('click', () => { periodEditing = null; pdResetForm(box); });
   // 提交（新增 / 编辑共用）
   $('#pdForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const start = $('#pdStartInput').value;
     if (!start) { toast('请选择开始日期'); return; }
-    const payload = { start_date: start, end_date: $('#pdEndInput').value || null, flow: periodFlow, note: $('#pdNote').value.trim() };
+    const payload = {
+      start_date: start,
+      end_date: $('#pdEndInput').value || null,
+      flow: periodFlow, blood_color: periodColor, blood_texture: periodTexture,
+      dysmenorrhea: $('#pdDys').checked ? 1 : 0,
+      pain_types: [...periodPains],
+      symptoms: [...periodSymptoms],
+      symptom_other: $('#pdOtherInput').value.trim(),
+      note: $('#pdNote').value.trim(),
+    };
     const res = periodEditing
       ? await api('/api/period', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: periodEditing, ...payload }) })
       : await api('/api/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

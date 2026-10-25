@@ -1538,3 +1538,29 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .pd-stat:first-child{grid-column:1/-1}
   .pd-priv{margin-left:0;width:100%}
 }
+
+/* --- v0.5.11 经期表单扩展 --- */
+/* 溢出防御：弹性子项允许收缩换行，任何内容都不顶破面板 */
+.pd-wrap,.pd-form{min-width:0;max-width:100%}
+.pd-form .field-row{flex-wrap:wrap}
+.pd-form .field{min-width:0;flex:1 1 220px}
+.pd-form .dt-btn{max-width:100%}
+/* 通用选择芯片（经量/血色/血质/痛感/症状） */
+.pd-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.pd-chip{border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);padding:6px 14px;font-size:12.5px;cursor:pointer}
+.pd-chip.on{border-color:var(--plum);background:var(--plum-soft);color:var(--plum-deep);font-weight:600}
+/* 痛经勾选行 */
+.pd-check-line{display:flex;align-items:center;gap:8px;margin:14px 0 2px;font-size:13.5px;color:var(--ink);cursor:pointer}
+.pd-check-line input{width:16px;height:16px;accent-color:var(--plum)}
+/* 经量五档徽标：f1/f2 偏淡绿，f3 正常梅子，f4 偏多橙，f5 极多红 */
+.pd-flow-badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--plum);color:var(--plum)}
+.pd-flow-badge.f1,.pd-flow-badge.f2{border-color:var(--sage);color:var(--sage)}
+.pd-flow-badge.f4{border-color:var(--terra);color:var(--terra)}
+.pd-flow-badge.f5{border-color:var(--red);color:var(--red)}
+@media (max-width:640px){
+  .pd-stats{grid-template-columns:1fr 1fr}
+  .pd-stat:first-child{grid-column:1/-1}
+  .pd-priv{margin-left:0;width:100%}
+}
+/* 覆盖 v0.5.10 旧 .f3(terra)：新口径 f3=正常=梅子色 */
+.pd-flow-badge.f3{border-color:var(--plum);color:var(--plum)}
