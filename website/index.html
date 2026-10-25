@@ -8,7 +8,7 @@
 <meta property="og:title" content="数字生活 · 个人数字生活工作台">
 <meta property="og:description" content="成长打卡、待办提醒、记账账本、家庭药箱、日历与人际关系，部署在你自己的 Cloudflare 账号里，0 成本运行。">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23952e3a'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23fdf7f2' font-family='serif' font-weight='700'%3E数%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2333e0ff'/%3E%3Cstop offset='1' stop-color='%237c5cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%2304070f' font-family='serif' font-weight='700'%3E数%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -16,7 +16,7 @@
 <!-- 顶部滚动提示条 -->
 <div class="ticker" aria-label="项目动态">
   <div class="ticker-inner container">
-    <span class="ticker-icon" aria-hidden="true">💡</span>
+    <span class="ticker-icon">&gt;_</span>
     <span class="ticker-text" id="tickerText">个人使用完全落在 Cloudflare 免费额度内，无需绑卡</span>
   </div>
 </div>
@@ -59,8 +59,15 @@
     <div class="hero-copy reveal">
       <p class="hero-badge"><span class="dot"></span>开源 · 自托管 · 数据 100% 自有</p>
       <h1>数字生活</h1>
-      <p class="hero-sub">一个部署在<strong>你自己 Cloudflare 账号</strong>里的个人数字生活工作台</p>
+      <p class="hero-slogan">把<em>生活</em><i>，</i>融入<em class="d">数字生活</em></p>
+      <p class="hero-sub">一个部署在<strong>你自己 Cloudflare 账号</strong>里的个人数字工作台</p>
       <p class="hero-desc">成长打卡、待办提醒、记账账本、家庭药箱、日历与人际关系、经期记录——全部安放在一个站点里。纯浏览器访问，手机「添加到主屏幕」当 APP 用，个人使用 0 成本。</p>
+      <div class="life-flow" aria-label="生活事件自动变成数字记录">
+        <span class="lf-item">🍜 午餐 ¥32 <i>→</i> <b>记账</b></span>
+        <span class="lf-item">🏃 晨跑 5km <i>→</i> <b>打卡 +1</b></span>
+        <span class="lf-item">🎂 妈妈生日 <i>→</i> <b>日历提醒</b></span>
+        <span class="lf-item">💊 每晚维生素 <i>→</i> <b>服药计划</b></span>
+      </div>
       <div class="hero-cta">
         <a class="btn-primary btn-lg" href="#deploy">查看部署指南</a>
         <a class="btn-outline btn-lg" href="https://github.com/zwjdujin/shuzishenghuo" target="_blank" rel="noopener">GitHub 仓库 ↗</a>
@@ -416,7 +423,7 @@ bash scripts/deploy-cloudflare.sh</code></pre>
       </details>
       <details class="faq reveal">
         <summary>我的数据存在哪里？安全吗？<i></i></summary>
-        <p>数据只存在你自己的 Cloudflare 账号里（D1 数据库 + R2 对象存储），不经过任何第三方。「数据安全」页可以随时下载全量 JSON 备份，随时可迁走。</p>
+        <p>数据只存在你自己的 Cloudflare 账号里（D1 数据库 + R2 对象存储），不经过任何第三方。密码以 PBKDF2 加盐哈希存储，登录态为 HttpOnly 签名 Cookie。「数据安全」页可以随时下载全量 JSON 备份，随时可迁走。详见<a href="privacy.html">隐私政策</a>。</p>
       </details>
       <details class="faq reveal">
         <summary>真的 0 成本吗？以后会不会收费？<i></i></summary>
@@ -468,6 +475,7 @@ bash scripts/deploy-cloudflare.sh</code></pre>
       <a href="#deploy">部署上线</a>
       <a href="#cost">0 成本运行</a>
       <a href="#faq">常见问题</a>
+      <a href="privacy.html">隐私政策</a>
     </div>
     <div class="footer-col">
       <b>文档</b>

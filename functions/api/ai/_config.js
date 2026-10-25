@@ -30,6 +30,7 @@ export async function getActiveAi(env) {
       key: def.apiKey,
       base: String(def.baseUrl || DEFAULT_BASE).replace(/\/+$/, ''),
       model: def.model || DEFAULT_MODEL,
+      vision: !!def.vision,
       source: 'db:' + (def.name || def.model),
     };
   }
@@ -38,8 +39,17 @@ export async function getActiveAi(env) {
       key: env.AI_API_KEY,
       base: String(env.AI_BASE_URL || DEFAULT_BASE).replace(/\/+$/, ''),
       model: String(env.AI_MODEL || DEFAULT_MODEL),
+      vision: true, // 环境变量路线无法声明能力，按可发送处理（失败由上游报错）
       source: 'env',
     };
   }
   return null;
+}
+
+/** 用户长期记忆（智能管理 → AI 记忆），注入解析 system 提示词 */
+export async function getAiMemory(env) {
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key='ai_memory'").first();
+    return row ? String(row.value || '').slice(0, 2000) : '';
+  } catch (_) { return ''; }
 }

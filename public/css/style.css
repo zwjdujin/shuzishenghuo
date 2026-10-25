@@ -1654,3 +1654,10 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .ai-fields .inp[data-k=amount]{flex:0 1 110px}
 .ai-memo-text{font-size:13px;color:var(--ink);line-height:1.6;overflow-wrap:anywhere}
 @media (max-width:560px){.ai-fields .inp{flex:1 1 100%}}
+
+/* --- v0.5.21 随手记图片 + AI 记忆 + 模型测试 --- */
+.qn-imgchip{display:flex;align-items:center;gap:8px;margin-top:8px}
+.qn-imgchip img{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.ai-memory-text{width:100%;max-width:100%;min-height:110px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:13.5px;line-height:1.6;outline:none;resize:vertical;margin-top:10px}
+.ai-memory-text:focus{border-color:var(--plum)}
+#aiTestResult{margin-top:8px;overflow-wrap:anywhere}

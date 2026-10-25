@@ -18,7 +18,7 @@ export async function onRequestGet(context) {
   return json({
     models: models.map((m) => ({
       id: m.id, name: m.name || '', baseUrl: m.baseUrl || '',
-      apiKeyMasked: mask(m.apiKey), model: m.model || '', isDefault: !!m.isDefault,
+      apiKeyMasked: mask(m.apiKey), model: m.model || '', isDefault: !!m.isDefault, vision: !!m.vision,
     })),
   });
 }
@@ -47,7 +47,7 @@ export async function onRequestPut(context) {
       apiKey = (oldById.get(m.id) || {}).apiKey || '';
     }
     if (!apiKey) return json({ error: `「${name}」缺少 API Key` }, 400);
-    clean.push({ id: m.id || ('m' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), name, baseUrl, apiKey, model, isDefault: !!m.isDefault });
+    clean.push({ id: m.id || ('m' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), name, baseUrl, apiKey, model, isDefault: !!m.isDefault, vision: !!m.vision });
   }
 
   // 默认模型恰好一个：勾了多个取第一个；一个没勾且有模型则取第一个

@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.20
-const VERSION = '0.5.20';
+// 数字生活 · 前端逻辑 v0.5.21
+const VERSION = '0.5.21';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '随手记 AI 解析升级为多笔：一句话多笔账/待办混合分别成行，预览弹窗逐行可改可删，确认后批量入账；AI 已配置但未识别为账目时明确提示已存备忘';
+const __BUILD_ID__ = '随手记拍照/上传图片 AI 识别 + AI 记忆面板 + 模型测试连接与视觉勾选（补 qnSetImage(null) 清理遗漏：提交后图片数据残留会污染后续解析）';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -651,27 +651,63 @@ function renderHome(d) {
 /* ================= v0.6.0 · P3 首页卡片 ================= */
 
 /** 随手记：一句话 → 优先 AI 解析（可编辑预览），未配置 AI 则直接存 memo */
+// ===== v0.5.21 随手记图片：拍照/选图 → 压缩 → 缩略图 → 随文本一起交给 AI =====
+let qnImageData = null;
+function qnSetImage(dataUrl) {
+  qnImageData = dataUrl;
+  const chip = $('#qnImageChip');
+  if (!chip) return;
+  chip.hidden = !dataUrl;
+  if (dataUrl) $('#qnImageThumb').src = dataUrl;
+}
+function qnReadImage(file) {
+  if (!file || !/^image\/(png|jpe?g|webp)$/.test(file.type)) { toast('请选择 PNG / JPG / WebP 图片'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // 压缩到长边 ≤1600、JPEG 0.85，控制请求体体积
+      const MAX = 1600;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * scale);
+      cv.height = Math.round(img.height * scale);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      qnSetImage(cv.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 async function quickNoteSubmit(e) {
   e.preventDefault();
   const input = $('#qnInput');
   const btn = $('#qnSubmitBtn');
   const text = String(input.value || '').trim();
-  if (!text) return;
+  if (!text && !qnImageData) return;
   btn.disabled = true;
   try {
     let drafts = null;
+    let parseErr = '';
     try {
       const res = await api('/api/ai/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, image: qnImageData }),
       });
       const d = await res.json();
       if (d.ok && Array.isArray(d.drafts)) drafts = d.drafts;
+      else parseErr = d.error || '';
     } catch (_) { /* AI 不可用走 memo */ }
-    const actionable = (drafts || []).some((x) => x.module === 'transaction' || x.module === 'todo');
+    // 带图请求失败（未配视觉/图过大等）：明确提示并保留输入与图片
+    if (qnImageData && !drafts && parseErr) {
+      toast(parseErr);
+      return;
+    }
+    const actionable = (drafts || []).some((x) => x.module !== 'memo');
     if (actionable) {
-      openAiPreview(text, drafts.filter((x) => x.module !== 'memo' || drafts.length === 1));   // 人做最后确认
+      openAiPreview(text, drafts);   // 人做最后确认
     } else {
       const res = await api('/api/memos', {
         method: 'POST',
@@ -686,6 +722,7 @@ async function quickNoteSubmit(e) {
       }
     }
     input.value = '';
+    qnSetImage(null); // 清除待识别图片（含数据），避免残留在后续提交里
   } catch (_) { /* 401 已处理 */ } finally { btn.disabled = false; }
 }
 
@@ -707,13 +744,20 @@ async function openAiPreview(rawText, drafts) {
 
   const today = todayStrLocal();
   aiRowsData = (drafts || []).map((x, i) => ({
-    module: ['transaction', 'todo', 'memo'].includes(x.module) ? x.module : 'memo',
+    module: ['transaction', 'todo', 'relation', 'medicine', 'memo'].includes(x.module) ? x.module : 'memo',
     flow: x.flow === 'income' ? 'income' : 'expense',
     amount: Number(x.amount) > 0 ? Number(x.amount) : '',
     category: x.category || '',
     date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : today,
     title: x.title || String(x.note || rawText).slice(0, 40),
     note: x.note || rawText,
+    // relation / medicine（v0.5.21 拍照识别）
+    rname: x.rname || x.name || '',
+    phone: x.phone || '', wechat: x.wechat || '', qq: x.qq || '',
+    company: x.company || '', position: x.position || '',
+    mname: x.mname || x.name || '',
+    spec: x.spec || '', form: x.form || '', dosage: x.dosage || '',
+    expiry: /^\d{4}-\d{2}-\d{2}$/.test(x.expiry || '') ? x.expiry : '',
   }));
   renderAiRows();
   openModal(m);
@@ -728,6 +772,8 @@ function renderAiRows() {
         <select class="inp" data-k="module" data-i="${i}">
           <option value="transaction"${r.module === 'transaction' ? ' selected' : ''}>账单</option>
           <option value="todo"${r.module === 'todo' ? ' selected' : ''}>待办</option>
+          <option value="relation"${r.module === 'relation' ? ' selected' : ''}>联系人</option>
+          <option value="medicine"${r.module === 'medicine' ? ' selected' : ''}>药品</option>
           <option value="memo"${r.module === 'memo' ? ' selected' : ''}>备忘</option>
         </select>
         <button type="button" class="icon-btn" data-k="del" data-i="${i}" title="删除这行"><svg><use href="#i-x"/></svg></button>
@@ -756,6 +802,25 @@ function renderAiRowBody(i) {
         <input class="inp" data-k="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="金额" value="${r.amount}">
         <input class="inp" data-k="category" maxlength="20" list="aiCatList" placeholder="分类" value="${escHtml(r.category)}">
         <input class="inp" data-k="date" placeholder="YYYY-MM-DD" value="${r.date}">
+      </div>`;
+  } else if (r.module === 'relation') {
+    body.innerHTML = `
+      <div class="ai-fields">
+        <input class="inp" data-k="rname" maxlength="20" placeholder="姓名 *" value="${escHtml(r.rname)}">
+        <input class="inp" data-k="phone" maxlength="20" placeholder="电话" value="${escHtml(r.phone)}">
+        <input class="inp" data-k="wechat" maxlength="30" placeholder="微信" value="${escHtml(r.wechat)}">
+        <input class="inp" data-k="qq" maxlength="15" placeholder="QQ" value="${escHtml(r.qq)}">
+        <input class="inp" data-k="company" maxlength="40" placeholder="公司" value="${escHtml(r.company)}">
+        <input class="inp" data-k="position" maxlength="40" placeholder="职位" value="${escHtml(r.position)}">
+      </div>`;
+  } else if (r.module === 'medicine') {
+    body.innerHTML = `
+      <div class="ai-fields">
+        <input class="inp" data-k="mname" maxlength="40" placeholder="药品名 *" value="${escHtml(r.mname)}">
+        <input class="inp" data-k="form" maxlength="20" placeholder="剂型（如 片剂）" value="${escHtml(r.form)}">
+        <input class="inp" data-k="spec" maxlength="40" placeholder="规格" value="${escHtml(r.spec)}">
+        <input class="inp" data-k="dosage" maxlength="150" placeholder="用法用量" value="${escHtml(r.dosage)}">
+        <input class="inp" data-k="expiry" placeholder="有效期 YYYY-MM-DD" value="${escHtml(r.expiry)}">
       </div>`;
   } else if (r.module === 'todo') {
     body.innerHTML = `
@@ -788,6 +853,40 @@ async function aiPreviewConfirm() {
             flow: r.flow, amount,
             category: String(r.category || '').trim() || '其他',
             date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : todayStrLocal(),
+            note: String(r.note || '').slice(0, 60),
+          }),
+        });
+        res.ok ? okN++ : failN++;
+      } else if (r.module === 'relation') {
+        const rname = String(r.rname || '').trim();
+        if (!rname) { failN++; continue; }
+        const methods = [];
+        if (String(r.phone || '').trim()) methods.push({ kind: 'phones', value: String(r.phone).trim() });
+        if (String(r.wechat || '').trim()) methods.push({ kind: 'wechat', value: String(r.wechat).trim() });
+        if (String(r.qq || '').trim()) methods.push({ kind: 'qq', value: String(r.qq).trim() });
+        const res = await api('/api/profile/detail', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firstName: rname, gender: '未知', methods, note: String(r.note || '').slice(0, 60) || undefined }),
+        });
+        if (res.ok && (String(r.company || '').trim() || String(r.position || '').trim())) {
+          const cd = await res.json().catch(() => ({}));
+          if (cd.id) await api('/api/profile/work', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ person_id: cd.id, company: String(r.company || '').trim(), position: String(r.position || '').trim() }),
+          });
+        }
+        res.ok ? okN++ : failN++;
+      } else if (r.module === 'medicine') {
+        const mname = String(r.mname || '').trim();
+        if (!mname) { failN++; continue; }
+        const res = await api('/api/medicines', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: mname,
+            form: String(r.form || '').trim() || undefined,
+            spec: String(r.spec || '').trim(),
+            dosage: String(r.dosage || '').trim(),
+            expiry: r.expiry || undefined,
             note: String(r.note || '').slice(0, 60),
           }),
         });
@@ -4028,7 +4127,20 @@ const AI_SCOPE_KEYS = [
 let aiModelsCache = [];
 
 async function renderAiPage() {
-  await Promise.all([renderAiModels(), renderTokens()]);
+  await Promise.all([renderAiModels(), renderTokens(), renderAiMemory()]);
+}
+
+// ---- v0.5.21 AI 记忆（Skill）：长期偏好，注入所有 AI 解析 ----
+async function renderAiMemory() {
+  const ta = $('#aiMemoryText');
+  const hint = $('#aiMemoryHint');
+  if (!ta) return;
+  try {
+    const res = await api('/api/settings/ai-memory');
+    const d = await res.json();
+    ta.value = d.memory || '';
+    if (hint) hint.textContent = d.memory ? `已生效（${d.memory.length} 字）` : '尚未设置';
+  } catch (_) { /* 401 已处理 */ }
 }
 
 // ---- AI 模型列表 ----
@@ -4043,7 +4155,7 @@ async function renderAiModels() {
     box.innerHTML = aiModelsCache.length ? aiModelsCache.map((m) => `
       <div class="ai-model-row" data-id="${escHtml(m.id)}">
         <div class="ai-model-info">
-          <b>${escHtml(m.name)}${m.isDefault ? '<span class="ts-badge">默认</span>' : ''}</b>
+          <b>${escHtml(m.name)}${m.isDefault ? '<span class="ts-badge">默认</span>' : ''}${m.vision ? '<span class="ts-badge">视觉</span>' : ''}</b>
           <small>${escHtml(m.model)} · ${escHtml(m.apiKeyMasked || '无 Key')}</small>
           <small class="muted">${escHtml(m.baseUrl)}</small>
         </div>
@@ -4072,6 +4184,7 @@ function openAiModelModal(m) {
   form.apiKey.placeholder = m ? `留空＝沿用已保存的 Key（${m.apiKeyMasked}）` : 'sk-…';
   form.model.value = m ? m.model : 'glm-4-flash';
   form.isDefault.checked = m ? !!m.isDefault : aiModelsCache.length === 0;
+  form.vision.checked = m ? !!m.vision : false;
   modal.dataset.editId = m ? m.id : '';
   openModal(modal);
 }
@@ -4466,6 +4579,44 @@ bind('#refreshDataBtn', 'click', renderDataPage);
 bind('#aiModelAddBtn', 'click', () => openAiModelModal(null));
 bind('#aiModelClose', 'click', () => closeModal($('#aiModelModal')));
 bind('#aiModelForm', 'submit', submitAiModel);
+// v0.5.21 测试模型连通性（用表单当前值；编辑态 Key 留空按 id 取旧 Key）
+bind('#aiTestBtn', 'click', async () => {
+  const form = $('#aiModelForm');
+  const out = $('#aiTestResult');
+  if (!out) return;
+  out.hidden = false;
+  out.textContent = '测试中…';
+  const id = $('#aiModelModal').dataset.editId || '';
+  try {
+    const res = await api('/api/ai/test', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id, baseUrl: form.baseUrl.value.trim(), model: form.model.value.trim(),
+        apiKey: form.apiKey.value.trim(),
+      }) });
+    const d = await res.json().catch(() => ({}));
+    if (d.ok) out.textContent = `✓ 连接成功（${d.ms}ms，模型已应答：${d.reply || 'ping'}）`;
+    else out.textContent = '✗ ' + (d.error || `HTTP ${d.status || '?'}`);
+  } catch (_) { out.textContent = '✗ 网络错误'; }
+});
+// v0.5.21 AI 记忆保存
+bind('#aiMemorySave', 'click', async () => {
+  const ta = $('#aiMemoryText');
+  const hint = $('#aiMemoryHint');
+  try {
+    const res = await api('/api/settings/ai-memory', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ memory: ta.value }) });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) {
+      toast(d.memory ? 'AI 记忆已保存' : '已清除 AI 记忆');
+      if (hint) hint.textContent = d.memory ? `已生效（${d.memory.length} 字）` : '尚未设置';
+      markSynced();
+    } else toast(d.error || '保存失败');
+  } catch (_) { toast('网络错误'); }
+});
+// v0.5.21 随手记图片
+bind('#qnImageBtn', 'click', () => $('#qnImageInput').click());
+bind('#qnImageInput', 'change', (e) => { const f = e.target.files && e.target.files[0]; qnReadImage(f); e.target.value = ''; });
+bind('#qnImageRemove', 'click', () => qnSetImage(null));
 bind('#aiModelList', 'click', async (e) => {
   const btn = e.target.closest('[data-ai]');
   if (!btn) return;
