@@ -44,6 +44,9 @@ jobs:
           node scripts/test-relations-v4.mjs
           node scripts/test-medicines.mjs
           node scripts/test-password-api.mjs
+          node scripts/test-period.mjs
+          node scripts/test-profile-ext.mjs
+          node scripts/test-smart-mgmt.mjs
           node scripts/test-data-api.mjs
 
       - name: 端到端测试（UI 主题对比度）

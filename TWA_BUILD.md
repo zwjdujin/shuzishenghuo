@@ -10,17 +10,22 @@
 
 ## 0. 前置：把仓库里的占位域名换成真实部署域名
 
-`public/manifest.webmanifest` 里的 `start_url` / `scope` 现在是占位符
-`https://shuzishenghuo.example.com`。**部署前必须改成你的真实域名**（在
-Cloudflare Pages 控制台「自定义域」设置的就是它，形如 `https://xxx.pages.dev`
-或你绑定的域名）。
+TWA 要求 `start_url` / `scope` 是绝对地址，打包前先把 `public/manifest.webmanifest` 里的相对路径（`./`）改成你的线上域名。全局替换（也可以用编辑器的全局搜索替换）：
 
-用 WorkBuddy 告诉我真实域名后，我会直接替换并重新生成图标/校验文件。
-也可以自己全局替换：
+编辑 `public/manifest.webmanifest`，把这两行：
 
-```bash
-# 把 example.com 换成你的真实域名
-sed -i 's#https://shuzishenghuo.example.com#https://你的真实域名#g' public/manifest.webmanifest
+```json
+"id": "./",
+"start_url": "./",
+"scope": "./"
+```
+
+改成（域名换成你的）：
+
+```json
+"id": "https://你的真实域名/",
+"start_url": "https://你的真实域名/",
+"scope": "https://你的真实域名/"
 ```
 
 ---
