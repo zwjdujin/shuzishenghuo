@@ -243,7 +243,7 @@ export async function onRequestGet(context) {
   } catch (_) { /* 忽略 */ }
 
   return json({
-    version: '0.5.25',
+    version: '0.5.26',
     brand,
     appearance,
     today,

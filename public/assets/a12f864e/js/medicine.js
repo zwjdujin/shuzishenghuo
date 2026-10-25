@@ -570,19 +570,34 @@
       if (e.spec) form.spec.value = e.spec;
       // 剂型按名称关键词推断（顺序敏感：软膏先于膏，注射液先于注射）
       const title = e.title || '';
-      const FORM_MATCH = [
-        ['注射液', '注射剂'], ['胶囊', '胶囊剂'], ['颗粒', '颗粒剂'], ['口服液', '口服液'],
-        ['糖浆', '糖浆剂'], ['软膏', '软膏剂'], ['栓', '栓剂'], ['喷雾', '喷雾剂'],
-        ['酊', '酊剂'], ['锭', '锭剂'], ['丸', '丸剂'], ['散', '散剂'],
-        ['煎膏', '煎膏剂'], ['片', '片剂'],
-      ];
-      for (const [kw, formName] of FORM_MATCH) {
-        if (title.includes(kw) && [...form.form.options].some((o) => o.value === formName)) { form.form.value = formName; break; }
+      // 剂型推断：优先按「药箱设置」里实际存在的剂型选项做关键词最长匹配（如用户自建了「乳膏剂」），
+      // 没有匹配再退回静态对照表（乳膏 → 软膏剂）
+      let guessed = '';
+      const opts = [...form.form.options].map((o) => o.value).filter((v) => v && v !== '其他');
+      for (const v of opts) {
+        const kw = v.endsWith('剂') ? v.slice(0, -1) : v;
+        if (kw && title.includes(kw) && kw.length > guessed.length) guessed = v;
+      }
+      if (guessed) {
+        form.form.value = guessed;
+      } else {
+        const FORM_MATCH = [
+          ['注射液', '注射剂'], ['胶囊', '胶囊剂'], ['颗粒', '颗粒剂'], ['口服液', '口服液'],
+          ['糖浆', '糖浆剂'], ['乳膏', '软膏剂'], ['软膏', '软膏剂'], ['栓', '栓剂'], ['喷雾', '喷雾剂'],
+          ['酊', '酊剂'], ['锭', '锭剂'], ['丸', '丸剂'], ['散', '散剂'],
+          ['煎膏', '煎膏剂'], ['片', '片剂'],
+        ];
+        for (const [kw, formName] of FORM_MATCH) {
+          if (title.includes(kw) && [...form.form.options].some((o) => o.value === formName)) { form.form.value = formName; break; }
+        }
       }
       const hint = $('#medLookupHint');
       if (hint) {
         hint.hidden = false;
-        hint.textContent = `来源：《${e.bookName}》${e.pageNum ? '第' + e.pageNum + '页' : ''} · 已按药典预填，请人工核验后再保存`;
+        const src = `来源：《${e.bookName}》${e.pageNum ? '第' + e.pageNum + '页' : ''}`;
+        hint.textContent = e.aiSuggested
+          ? `${src} · 药典未收录临床用法，功效/用法为 AI 建议仅供参考，请务必核验后再保存`
+          : `${src} · 已按药典预填，请人工核验后再保存`;
       }
       if (drop) { drop.hidden = true; drop.innerHTML = ''; }
     } catch (_) {

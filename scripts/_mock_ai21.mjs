@@ -13,7 +13,8 @@ http.createServer((req, res) => {
     } catch { /* 忽略 */ }
 
     let content;
-    if (q === 'ping') content = 'pong';
+    if (sys.includes('医药信息助手')) content = JSON.stringify({ efficacy: '肾上腺皮质激素类药。用于过敏性皮炎、脂溢性皮炎、瘙痒症等（AI 建议，须核验）。', dosage: '外用。涂于洗净的患处，一日1～2次（AI 建议，须核验）。' });
+    else if (q === 'ping') content = 'pong';
     else if (q.includes('image_url')) content = JSON.stringify([{ module: 'transaction', flow: 'expense', amount: 12.5, category: '餐饮', date: '2026-10-26', note: '扫码账单', confidence: 0.9 }]);
     else if (q.includes('19.98')) content = JSON.stringify([
       { module: 'transaction', flow: 'expense', amount: 19.98, category: '餐饮', date: '2026-10-26', note: '自助餐', confidence: 0.9 },
