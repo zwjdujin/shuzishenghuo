@@ -33,7 +33,8 @@ async function handle(env, request) {
 
   const sql = `SELECT id, name, first_name, nickname, childhood_name, former_name, english_name, alias,
       gender, birthday_type, birthday_calendar, birth_year, birth_month, birth_day,
-      birthday_remind, is_deceased, tags, peer_groups, referrer_id, marriage, phone, note
+      birthday_remind, is_deceased, tags, peer_groups, referrer_id, marriage, phone, note,
+      touch_cadence, last_touched
     FROM contacts WHERE ${where.join(' AND ')} ORDER BY name`;
   const stmt = env.DB.prepare(sql);
   const rows = (args.length ? await stmt.bind(...args).all() : await stmt.all()).results || [];
@@ -55,6 +56,9 @@ async function handle(env, request) {
     nextBirthday: r.is_deceased ? null : nextBirthdayOf(r),
     age: ageOfContact(r),
     marriage: r.marriage || '',
+    // v0.5.17 保持联系：节奏与最后联系时间随列表下发，行内直接操作
+    touchCadence: r.touch_cadence || 0,
+    lastTouched: r.last_touched || '',
   }));
 
   // 筛选项：性别固定三项；群组/标签从词库 + 实际数据合并

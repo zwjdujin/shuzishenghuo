@@ -1605,3 +1605,26 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .stat-card > div{min-width:0;flex:1}
   .stat-card strong{font-size:clamp(15px,4.2vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* --- v0.5.17 保持联系迁至列表行 + 按钮长短文案 --- */
+/* 档案页头按钮：桌面用长文案，手机端精简（返回 / 编辑，去图标） */
+.btn-short{display:none}
+@media (max-width:860px){
+  .btn-long{display:none}
+  .btn-short{display:inline}
+  .btn-ico-long{display:none}
+}
+/* 联系人列表行内：节奏下拉 + 今天联系过（紧凑） */
+.rel-touch{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.rel-touch-sel{height:30px;padding:0 4px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:11.5px;max-width:74px}
+.rel-touch.due .rel-touch-sel{border-color:var(--terra);color:var(--terra);background:var(--sand-soft, #f7ecd8)}
+.rel-touch-now{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:11px;padding:6px 8px;cursor:pointer;white-space:nowrap;font:inherit;font-size:11px}
+.rel-touch-now:hover{border-color:var(--sage);color:var(--sage)}
+/* 行由 button 改为 div（行内要放交互控件），补齐按钮外观与键盘可达性 */
+.rel-row{font:inherit;color:inherit;text-align:left}
+.rel-row:focus-visible{outline:2px solid var(--plum);outline-offset:2px}
+@media (max-width:640px){
+  .rel-touch{flex-direction:column;align-items:stretch;gap:4px}
+  .rel-touch-sel{max-width:100%}
+  .rel-touch-now{padding:4px 6px}
+}

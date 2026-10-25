@@ -140,7 +140,7 @@ function pfRenderList() {
     <div class="az-group">
       <div class="az-letter">${pfEsc(g.letter)}<span>${g.rows.length}</span></div>
       ${g.rows.map((p) => `
-        <button class="rel-row${p.isDeceased ? ' deceased' : ''}" data-pf-id="${p.id}">
+        <div class="rel-row${p.isDeceased ? ' deceased' : ''}" data-pf-id="${p.id}" role="button" tabindex="0">
           <span class="contact-avatar">${pfEsc((p.name || '?')[0])}</span>
           <div class="rel-row-main">
             <b>${pfEsc(p.name)}${p.isDeceased ? ' <span class="contact-badge">已逝</span>' : ''}</b>
@@ -149,9 +149,40 @@ function pfRenderList() {
           <div class="rel-row-right">
             ${p.gender ? `<span class="contact-badge">${pfEsc(p.gender)}</span>` : ''}
             ${p.phone ? `<span class="contact-phone">${pfEsc(p.phone)}</span>` : ''}
+            ${pfTouchCtl(p)}
           </div>
-        </button>`).join('')}
+        </div>`).join('')}
     </div>`).join('');
+  // 节奏下拉回填当前值 + 超期高亮
+  const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  box.querySelectorAll('.rel-touch').forEach((ctl) => {
+    const id = Number(ctl.dataset.pfTouch);
+    const p = PF.list.find((x) => x.id === id);
+    if (!p) return;
+    const sel = ctl.querySelector('select');
+    sel.value = String(p.touchCadence || 0);
+    if (p.touchCadence > 0) {
+      const days = p.lastTouched ? Math.round((Date.parse(today) - Date.parse(p.lastTouched)) / 86400000) : 365;
+      if (days >= p.touchCadence) ctl.classList.add('due');
+    }
+  });
+}
+
+/** v0.5.17 保持联系控件（随行展示；点击不冒泡进档案） */
+function pfTouchCtl(p) {
+  if (p.isDeceased) return '';
+  return `
+    <div class="rel-touch" data-pf-touch="${p.id}">
+      <select class="rel-touch-sel" data-pf-cadence="${p.id}" title="联系节奏：超过该天数未联系会提醒你" aria-label="联系节奏">
+        <option value="0">不提醒</option>
+        <option value="3">3天</option>
+        <option value="7">7天</option>
+        <option value="14">14天</option>
+        <option value="30">30天</option>
+        <option value="90">90天</option>
+      </select>
+      <button type="button" class="rel-touch-now" data-pf-now="${p.id}" title="记录今天联系过，计时重新开始">✓今天联系过</button>
+    </div>`;
 }
 
 // ===== 档案视图 =====
@@ -207,50 +238,8 @@ function pfRenderAll() {
   pfRenderWork();
   pfRenderEdu();
   pfRenderPets();
-  pfRenderTouch();   // v0.6.0：保持联系（节奏 + 今天联系过）
   pfRenderBody();    // v0.6.0：个人信息（尺码 + 身高表 + 体重折线）
   pfRenderFiles();   // v0.6.0：附件（R2）
-}
-
-// ===== v0.6.0：keep-in-touch（联系节奏设置 + 一键记录今天联系过） =====
-async function pfRenderTouch() {
-  const box = pfEl('pfTouchBox');
-  if (!box || !PF.data || !PF.data.base) return;
-  let cadence = 0;
-  try {
-    const res = await api('/api/profile/touch?id=' + PF.pid);
-    if (res.ok) cadence = Number((await res.json()).cadence) || 0;
-  } catch (_) { /* 忽略 */ }
-  const b = PF.data.base;
-  box.innerHTML = `
-    <select class="pf-touch-sel" id="pfTouchSel" aria-label="联系节奏">
-      <option value="0"${cadence ? '' : ' selected'}>不提醒</option>
-      <option value="3"${cadence === 3 ? ' selected' : ''}>每 3 天</option>
-      <option value="7"${cadence === 7 ? ' selected' : ''}>每 7 天</option>
-      <option value="14"${cadence === 14 ? ' selected' : ''}>每 14 天</option>
-      <option value="30"${cadence === 30 ? ' selected' : ''}>每 30 天</option>
-      <option value="90"${cadence === 90 ? ' selected' : ''}>每 90 天</option>
-    </select>
-    <button class="btn ghost sm" type="button" id="pfTouchNow" title="记录今天联系过">今天联系过</button>`;
-  const sel = box.querySelector('#pfTouchSel');
-  sel.onchange = async () => {
-    try {
-      const res = await api('/api/profile/touch', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: PF.pid, cadence: Number(sel.value) }),
-      });
-      if (res.ok) { toast(Number(sel.value) ? '已设置联系节奏' : '已关闭提醒'); markSynced(); }
-    } catch (_) { /* 401 已处理 */ }
-  };
-  box.querySelector('#pfTouchNow').onclick = async () => {
-    try {
-      const res = await api('/api/profile/touch', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: PF.pid, touched: true }),
-      });
-      if (res.ok) { toast('已记录：今天联系过'); markSynced(); }
-    } catch (_) { /* 401 已处理 */ }
-  };
 }
 
 // ===== v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） =====
@@ -971,8 +960,39 @@ function pfBindEvents() {
   }
   const listBox = pfEl('relList');
   if (listBox) listBox.addEventListener('click', (e) => {
+    // v0.5.17：行内「今天联系过」先于打开档案处理
+    const now = e.target.closest('[data-pf-now]');
+    if (now) {
+      const id = Number(now.dataset.pfNow);
+      api('/api/profile/touch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, touched: true }) })
+        .then(async (res) => {
+          if (res.ok) {
+            const p = PF.list.find((x) => x.id === id);
+            if (p) { p.lastTouched = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10); }
+            now.closest('.rel-touch').classList.remove('due');
+            toast(`已记录：今天联系过`);
+            markSynced();
+          } else toast('记录失败');
+        });
+      return;
+    }
+    // 控件区（节奏下拉）内点击不打开档案
+    if (e.target.closest('.rel-touch')) return;
     const row = e.target.closest('[data-pf-id]');
     if (row) pfOpenProfile(Number(row.dataset.pfId));
+  });
+  if (listBox) listBox.addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-pf-cadence]');
+    if (!sel) return;
+    const id = Number(sel.dataset.pfCadence);
+    const res = await api('/api/profile/touch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, cadence: Number(sel.value) }) });
+    if (res.ok) {
+      const p = PF.list.find((x) => x.id === id);
+      if (p) p.touchCadence = Number(sel.value);
+      sel.closest('.rel-touch').classList.toggle('due', false);
+      toast(Number(sel.value) ? '已设置联系节奏' : '已关闭提醒');
+      markSynced();
+    } else toast('设置失败');
   });
   const addBtn = pfEl('relAddBtn');
   if (addBtn) addBtn.addEventListener('click', () => { pfLoadNames().then(() => pfOpenEditModal()); });
