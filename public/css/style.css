@@ -1590,3 +1590,18 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .med-chip-item{border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);padding:7px 16px;font-size:13px;cursor:pointer;font:inherit;font-size:13px}
 .med-chip-item:hover{border-color:var(--plum);background:var(--plum-soft)}
 .med-chip-item.low{border-color:var(--terra)}
+
+/* --- v0.5.15 界面修复 --- */
+/* 档案页尺码：输入框默认宽 ~170px 会撑破手机端两列网格，收进容器 */
+.pf-size-grid input{width:100%;min-width:0}
+.pf-size-grid label{min-width:0}
+/* 手机端首页模块速览：3 列每格文字区过窄致模块名折行 → 改两列并禁止折行 */
+@media (max-width:860px){
+  .glance-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .glance-item{min-width:0;padding:10px 12px}
+  .glance-item div{min-width:0}
+  .glance-item b{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 今日总览金额过长时也压缩字号防折行 */
+  .stat-card > div{min-width:0;flex:1}
+  .stat-card strong{font-size:clamp(15px,4.2vw,19px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
