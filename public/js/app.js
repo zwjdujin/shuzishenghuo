@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.6
-const VERSION = '0.5.6';
+// 数字生活 · 前端逻辑 v0.5.7
+const VERSION = '0.5.7';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'P3 功能整合 + 档案增强：首页随手记(AI)/那年今天/保持联系/今日服药/本周回顾；账本分类预算/周期账单；习惯频率与强度；药箱今日服药(手机端概览两列)；档案 QQ/微信/身高体重尺码/R2附件(rjgx)；Worker 统一提醒调度(日检6:00)';
+const __BUILD_ID__ = '热修复：档案页个人信息日期按钮误传元素给 attachSitePicker 致 querySelector 报错，改为直接调用 openSitePicker';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）

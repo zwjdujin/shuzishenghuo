@@ -335,10 +335,19 @@ async function pfRenderBody() {
       </div>
       <button class="btn ghost" data-act="szsave">保存尺码</button>
     </div>`;
-  // 日期按钮接全站统一选择器（补录用）
+  // 日期按钮接全站统一选择器（补录用）。attachSitePicker 只收选择器字符串，
+  // 这里按钮是动态渲染的元素，直接挂 openSitePicker（与 attachSitePicker 内部等价）。
   ['pfHDate', 'pfWDate'].forEach((k) => {
     const btn = box.querySelector(`.dt-btn[data-dt="${k}"]`);
-    if (btn) window.attachSitePicker(btn, { mode: 'date', title: '记录日期' });
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const inp = document.getElementById(k + 'Input');
+      if (!inp) return;
+      openSitePicker({
+        mode: 'date', date: inp.value || '', title: '记录日期',
+        onDone: ({ date }) => { inp.value = date || ''; window.syncDtBtns(); },
+      });
+    });
   });
   box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
 }
