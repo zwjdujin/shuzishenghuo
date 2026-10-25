@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.22
-const VERSION = '0.5.22';
+// 数字生活 · 前端逻辑 v0.5.23
+const VERSION = '0.5.23';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '手机端横向溢出修复：首页 dashboard 与账本构成/明细的移动端网格轨道改 minmax(0,1fr)+子项 min-width:0（此前被内容 min-content 撑出右边界）；账本分类管理增删改/隐藏/排序不再全量重渲染账本，返回账本时统一刷新';
+const __BUILD_ID__ = '随手记带金额内容改为弹出「记一笔」完整表单并预填 AI 识别（分类自动补芯片/日期/备注），多笔逐笔确认，待办/联系人/药品走确认弹窗；修复模型配置「支持图片」勾选保存后丢失（submitAiModel 漏传 vision 字段）';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -688,6 +688,7 @@ async function quickNoteSubmit(e) {
   if (!text && !qnImageData) return;
   btn.disabled = true;
   try {
+    aiQueue = [];            // 新提交清空上一轮 AI 队列
     let drafts = null;
     let parseErr = '';
     try {
@@ -705,9 +706,15 @@ async function quickNoteSubmit(e) {
       toast(parseErr);
       return;
     }
-    const actionable = (drafts || []).some((x) => x.module !== 'memo');
-    if (actionable) {
-      openAiPreview(text, drafts);   // 人做最后确认
+    const txnDrafts = (drafts || []).filter((x) => x.module === 'transaction');
+    const restDrafts = (drafts || []).filter((x) => x.module !== 'transaction');
+    if (txnDrafts.length) {
+      // v0.5.23：账单弹「记一笔」完整表单预填；多笔排队逐笔确认，其余类型走确认弹窗
+      openTxnFromAi(txnDrafts[0]);
+      aiQueue = [...txnDrafts.slice(1), ...restDrafts];
+      if (aiQueue.length) toast(`AI 识别出 ${txnDrafts.length + restDrafts.length} 条，请逐条确认`);
+    } else if (restDrafts.length) {
+      openAiPreview(text, restDrafts);   // 待办/联系人/药品/备忘走确认弹窗
     } else {
       const res = await api('/api/memos', {
         method: 'POST',
@@ -2735,6 +2742,56 @@ function openTxnModal(t) {
 function closeTxnModal() {
   const m = $('#txnModal');
   if (m) m.hidden = true;
+  if (!aiChaining) aiQueue = [];  // 非链式保存的手动关闭：丢弃剩余 AI 队列
+}
+
+// ===== v0.5.23 随手记 AI → 记一笔表单 =====
+// 带金额内容不再用简易确认框，而是弹出「记一笔」完整表单并预填 AI 识别内容；
+// 多笔时保存一笔后自动弹出下一笔；非账单条目（待办/联系人/药品/备忘）走确认弹窗。
+let aiQueue = [];
+let aiChaining = false;
+
+/** 用 AI 草稿预填「记一笔」表单（catTree 里没有的分类临时补一枚芯片，仅本次会话） */
+function openTxnFromAi(draft) {
+  const flow = draft.flow === 'income' ? 'income' : 'expense';
+  const cat = String(draft.category || '').trim() || '其他';
+  openTxnModal(null);
+  txnDraft.flow = flow;
+  txnDraft.category = cat;
+  txnDraft.date = /^\d{4}-\d{2}-\d{2}$/.test(draft.date || '') ? draft.date : todayStrLocal();
+  if (draft.time) txnDraft.time = draft.time;
+  $('#txnAmount').value = String(draft.amount);
+  $('#txnNote').value = String(draft.note || '').slice(0, 30);
+  const radio = $('#txnForm').querySelector(`[name=flow][value="${flow}"]`);
+  if (radio) radio.checked = true;
+  // AI 分类不在分类树时临时补一枚芯片（保存后如需常驻可去分类管理添加）
+  const tree = catTree[flow] || [];
+  if (!tree.some((c) => c.name === cat)) tree.push({ name: cat, children: [] });
+  catTree[flow] = tree;
+  syncFlowUI();
+  renderCatChips();
+  // 时间/账户按钮显示同步
+  const tv = $('#txnTimeVal');
+  if (tv) tv.textContent = txnDraft.date === todayStrLocal() ? '今天' : `${Number(txnDraft.date.slice(5, 7))}-${txnDraft.date.slice(8, 10)}`;
+  const av = $('#txnAcctVal');
+  if (av) av.textContent = txnDraft.account;
+  syncTxnHint();
+  if (window.innerWidth > 860) setTimeout(() => { const a = $('#txnAmount'); if (a) a.focus(); }, 40);
+}
+
+/** 保存一笔后消耗 AI 队列：还有账单 → 继续弹记一笔；只剩待办/联系人/药品 → 确认弹窗 */
+function drainAiQueue() {
+  if (!aiQueue.length) return;
+  const next = aiQueue[0];
+  if (next.module === 'transaction') {
+    aiQueue = aiQueue.slice(1);
+    openTxnFromAi(next);
+    if (aiQueue.length) toast(`AI 共识别 ${aiQueue.length + 1} 笔，保存本笔后继续确认下一笔`);
+    return;
+  }
+  const rest = aiQueue;
+  aiQueue = [];
+  openAiPreview(next.note || 'AI 识别内容', rest);
 }
 
 function syncTxnHint() {
@@ -2782,10 +2839,13 @@ async function submitTxn(e) {
       body: JSON.stringify(payload),
     });
     if (res.ok) {
+      aiChaining = aiQueue.length > 0;   // 链式保存：closeTxnModal 不清队列
       closeTxnModal();
       toast(id ? '已保存修改' : '已记账');
       markSynced();
       await renderLedger();
+      drainAiQueue();   // v0.5.23：随手记 AI 多笔时，保存一笔后续笔继续确认
+      aiChaining = false;
     } else {
       const d = await res.json().catch(() => ({}));
       errEl.textContent = d.error || '保存失败，请稍后重试';
@@ -4202,6 +4262,7 @@ async function submitAiModel(e) {
     apiKey: form.apiKey.value.trim(),
     model: form.model.value.trim(),
     isDefault: form.isDefault.checked,
+    vision: form.vision.checked,
   };
   if (isNew && !item.apiKey) { err.textContent = '新模型需要填写 API Key'; err.hidden = false; return; }
   // 编辑未改 Key：传回掩码标记，后端沿用旧值
