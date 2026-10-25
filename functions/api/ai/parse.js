@@ -1,17 +1,19 @@
 import { json, todayStr } from '../../_lib.js';
 import { loadCatTree } from '../txn-categories.js';
+import { getActiveAi } from './_config.js';
 
 // POST /api/ai/parse —— 自然语言随手记解析
 // 输入 { text: '昨天午饭花了35' }，输出结构化草稿（前端弹出可编辑预览，人确认后才入库）
-// 模型配置（环境变量，均可选）：AI_API_KEY（未配置返回 notConfigured，前端降级存 memo）
-//   AI_BASE_URL（默认 GLM 开放平台）AI_MODEL（默认 glm-4-flash）
+// 模型配置（v0.5.9）：优先「智能管理」里配置的默认模型（app_settings.ai_models），
+// 回退环境变量 AI_API_KEY / AI_BASE_URL / AI_MODEL；都没有则 notConfigured（前端降级存 memo）
 export async function onRequestPost(context) {
   const { env, request } = context;
   let body = {};
   try { body = await request.json(); } catch (_) {}
   const text = String(body.text || '').trim().slice(0, 200);
   if (!text) return json({ error: '请输入内容' }, 400);
-  if (!env.AI_API_KEY) return json({ notConfigured: true, error: 'AI 未配置（需设置 AI_API_KEY 环境变量）' }, 200);
+  const ai = await getActiveAi(env);
+  if (!ai) return json({ notConfigured: true, error: 'AI 未配置（在 个人中心 → 智能管理 添加大模型，或设置 AI_API_KEY 环境变量）' }, 200);
 
   // 把真实的分类清单与常用联系人喂给模型，减少幻觉
   const catTree = await loadCatTree(env);
@@ -34,13 +36,11 @@ export async function onRequestPost(context) {
 
   let draft = null;
   try {
-    const base = String(env.AI_BASE_URL || 'https://api.bigmodel.cn/api/paas/v4').replace(/\/+$/, '');
-    const model = String(env.AI_MODEL || 'glm-4-flash');
-    const res = await fetch(base + '/chat/completions', {
+    const res = await fetch(ai.base + '/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.AI_API_KEY },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ai.key },
       body: JSON.stringify({
-        model,
+        model: ai.model,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: text },

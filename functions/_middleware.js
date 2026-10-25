@@ -12,6 +12,9 @@ export async function onRequest(context) {
   if (!path.startsWith('/api/')) return next();
   // 公开接口放行
   if (PUBLIC.some((p) => path === p || path.startsWith(p + '/'))) return next();
+  // /api/ext/*：外部访问接口，由其自身用 Bearer 令牌鉴权（见 api/ext/[resource].js），
+  // 不走管理员会话——MCP 服务 / AI Agent 只带 Authorization 头，没有登录 Cookie
+  if (path.startsWith('/api/ext/')) return next();
 
   const token = parseCookie(request.headers.get('Cookie')).sz_session;
   if (!token || !(await verifyToken(token, env.SESSION_SECRET))) {

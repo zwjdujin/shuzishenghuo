@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.8
-const VERSION = '0.5.8';
+// 数字生活 · 前端逻辑 v0.5.9
+const VERSION = '0.5.9';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '界面修复：档案页基础身份/社会关系两面板补两列布局与间距（此前缺 display:grid 纵向紧贴）；账本本月预算容器误挂进度条样式(.lb-bar 10px高+overflow:hidden)致整块内容被裁，改 .lb-total；待办页开启通知按钮移入页头新增待办左侧（含移动端右对齐）';
+const __BUILD_ID__ = '智能管理：AI 模型多配置与默认模型（界面化管理，回退环境变量）；API Token + 按功能读写授权 + MCP 端点(/mcp JSON-RPC)与 /api/ext 外部数据接口；数据安全更名（原数据处理）+ 备份统计新表全部中文化';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -3423,7 +3423,7 @@ bind('#habitForm', 'submit', async (e) => {
 
 // ===== 个人中心 =====
 // 子页名称（站点信息 / 主题风格 / 账户安全 / 系统信息）
-const PROFILE_TITLES = { site: '站点信息', style: '主题风格', data: '数据处理', security: '账户安全', sysinfo: '系统信息' };
+const PROFILE_TITLES = { site: '站点信息', style: '主题风格', ai: '智能管理', data: '数据安全', security: '账户安全', sysinfo: '系统信息' };
 
 /** 主题配色：18 张国色色卡 */
 function buildThemeGrid() {
@@ -3657,8 +3657,192 @@ async function renderDataPage() {
   }
 }
 
-/** 下载全部数据备份：走后端附件流，避免把大数据塞进 JS 内存做字符串拼接 */
-async function exportAllData() {
+// ===== v0.5.9 智能管理：AI 模型配置 + API/MCP 令牌 =====
+const AI_SCOPE_KEYS = [
+  ['ledger', '账本'], ['todos', '待办'], ['calendar', '日历'], ['habits', '习惯'],
+  ['medicine', '药箱'], ['relations', '人际关系'], ['memos', '随手记'],
+];
+let aiModelsCache = [];
+
+async function renderAiPage() {
+  await Promise.all([renderAiModels(), renderTokens()]);
+}
+
+// ---- AI 模型列表 ----
+async function renderAiModels() {
+  const box = $('#aiModelList');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  try {
+    const res = await api('/api/settings/ai-models');
+    const d = await res.json();
+    aiModelsCache = d.models || [];
+    box.innerHTML = aiModelsCache.length ? aiModelsCache.map((m) => `
+      <div class="ai-model-row" data-id="${escHtml(m.id)}">
+        <div class="ai-model-info">
+          <b>${escHtml(m.name)}${m.isDefault ? '<span class="ts-badge">默认</span>' : ''}</b>
+          <small>${escHtml(m.model)} · ${escHtml(m.apiKeyMasked || '无 Key')}</small>
+          <small class="muted">${escHtml(m.baseUrl)}</small>
+        </div>
+        <div class="ai-model-ops">
+          ${m.isDefault ? '' : `<button class="btn ghost sm" data-ai="def" data-id="${escHtml(m.id)}">设为默认</button>`}
+          <button class="icon-btn" data-ai="edit" data-id="${escHtml(m.id)}" title="编辑"><svg><use href="#i-edit"/></svg></button>
+          <button class="icon-btn" data-ai="del" data-id="${escHtml(m.id)}" title="删除"><svg><use href="#i-x"/></svg></button>
+        </div>
+      </div>`).join('')
+      : '<div class="empty-hint">还没有配置模型。添加一个 OpenAI 兼容的大模型，随手记等 AI 功能即可启用。</div>';
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载失败</div>';
+  }
+}
+
+function openAiModelModal(m) {
+  const modal = $('#aiModelModal');
+  const form = $('#aiModelForm');
+  if (!modal || !form) return;
+  form.reset();
+  $('#aiModelTitle').textContent = m ? '编辑模型' : '添加模型';
+  $('#aiModelError').hidden = true;
+  form.name.value = m ? m.name : '';
+  form.baseUrl.value = m ? m.baseUrl : 'https://api.bigmodel.cn/api/paas/v4';
+  form.apiKey.value = '';                       // 留空＝沿用已保存 Key（后端按掩码/空值回退）
+  form.apiKey.placeholder = m ? `留空＝沿用已保存的 Key（${m.apiKeyMasked}）` : 'sk-…';
+  form.model.value = m ? m.model : 'glm-4-flash';
+  form.isDefault.checked = m ? !!m.isDefault : aiModelsCache.length === 0;
+  modal.dataset.editId = m ? m.id : '';
+  openModal(modal);
+}
+
+async function submitAiModel(e) {
+  e.preventDefault();
+  const form = $('#aiModelForm');
+  const err = $('#aiModelError');
+  const editId = $('#aiModelModal').dataset.editId || '';
+  const isNew = !editId;
+  const item = {
+    id: editId,
+    name: form.name.value.trim(),
+    baseUrl: form.baseUrl.value.trim(),
+    apiKey: form.apiKey.value.trim(),
+    model: form.model.value.trim(),
+    isDefault: form.isDefault.checked,
+  };
+  if (isNew && !item.apiKey) { err.textContent = '新模型需要填写 API Key'; err.hidden = false; return; }
+  // 编辑未改 Key：传回掩码标记，后端沿用旧值
+  if (!isNew && !item.apiKey) {
+    const old = aiModelsCache.find((x) => x.id === editId);
+    item.apiKey = (old && old.apiKeyMasked) || '';
+  }
+  // 勾选默认 → 其他全部让位
+  const next = aiModelsCache.filter((x) => x.id !== editId).map((x) => ({ ...x, isDefault: item.isDefault ? false : x.isDefault }));
+  next.push(item);
+  try {
+    const res = await api('/api/settings/ai-models', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ models: next }) });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) { closeModal($('#aiModelModal')); toast('模型配置已保存'); renderAiModels(); }
+    else { err.textContent = d.error || '保存失败'; err.hidden = false; }
+  } catch (_) { err.textContent = '网络错误'; err.hidden = false; }
+}
+
+// ---- 令牌列表 + MCP 配置 ----
+async function renderTokens() {
+  const box = $('#tokenList');
+  const mcpBox = $('#mcpConfBox');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  let tokens = [];
+  try {
+    const res = await api('/api/settings/tokens');
+    const d = await res.json();
+    tokens = d.tokens || [];
+  } catch (err) {
+    if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载失败</div>';
+    return;
+  }
+  box.innerHTML = tokens.length ? tokens.map((t) => {
+    const sc = Object.entries(t.scopes || {}).map(([k, v]) => {
+      const label = (AI_SCOPE_KEYS.find(([kk]) => kk === k) || [])[1] || k;
+      return `${label}${v.write ? '读写' : '读'}`;
+    }).join(' · ');
+    return `
+    <div class="token-row" data-id="${t.id}">
+      <div class="token-info">
+        <b>${escHtml(t.name)} <code>${escHtml(t.prefix)}</code></b>
+        <small>${escHtml(sc || '无权限')}</small>
+        <small class="muted">创建 ${escHtml(String(t.createdAt || '').slice(0, 16))}${t.lastUsedAt ? ' · 最近使用 ' + escHtml(String(t.lastUsedAt).slice(5, 16)) : ' · 未使用过'}</small>
+      </div>
+      <div class="ai-model-ops">
+        <button class="icon-btn" data-tk="del" data-id="${t.id}" data-name="${escHtml(t.name)}" title="吊销"><svg><use href="#i-x"/></svg></button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-hint">还没有令牌。生成一个，就能让 MCP 客户端或 AI Agent 按你授权的范围访问数据。</div>';
+
+  if (mcpBox) {
+    mcpBox.hidden = !tokens.length;
+    if (tokens.length) {
+      const conf = {
+        mcpServers: {
+          shuzishenghuo: {
+            url: location.origin + '/mcp',
+            headers: { Authorization: 'Bearer szsh_你的令牌' },
+          },
+        },
+      };
+      $('#mcpConfPre').textContent = JSON.stringify(conf, null, 2);
+    }
+  }
+}
+
+function openTokenModal() {
+  const modal = $('#tokenModal');
+  const form = $('#tokenForm');
+  if (!modal || !form) return;
+  form.reset();
+  form.hidden = false;
+  $('#tokenResult').hidden = true;
+  $('#tokenError').hidden = true;
+  $('#scopeGrid').innerHTML = AI_SCOPE_KEYS.map(([k, label]) => `
+    <div class="scope-row" data-key="${k}">
+      <span>${label}</span>
+      <label><input type="checkbox" data-sc="read" checked>读</label>
+      <label><input type="checkbox" data-sc="write">写</label>
+    </div>`).join('');
+  openModal(modal);
+}
+
+async function submitToken(e) {
+  e.preventDefault();
+  const form = $('#tokenForm');
+  const err = $('#tokenError');
+  const scopes = {};
+  $('#scopeGrid').querySelectorAll('.scope-row').forEach((row) => {
+    const r = row.querySelector('[data-sc=read]').checked;
+    const w = row.querySelector('[data-sc=write]').checked;
+    if (r || w) scopes[row.dataset.key] = { read: r, write: w };
+  });
+  try {
+    const res = await api('/api/settings/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: form.name.value.trim(), scopes }) });
+    const d = await res.json().catch(() => ({}));
+    if (res.status === 201 && d.token) {
+      form.hidden = true;
+      $('#tokenResultPre').textContent = d.token;
+      $('#tokenResult').hidden = false;
+      renderTokens();
+    } else { err.textContent = d.error || '生成失败'; err.hidden = false; }
+  } catch (_) { err.textContent = '网络错误'; err.hidden = false; }
+}
+
+async function copyText(txt, tip) {
+  try { await navigator.clipboard.writeText(txt); toast(tip || '已复制'); }
+  catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove(); toast(tip || '已复制');
+  }
+}
+
+/** 下载全部数据备份：走后端附件流，避免把大数据塞进 JS 内存做字符串拼接 */async function exportAllData() {
   const btn = $('#exportDataBtn');
   if (btn) btn.disabled = true;
   try {
@@ -3914,6 +4098,44 @@ bind('#passSubmitBtn', 'click', submitPassChange);
 // ===== 数据处理页交互 =====
 bind('#exportDataBtn', 'click', exportAllData);
 bind('#refreshDataBtn', 'click', renderDataPage);
+
+// ===== v0.5.9 智能管理：事件绑定 =====
+bind('#aiModelAddBtn', 'click', () => openAiModelModal(null));
+bind('#aiModelClose', 'click', () => closeModal($('#aiModelModal')));
+bind('#aiModelForm', 'submit', submitAiModel);
+bind('#aiModelList', 'click', async (e) => {
+  const btn = e.target.closest('[data-ai]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const m = aiModelsCache.find((x) => x.id === id);
+  if (!m) return;
+  if (btn.dataset.ai === 'edit') { openAiModelModal(m); return; }
+  if (btn.dataset.ai === 'def') {
+    const next = aiModelsCache.map((x) => ({ ...x, isDefault: x.id === id }));
+    const res = await api('/api/settings/ai-models', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ models: next }) });
+    if (res.ok) { toast('已设为默认模型'); renderAiModels(); }
+    return;
+  }
+  if (btn.dataset.ai === 'del') {
+    if (!(await confirmModal(`删除模型「${m.name}」？（不影响已保存的其他模型）`))) return;
+    const next = aiModelsCache.filter((x) => x.id !== id);
+    if (m.isDefault && next.length) next[0].isDefault = true;
+    const res = await api('/api/settings/ai-models', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ models: next }) });
+    if (res.ok) { toast('已删除'); renderAiModels(); }
+  }
+});
+bind('#tokenAddBtn', 'click', openTokenModal);
+bind('#tokenClose', 'click', () => closeModal($('#tokenModal')));
+bind('#tokenForm', 'submit', submitToken);
+bind('#tokenCopyBtn', 'click', () => copyText($('#tokenResultPre').textContent, '令牌已复制'));
+bind('#mcpCopyBtn', 'click', () => copyText($('#mcpConfPre').textContent, 'MCP 配置已复制'));
+bind('#tokenList', 'click', async (e) => {
+  const btn = e.target.closest('[data-tk=del]');
+  if (!btn) return;
+  if (!(await confirmModal(`吊销令牌「${btn.dataset.name || ''}」？使用该令牌的 MCP 服务会立即失去访问权。`))) return;
+  const res = await api('/api/settings/tokens?id=' + btn.dataset.id, { method: 'DELETE' });
+  if (res.ok) { toast('已吊销'); renderTokens(); }
+});
 bind('#ackBackup', 'change', (e) => {
   const cb = $('#clearDataBtn');
   if (cb) cb.disabled = !e.target.checked;
@@ -3936,6 +4158,7 @@ function switchProfileTab(name) {
   currentProfileTab = tab;
   $$('.profile-page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
   if (tab === 'data') renderDataPage();
+  if (tab === 'ai') renderAiPage();
   if (tab === 'security') renderSessions();
   if (tab === 'sysinfo') renderSysInfo();
 }

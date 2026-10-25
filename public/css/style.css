@@ -1472,3 +1472,25 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .pf-file-meta .muted{font-size:11px}
 .pf-file-ops{display:flex;gap:2px;padding:2px 6px 6px;margin-top:auto}
 .pf-file-ops .icon-btn{width:28px;height:28px}
+
+/* --- v0.5.9 智能管理：AI 模型行 / 令牌行 / 权限矩阵 / MCP 配置 --- */
+.ai-model-list,.token-list{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.ai-model-row,.token-row{display:flex;align-items:center;gap:12px;justify-content:space-between;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:12px 14px}
+.ai-model-info,.token-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.ai-model-info b,.token-info b{font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ai-model-info small,.token-info small{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-model-info .muted,.token-info .muted{color:var(--muted)}
+.ai-model-ops{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.token-info code{font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.scope-grid{display:flex;flex-direction:column;gap:6px;margin-top:8px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 14px}
+.scope-row{display:grid;grid-template-columns:90px 1fr 1fr;align-items:center;gap:10px;font-size:13px}
+.scope-row span:first-child{color:var(--ink);font-weight:600}
+.scope-row label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.mcp-conf{margin-top:18px;border-top:1px dashed var(--line);padding-top:14px}
+.mcp-conf-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
+.mcp-conf-pre{margin:10px 0 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px;line-height:1.7;overflow-x:auto;white-space:pre;font-family:ui-monospace,Consolas,monospace}
+@media (max-width:560px){
+  .scope-row{grid-template-columns:80px 1fr 1fr}
+  .ai-model-row,.token-row{flex-direction:column;align-items:stretch;gap:8px}
+  .ai-model-ops{justify-content:flex-end}
+}
