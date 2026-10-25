@@ -1578,3 +1578,15 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .md-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:7px 12px}
 .md-word{font-size:13.5px}
 .md-group .pm-add{margin-top:8px}
+
+/* --- v0.5.14 药箱查看方式 + OTC 红标 --- */
+/* OTC 按惯例为红色 */
+.med-tag.otc{border-color:var(--red);color:var(--red);font-weight:700}
+/* 「全部药品」标题右侧的查看方式切换 */
+.medv-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.md-viewseg .seg-item{padding:3px 12px;font-size:12px}
+/* 列表模式：只显示药品名，一行多个 */
+.med-chipgrid{display:flex;flex-wrap:wrap;gap:8px}
+.med-chip-item{border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);padding:7px 16px;font-size:13px;cursor:pointer;font:inherit;font-size:13px}
+.med-chip-item:hover{border-color:var(--plum);background:var(--plum-soft)}
+.med-chip-item.low{border-color:var(--terra)}

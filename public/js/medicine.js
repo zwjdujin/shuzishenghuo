@@ -32,6 +32,8 @@
     kw: '',
     editingId: null,
     loaded: false,
+    // v0.5.14：查看方式 detail=完整卡片 / list=只显药名（记忆在本地）
+    viewMode: localStorage.getItem('medViewMode') === 'list' ? 'list' : 'detail',
   };
 
   // ===== 工具 =====
@@ -191,6 +193,13 @@
         : state.filter === 'low' ? '暂无需要补货的药品'
         : '药品箱还是空的，先录入几味常备药吧';
       box.innerHTML = emptyBox(msg, state.filter === 'all' && !state.kw && !state.cat ? '点击右上角「录入药品」开始' : '试试调整筛选条件', 'i-pill');
+      return;
+    }
+    // v0.5.14：查看方式——详情（完整卡片）/ 列表（只显示药品名，一行多个）
+    $$('#medViewSeg .seg-item').forEach((b) => b.classList.toggle('on', b.dataset.mv === state.viewMode));
+    if (state.viewMode === 'list') {
+      box.innerHTML = `<div class="med-chipgrid">${list.map((m) =>
+        `<button type="button" class="med-chip-item${m.lowStock ? ' low' : ''}" data-med-edit="${m.id}" title="点击编辑">${esc(m.name)}</button>`).join('')}</div>`;
       return;
     }
     box.innerHTML = list.map(medRow).join('');
@@ -488,7 +497,12 @@
         medDictData[kind] = ((d.grouped || {})[kind] || []).map((x) => ({ id: x.id, word: x.word }));
       });
     } catch (_) { /* 401 已处理 */ }
-    body.innerHTML = MED_DICTS.map(({ kind, title, ph }) => `
+    body.innerHTML = MED_DICTS.map(dictGroupHtml).join('<hr>');
+  }
+
+  function dictGroupHtml(def) {
+    const { kind, title, ph } = def;
+    return `
       <div class="md-group" data-kind="${kind}">
         <b class="md-title">${title}</b>
         <div class="md-list">${(medDictData[kind] || []).map((w) => `
@@ -500,7 +514,23 @@
             </span>
           </div>`).join('') || '<div class="empty-hint">暂无，在下方添加</div>'}</div>
       <div class="pm-add"><input class="inp" data-md-add="${kind}" placeholder="${ph}" maxlength="20"><button class="btn ghost" data-md="add" data-kind="${kind}">添加</button></div>
-      </div>`).join('<hr>');
+      </div>`;
+  }
+
+  /** v0.5.14：只重渲染单个字典组（此前每次增删改名整弹窗重载，体验很差） */
+  async function refreshDictGroup(kind) {
+    try {
+      const res = await api('/api/vocab?kind=' + kind);
+      const d = await res.json();
+      medDictData[kind] = (d.words || []).map((x) => ({ id: x.id, word: x.word }));
+    } catch (_) { return; }
+    const def = MED_DICTS.find((x) => x.kind === kind);
+    const el = document.querySelector(`#medDictBody .md-group[data-kind="${kind}"]`);
+    if (def && el) {
+      el.outerHTML = dictGroupHtml(def);
+    } else if (def) {
+      loadMedDict();
+    }
   }
 
   // ===== 事件绑定 =====
@@ -511,7 +541,15 @@
     // v0.5.13：药箱设置（齿轮）
     const setBtn = $('#medSetBtn');
     if (setBtn) setBtn.addEventListener('click', openMedDictModal);
-    const dictClose = $('#medDictClose');
+    // v0.5.14：查看方式切换（详情 / 列表）
+    const viewSeg = $('#medViewSeg');
+    if (viewSeg) viewSeg.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-mv]');
+      if (!b || state.viewMode === b.dataset.mv) return;
+      state.viewMode = b.dataset.mv;
+      localStorage.setItem('medViewMode', state.viewMode);
+      renderMainList();
+    });    const dictClose = $('#medDictClose');
     if (dictClose) dictClose.addEventListener('click', closeMedDictModal);
     const dictOverlay = $('#medDictModal');
     if (dictOverlay) dictOverlay.addEventListener('click', (e) => { if (e.target === dictOverlay) closeMedDictModal(); });
@@ -528,11 +566,11 @@
           const word = (inp.value || '').replace(/[,，]/g, '').trim();
           if (!word) { toast('请填写名称'); return; }
           const res = await api('/api/vocab', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, word }) });
-          if (res.ok) { inp.value = ''; loadMedDict(); } else { const d = await res.json().catch(() => ({})); toast(d.error || '添加失败'); }
+          if (res.ok) { inp.value = ''; refreshDictGroup(kind); } else { const d = await res.json().catch(() => ({})); toast(d.error || '添加失败'); }
         } else if (act === 'del') {
           if (!(await confirmModal(`删除「${btn.dataset.word}」？已保存的药品不受影响。`))) return;
           const res = await api('/api/vocab?id=' + btn.dataset.id, { method: 'DELETE' });
-          if (res.ok) loadMedDict();
+          if (res.ok) refreshDictGroup(btn.closest('.md-group').dataset.kind);
         } else if (act === 'edit') {
           const row = btn.closest('.md-row');
           const old = (row.querySelector('.md-word') || {}).textContent || '';
@@ -548,9 +586,9 @@
           const word = (row.querySelector('[data-md-rename]') || {}).value || '';
           const res = await api('/api/vocab', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(btn.dataset.id), word: word.replace(/[,，]/g, '').trim() }) });
           const d = await res.json().catch(() => ({}));
-          if (res.ok) loadMedDict(); else toast(d.error || '保存失败');
+          if (res.ok) refreshDictGroup(btn.closest('.md-group').dataset.kind); else toast(d.error || '保存失败');
         } else if (act === 'cancel') {
-          loadMedDict();
+          refreshDictGroup(btn.closest('.md-group').dataset.kind);
         }
       });
     }
