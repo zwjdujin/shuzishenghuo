@@ -8,7 +8,7 @@ export async function onRequestGet(context) {
   const u = new URL(request.url);
   const kind = (u.searchParams.get('kind') || '').trim();
   if (!kind) {
-    const all = (await env.DB.prepare('SELECT kind, word, hits FROM vocab ORDER BY kind, COALESCE(sort_order, 999999), hits DESC, word').all()).results || [];
+    const all = (await env.DB.prepare('SELECT id, kind, word, hits FROM vocab ORDER BY kind, COALESCE(sort_order, 999999), hits DESC, word').all()).results || [];
     const grouped = {};
     all.forEach((r) => { (grouped[r.kind] = grouped[r.kind] || []).push(r); });
     return json({ grouped });

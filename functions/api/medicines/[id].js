@@ -19,13 +19,13 @@ export async function onRequestPut(context) {
   await env.DB.prepare(
     `UPDATE medicines SET
       name=?, efficacy=?, spec=?, dosage=?, form=?, expiry=?, category=?, location=?,
-      manufacturer=?, stock=?, stock_min=?, for_whom=?, rx=?, open_date=?, price=?, quantity=?, note=?
+      manufacturer=?, stock=?, stock_min=?, for_whom=?, rx=?, external=?, open_date=?, price=?, quantity=?, note=?
      WHERE id=?`
   )
     .bind(
       data.name, data.efficacy, data.spec, data.dosage, data.form, data.expiry,
       data.category, data.location, data.manufacturer, data.stock, data.stockMin,
-      data.forWhom, data.rx, data.openDate, data.price, data.dosage, data.note, id
+      data.forWhom, data.rx, data.external, data.openDate, data.price, data.dosage, data.note, id
     )
     .run();
   return json({ ok: true, id });

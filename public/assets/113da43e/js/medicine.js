@@ -84,7 +84,10 @@
   function medRow(m) {
     const tags = [];
     tags.push(`<span class="med-tag gray">${esc(m.category)}</span>`);
+    // v0.5.13：外用药红底白「外」；处方药 / OTC 按勾选二选一
+    if (m.external) tags.push('<span class="med-tag ext">外</span>');
     if (m.rx) tags.push('<span class="med-tag rx">处方药</span>');
+    else tags.push('<span class="med-tag otc">OTC</span>');
     if (m.forWhom && m.forWhom !== '通用') tags.push(`<span class="med-tag who">${esc(m.forWhom)}</span>`);
     if (m.lowStock && m.state !== 'expired') tags.push('<span class="med-tag low">需补货</span>');
 
@@ -302,7 +305,7 @@
 
     const o = state.options || {};
     fillSelect($('#medFormSel'), o.forms || [], '片剂');
-    fillSelect($('#medCatSel'), o.categories || [], '感冒发热');
+    fillSelect($('#medCatSel'), o.categories || ['无'], '无');
     fillSelect($('#medLocSel'), o.locations || [], '客厅药箱');
     fillSelect($('#medWhomSel'), o.forWhom || [], '通用');
 
@@ -313,7 +316,7 @@
       form.form.value = item.form || '片剂';
       form.dosage.value = item.dosage || '';
       form.expiry.value = item.expiry || '';
-      form.category.value = item.category || '感冒发热';
+      form.category.value = item.category || '无';
       form.location.value = item.location || '客厅药箱';
       form.forWhom.value = item.forWhom || '通用';
       form.stock.value = item.stock === null || item.stock === undefined ? 1 : item.stock;
@@ -322,6 +325,7 @@
       form.openDate.value = item.openDate || '';
       form.price.value = item.price === null || item.price === undefined ? '' : item.price;
       form.rx.checked = !!item.rx;
+      form.external.checked = !!item.external;
     } else {
       form.stock.value = 1;
       form.stockMin.value = 1;
@@ -454,15 +458,100 @@
     }
   }
 
+  // ===== v0.5.13 药箱设置：分类 / 剂型 / 存放位置 字典管理（存于词库 vocab） =====
+  const MED_DICTS = [
+    { kind: 'med_category', title: '分类', ph: '如：外感呼吸病' },
+    { kind: 'med_form', title: '剂型', ph: '如：片剂' },
+    { kind: 'med_location', title: '存放位置', ph: '如：客厅药箱' },
+  ];
+  let medDictData = {};
+
+  async function openMedDictModal() {
+    const m = $('#medDictModal');
+    if (!m) return;
+    m.hidden = false;
+    await loadMedDict();
+  }
+  function closeMedDictModal() {
+    const m = $('#medDictModal');
+    if (m) m.hidden = true;
+  }
+
+  async function loadMedDict() {
+    const body = $('#medDictBody');
+    if (!body) return;
+    body.innerHTML = '<div class="empty-hint">加载中…</div>';
+    try {
+      const res = await api('/api/vocab');
+      const d = await res.json();
+      MED_DICTS.forEach(({ kind }) => {
+        medDictData[kind] = ((d.grouped || {})[kind] || []).map((x) => ({ id: x.id, word: x.word }));
+      });
+    } catch (_) { /* 401 已处理 */ }
+    body.innerHTML = MED_DICTS.map(({ kind, title, ph }) => `
+      <div class="md-group" data-kind="${kind}">
+        <b class="md-title">${title}</b>
+        <div class="md-list">${(medDictData[kind] || []).map((w) => `
+          <div class="md-row" data-id="${w.id}">
+            <span class="md-word">${esc(w.word)}</span>
+            <span class="pm-ops">
+              <button class="icon-btn" data-md="edit" data-id="${w.id}" title="重命名"><svg><use href="#i-edit"/></svg></button>
+              <button class="icon-btn" data-md="del" data-id="${w.id}" data-word="${esc(w.word)}" title="删除"><svg><use href="#i-x"/></svg></button>
+            </span>
+          </div>`).join('') || '<div class="empty-hint">暂无，在下方添加</div>'}</div>
+      <div class="pm-add"><input class="inp" data-md-add="${kind}" placeholder="${ph}" maxlength="20"><button class="btn ghost" data-md="add" data-kind="${kind}">添加</button></div>
+      </div>`).join('<hr>');
+  }
+
   // ===== 事件绑定 =====
   function bindEvents() {
     const addBtn = $('#addMedBtn');
     if (addBtn) addBtn.addEventListener('click', () => openMedModal(null));
 
-    const tipBtn = $('#medTipBtn');
-    if (tipBtn) {
-      tipBtn.addEventListener('click', () => {
-        document.getElementById('medChecklist').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // v0.5.13：药箱设置（齿轮）
+    const setBtn = $('#medSetBtn');
+    if (setBtn) setBtn.addEventListener('click', openMedDictModal);
+    const dictClose = $('#medDictClose');
+    if (dictClose) dictClose.addEventListener('click', closeMedDictModal);
+    const dictOverlay = $('#medDictModal');
+    if (dictOverlay) dictOverlay.addEventListener('click', (e) => { if (e.target === dictOverlay) closeMedDictModal(); });
+    const dictBody = $('#medDictBody');
+    if (dictBody) {
+      dictBody.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-md]');
+        if (!btn) return;
+        const act = btn.dataset.md;
+        if (act === 'add') {
+          const group = btn.closest('.md-group');
+          const kind = btn.dataset.kind;
+          const inp = group.querySelector('[data-md-add]');
+          const word = (inp.value || '').replace(/[,，]/g, '').trim();
+          if (!word) { toast('请填写名称'); return; }
+          const res = await api('/api/vocab', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, word }) });
+          if (res.ok) { inp.value = ''; loadMedDict(); } else { const d = await res.json().catch(() => ({})); toast(d.error || '添加失败'); }
+        } else if (act === 'del') {
+          if (!(await confirmModal(`删除「${btn.dataset.word}」？已保存的药品不受影响。`))) return;
+          const res = await api('/api/vocab?id=' + btn.dataset.id, { method: 'DELETE' });
+          if (res.ok) loadMedDict();
+        } else if (act === 'edit') {
+          const row = btn.closest('.md-row');
+          const old = (row.querySelector('.md-word') || {}).textContent || '';
+          const id = btn.dataset.id;
+          row.innerHTML = `
+            <input class="inp" data-md-rename value="${esc(old)}" maxlength="20">
+            <span class="pm-ops">
+              <button class="btn ghost sm" data-md="save" data-id="${id}">保存</button>
+              <button class="btn ghost sm" data-md="cancel">取消</button>
+            </span>`;
+        } else if (act === 'save') {
+          const row = btn.closest('.md-row');
+          const word = (row.querySelector('[data-md-rename]') || {}).value || '';
+          const res = await api('/api/vocab', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(btn.dataset.id), word: word.replace(/[,，]/g, '').trim() }) });
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) loadMedDict(); else toast(d.error || '保存失败');
+        } else if (act === 'cancel') {
+          loadMedDict();
+        }
       });
     }
 
@@ -571,6 +660,7 @@
           openDate: fd.get('openDate'),
           price: fd.get('price') === '' ? null : Number(fd.get('price')),
           rx: form.rx.checked ? 1 : 0,
+          external: form.external.checked ? 1 : 0,
         };
         const editing = state.editingId;
         const btn = $('#medSubmitBtn');

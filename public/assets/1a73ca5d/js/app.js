@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.12
-const VERSION = '0.5.12';
+// 数字生活 · 前端逻辑 v0.5.13
+const VERSION = '0.5.13';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '药箱功效字段放宽：input 60 字改 textarea 300 字，用量 60→150 字，后端补齐各文本字段长度守卫与前端对齐';
+const __BUILD_ID__ = '药箱字典化：剂型16种/分类12病类+无（词库可管理，新增编辑删除入口=右上角齿轮）；剂型按在库使用频次排序；有效期/开封日期显示完整年月日；外用药勾选与红底白外标志，未勾处方药显示OTC标志；修复服药计划与保存按钮贴紧';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -2728,6 +2728,11 @@ window.syncDtBtns = function (root) {
       return;
     }
     btn.classList.add('filled');
+    // data-full="1"：显示完整日期（有效期/开封日期等需要看到年份的场景）
+    if (btn.dataset.full === '1') {
+      span.textContent = /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : v;
+      return;
+    }
     if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(v)) span.textContent = `${Number(v.slice(5, 7))}-${v.slice(8, 10)} ${v.slice(11, 16)}`;
     else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) span.textContent = `${Number(v.slice(5, 7))}-${v.slice(8, 10)}`;
     else span.textContent = v;

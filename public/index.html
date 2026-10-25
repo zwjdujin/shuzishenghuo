@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/81c0dd6a/css/style.css">
+  <link rel="stylesheet" href="./assets/26910b2b/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -426,7 +426,7 @@
         <div class="growth-head">
           <div><p class="eyebrow">家庭药箱</p><h2>药品与效期管理</h2></div>
           <div class="cal-actions">
-            <button class="btn ghost" id="medTipBtn" type="button"><svg><use href="#i-book"/></svg>用药常识</button>
+            <button class="icon-btn" id="medSetBtn" type="button" title="药箱设置（分类 / 剂型 / 存放位置）" aria-label="药箱设置"><svg><use href="#i-gear"/></svg></button>
             <button class="btn primary" id="addMedBtn" type="button"><svg><use href="#i-plus"/></svg>录入药品</button>
           </div>
         </div>
@@ -1174,7 +1174,7 @@
         <div class="field-row">
           <label class="field"><span>有效期至</span>
             <input type="hidden" name="expiry" id="medExpiryInput">
-            <button type="button" class="dt-btn" data-dt="medExpiry" data-ph="留空＝未填效期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+            <button type="button" class="dt-btn" data-dt="medExpiry" data-full="1" data-ph="留空＝未填效期"><svg><use href="#i-calendar"/></svg><span>—</span></button>
           </label>
           <label class="field"><span>分类</span><select name="category" id="medCatSel"></select></label>
         </div>
@@ -1190,10 +1190,11 @@
           <label class="field"><span>生产厂家</span><input name="manufacturer" maxlength="40" placeholder="选填"></label>
           <label class="field"><span>开封日期</span>
             <input type="hidden" name="openDate" id="medOpenInput">
-            <button type="button" class="dt-btn" data-dt="medOpen" data-ph="选填"><svg><use href="#i-calendar"/></svg><span>—</span></button>
+            <button type="button" class="dt-btn" data-dt="medOpen" data-full="1" data-ph="选填"><svg><use href="#i-calendar"/></svg><span>—</span></button>
           </label>
         </div>
         <label class="field"><span>参考单价（元）</span><input name="price" type="number" min="0" step="0.01" placeholder="选填"></label>
+        <label class="check-line"><input type="checkbox" name="external"><span>外用药（外用制剂，不可口服）</span></label>
         <label class="check-line"><input type="checkbox" name="rx"><span>处方药（需凭医师处方购买与使用）</span></label>
         <p class="field-hint">有效期留空表示「未填效期」，该药品不会出现在临期与过期一览表中。</p>
 
@@ -1215,6 +1216,18 @@
         <button class="btn primary full" type="submit" id="medSubmitBtn">保存</button>
         <p class="login-error" id="medFormError" hidden></p>
       </form>
+    </div>
+  </div>
+
+  <!-- ===== v0.5.13 药箱设置：分类 / 剂型 / 存放位置 字典管理 ===== -->
+  <div class="modal-overlay" id="medDictModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>药箱设置</h3>
+        <button class="icon-btn" id="medDictClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <p class="ts-hint">分类、剂型、存放位置均可新增、重命名、删除；删除或改名不影响已保存的药品（已用旧值的药品保持原样）。</p>
+      <div id="medDictBody"></div>
     </div>
   </div>
 
@@ -1401,7 +1414,7 @@
 
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/cb9ae58d/js/profile.js"></script>
-  <script src="./assets/71b130e7/js/medicine.js"></script>
-  <script src="./assets/9de191ac/js/app.js"></script>
+  <script src="./assets/113da43e/js/medicine.js"></script>
+  <script src="./assets/1a73ca5d/js/app.js"></script>
 </body>
 </html>

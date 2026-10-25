@@ -1,13 +1,16 @@
 import { json, todayStr } from '../_lib.js';
 
-// 家庭药箱 · 分类 / 存放位置 / 剂型 选项
-export const MED_CATEGORIES = [
-  '感冒发热', '肠胃消化', '外伤急救', '皮肤五官',
-  '心脑血管', '维生素保健', '妇科儿科', '其他',
-];
-export const MED_LOCATIONS = ['客厅药箱', '卧室床头', '厨房抽屉', '冰箱冷藏', '卫生间镜柜', '玄关抽屉', '随身包'];
-export const MED_FORMS = ['片剂', '胶囊', '颗粒', '散剂', '口服液', '注射液', '软膏', '贴剂', '喷雾', '外用液体', '其他'];
+// 家庭药箱 · 字典（v0.5.13 起存于词库 vocab：med_category / med_form / med_location，
+// 可在「药箱设置」中管理；此处仅保留适用人群为静态清单）
 export const MED_FOR_WHOM = ['通用', '成人', '儿童', '老人', '孕妇', '婴幼儿'];
+
+/** 词库取字典（按 sort_order 基准序，同序按命中与词名） */
+export async function dictOf(env, kind) {
+  const rows = (await env.DB.prepare(
+    'SELECT word FROM vocab WHERE kind=? ORDER BY COALESCE(sort_order, 999999), hits DESC, word'
+  ).bind(kind).all()).results || [];
+  return rows.map((r) => r.word);
+}
 
 // 临期阈值：6 个月（按自然月加，避免 180/184 天边界差异）
 export const EXPIRING_MONTHS = 6;
@@ -48,13 +51,14 @@ function shape(r, today) {
     dosage: r.dosage || r.quantity || '',
     form: r.form || '',
     expiry: r.expiry || '',
-    category: r.category || '其他',
+    category: r.category || '无',
     location: r.location || '客厅药箱',
     manufacturer: r.manufacturer || '',
     stock,
     stockMin,
     forWhom: r.for_whom || '通用',
     rx: Number(r.rx || 0),
+    external: Number(r.external || 0),
     openDate: r.open_date || '',
     price: r.price === null || r.price === undefined ? null : Number(r.price),
     note: r.note || '',
@@ -89,15 +93,16 @@ export function parseMedBody(body) {
       efficacy: String(body.efficacy || '').trim().slice(0, 300),
       spec: String(body.spec || '').trim().slice(0, 60),
       dosage: String(body.dosage || '').trim().slice(0, 150),
-      form: String(body.form || '').trim(),
+      form: String(body.form || '').trim().slice(0, 20),
       expiry: expiry || null,
-      category: String(body.category || '其他').trim() || '其他',
+      category: String(body.category || '无').trim() || '无',
       location: String(body.location || '客厅药箱').trim() || '客厅药箱',
       manufacturer: String(body.manufacturer || '').trim().slice(0, 60),
       stock: num(body.stock, 1),
       stockMin: num(body.stockMin !== undefined ? body.stockMin : body.stock_min, 1),
       forWhom: String(body.forWhom || body.for_whom || '通用').trim() || '通用',
       rx: body.rx ? 1 : 0,
+      external: body.external ? 1 : 0,
       openDate: openDate || null,
       price: Number.isFinite(price) ? price : null,
       note: String(body.note || '').trim().slice(0, 200),
@@ -126,7 +131,7 @@ export async function onRequestGet(context) {
   // 分类聚合
   const byCategory = {};
   all.forEach((m) => {
-    const k = m.category || '其他';
+    const k = m.category || '无';
     if (!byCategory[k]) byCategory[k] = { name: k, total: 0, soon: 0, expired: 0 };
     byCategory[k].total++;
     if (m.state === 'soon') byCategory[k].soon++;
@@ -145,6 +150,14 @@ export async function onRequestGet(context) {
   if (filter === 'soon') list = expiring;
   else if (filter === 'expired') list = expired;
 
+  // 字典：分类（内置「无」在最前）/ 存放位置 / 剂型（按在库药品使用频次降序，同频保持基准序）
+  const [catDict, locDict, formDict] = await Promise.all([
+    dictOf(env, 'med_category'), dictOf(env, 'med_location'), dictOf(env, 'med_form'),
+  ]);
+  const formCounts = {};
+  all.forEach((m) => { if (m.form) formCounts[m.form] = (formCounts[m.form] || 0) + 1; });
+  const forms = [...formDict].sort((a, b) => (formCounts[b] || 0) - (formCounts[a] || 0));
+
   return json({
     today,
     list,
@@ -162,7 +175,7 @@ export async function onRequestGet(context) {
     },
     categories,
     byLocation,
-    options: { categories: MED_CATEGORIES, locations: MED_LOCATIONS, forms: MED_FORMS, forWhom: MED_FOR_WHOM },
+    options: { categories: ['无', ...catDict], locations: locDict, forms, forWhom: MED_FOR_WHOM },
     expiringMonths: EXPIRING_MONTHS,
   });
 }
@@ -178,13 +191,13 @@ export async function onRequestPost(context) {
   const res = await env.DB.prepare(
     `INSERT INTO medicines
       (name, efficacy, spec, dosage, form, expiry, category, location, manufacturer,
-       stock, stock_min, for_whom, rx, open_date, price, quantity, note)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+       stock, stock_min, for_whom, rx, external, open_date, price, quantity, note)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   )
     .bind(
       data.name, data.efficacy, data.spec, data.dosage, data.form, data.expiry,
       data.category, data.location, data.manufacturer, data.stock, data.stockMin,
-      data.forWhom, data.rx, data.openDate, data.price, data.dosage, data.note
+      data.forWhom, data.rx, data.external, data.openDate, data.price, data.dosage, data.note
     )
     .run();
   return json({ ok: true, id: res.meta && res.meta.last_row_id ? res.meta.last_row_id : null }, 201);
@@ -203,13 +216,13 @@ export async function onRequestPut(context) {
   await env.DB.prepare(
     `UPDATE medicines SET
       name=?, efficacy=?, spec=?, dosage=?, form=?, expiry=?, category=?, location=?,
-      manufacturer=?, stock=?, stock_min=?, for_whom=?, rx=?, open_date=?, price=?, quantity=?, note=?
+      manufacturer=?, stock=?, stock_min=?, for_whom=?, rx=?, external=?, open_date=?, price=?, quantity=?, note=?
      WHERE id=?`
   )
     .bind(
       data.name, data.efficacy, data.spec, data.dosage, data.form, data.expiry,
       data.category, data.location, data.manufacturer, data.stock, data.stockMin,
-      data.forWhom, data.rx, data.openDate, data.price, data.dosage, data.note, id
+      data.forWhom, data.rx, data.external, data.openDate, data.price, data.dosage, data.note, id
     )
     .run();
   return json({ ok: true, id });

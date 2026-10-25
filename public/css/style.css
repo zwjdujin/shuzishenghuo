@@ -1564,3 +1564,17 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 }
 /* 覆盖 v0.5.10 旧 .f3(terra)：新口径 f3=正常=梅子色 */
 .pd-flow-badge.f3{border-color:var(--plum);color:var(--plum)}
+
+/* --- v0.5.13 药箱：剂型/分类字典化 + 外用药标志 + 间距修复 --- */
+/* 服药计划模块与「保存入库」按钮留出间距（此前贴紧） */
+.medplan-box{margin-bottom:18px}
+/* 外用药：红底方框白「外」；OTC 绿框 */
+.med-tag.ext{background:var(--red);color:#fff;border:none;border-radius:4px;padding:2px 7px;font-weight:700}
+.med-tag.otc{border-color:var(--green);color:var(--green);font-weight:700}
+/* 药箱设置弹窗 */
+.md-group{margin-top:14px}
+.md-title{display:block;font:700 14px/1.3 var(--font-serif);margin-bottom:8px}
+.md-list{display:flex;flex-direction:column;gap:6px}
+.md-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:7px 12px}
+.md-word{font-size:13.5px}
+.md-group .pm-add{margin-top:8px}
