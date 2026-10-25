@@ -1,5 +1,6 @@
 import { json, todayStr } from '../_lib.js';
 import { loadCatTree } from './txn-categories.js';
+import { generateDue } from './recurring.js';
 
 // 默认账户（预置 + 实际用过的）
 export const ACCOUNTS = ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'];
@@ -49,6 +50,12 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const contactId = Number(url.searchParams.get('contact_id')) || null;
   const month = url.searchParams.get('month') || todayStr().slice(0, 7);
+
+  // ---- 周期账单懒生成（房租/工资等到期自动入账，幂等；仅月度明细模式）----
+  let recurringGenerated = 0;
+  if (!contactId) {
+    try { recurringGenerated = await generateDue(env); } catch (_) { /* 忽略 */ }
+  }
 
   // ---- 账本分类树（自定义，含二级；表为空时回退默认）----
   const catTree = await loadCatTree(env);
@@ -163,11 +170,20 @@ export async function onRequestGet(context) {
     });
   } catch (_) { /* 忽略 */ }
 
-  // ---- 月预算 ----
+  // ---- 月预算（v0.6.0：总额度沿用 app_settings；新增每分类额度 budgets）----
   let budget = 0;
   try {
     const bRow = await env.DB.prepare("SELECT value FROM app_settings WHERE key='ledger_budget'").first();
     budget = bRow ? Number(bRow.value) || 0 : 0;
+  } catch (_) { /* 忽略 */ }
+  let budgets = [];
+  try {
+    const bRows = (await env.DB.prepare('SELECT category, amount FROM budgets WHERE month = ?').bind(month).all()).results || [];
+    budgets = bRows.map((b) => {
+      const used = byCat[b.category] || 0;
+      return { category: b.category, amount: b.amount, used, left: b.amount - used, pct: b.amount > 0 ? used / b.amount : 0 };
+    });
+    if (!budget && budgets.length) budget = budgets.reduce((s, b) => s + b.amount, 0);
   } catch (_) { /* 忽略 */ }
 
   // ---- 本月人情往来小结（人际关系页联动展示）----
@@ -214,6 +230,8 @@ export async function onRequestGet(context) {
     payees,
     linked,
     budget,
+    budgets,
+    recurringGenerated,
     social,
     categories,
     catTree,

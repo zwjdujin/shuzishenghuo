@@ -71,6 +71,14 @@ async function mergeBase(env, body, existing) {
   if (body.marriage !== undefined) sets.marriage = MARRIAGES.includes(body.marriage) ? body.marriage : '';
   if (body.note !== undefined) sets.note = String(body.note || '').trim() || null;
 
+  // v0.6.0 个人信息 · 尺码：PUT {sizes:{clothing,shoe,ring,bracelet}} 局部更新（空串=清除）
+  if (body.sizes && typeof body.sizes === 'object') {
+    const SZ = [['clothing', 'size_clothing'], ['shoe', 'size_shoe'], ['ring', 'size_ring'], ['bracelet', 'size_bracelet']];
+    for (const [key, col] of SZ) {
+      if (body.sizes[key] !== undefined) sets[col] = String(body.sizes[key]).trim().slice(0, 20) || null;
+    }
+  }
+
   if (body.referrerId !== undefined) {
     const rid = Number(body.referrerId) || null;
     if (rid) {
@@ -95,9 +103,9 @@ export async function onRequestGet(context) {
 
   const g = async (sql, ...b) => (await env.DB.prepare(sql).bind(...b).all()).results || [];
 
-  // 联系方式（电话/邮箱/地址，带备注标签）
+  // 联系方式（电话/邮箱/地址/QQ/微信，带备注标签）
   const cc = await g('SELECT id, kind, value, label FROM contact_contacts WHERE person_id = ? ORDER BY kind, id', id);
-  const methods = { phones: [], emails: [], addresses: [] };
+  const methods = { phones: [], emails: [], addresses: [], qq: [], wechat: [] };
   cc.forEach((x) => { if (methods[x.kind]) methods[x.kind].push({ id: x.id, value: x.value, label: x.label || '' }); });
 
   const work = (await env.DB.prepare('SELECT company, position FROM contact_work WHERE person_id = ?').bind(id).first()) || {};
@@ -151,6 +159,11 @@ export async function onRequestGet(context) {
       referrer: referrer ? { id: referrer.id, name: referrer.name } : null,
       marriage: c.marriage || '', note: c.note || '',
       age: ageOfContact(c), nextBirthday: nb,
+      // v0.6.0 个人信息 · 尺码（单值随档）
+      sizes: {
+        clothing: c.size_clothing || '', shoe: c.size_shoe || '',
+        ring: c.size_ring || '', bracelet: c.size_bracelet || '',
+      },
     },
     methods,
     work: { company: work.company || '', position: work.position || '' },

@@ -37,6 +37,11 @@ export function parseHabitBody(body, current) {
   const type = body.type === 'sleep' ? 'sleep' : 'normal';
   const icon = String(body.icon || 'sprout').trim() || 'sprout';
   const color = String(body.color || 'sage').trim() || 'sage';
+  // 频率目标（v0.6.0）：daily 每天 / weekly 每周 N 次 / interval 每 N 天一次
+  const freqType = ['daily', 'weekly', 'interval'].includes(body.freqType) ? body.freqType : 'daily';
+  let freqValue = Math.round(Number(body.freqValue));
+  if (!Number.isFinite(freqValue) || freqValue < 1) freqValue = 1;
+  if (freqValue > 30) freqValue = 30;
 
   const habit = {
     name,
@@ -50,6 +55,8 @@ export function parseHabitBody(body, current) {
     bed_time: '',
     rise_time: '',
     nap_time: '',
+    freqType,
+    freqValue,
   };
 
   if (type === 'sleep') {

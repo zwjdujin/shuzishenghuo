@@ -1,17 +1,19 @@
 import { json, todayStr } from '../../_lib.js';
 import { progressOf, parseHabitBody } from '../_helpers.js';
 
-// DELETE /api/habits/:id —— 删除习惯及其全部打卡记录
+// DELETE /api/habits/:id —— 删除习惯及其全部打卡记录（外键亦有 CASCADE 兜底）
 export async function onRequestDelete(context) {
   const { env } = context;
   const id = Number(context.params.id);
   if (!id) return json({ error: '无效的习惯 ID' }, 400);
-  await env.DB.prepare('DELETE FROM habit_logs WHERE habit_id = ?').bind(id).run();
-  await env.DB.prepare('DELETE FROM habits WHERE id = ?').bind(id).run();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM habit_logs WHERE habit_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM habits WHERE id = ?').bind(id),
+  ]);
   return json({ ok: true, id });
 }
 
-// PUT /api/habits/:id —— 编辑习惯（名称/分类/类型/方式/目标/睡眠时段）
+// PUT /api/habits/:id —— 编辑习惯（名称/分类/类型/方式/目标/睡眠时段/频率目标）
 export async function onRequestPut(context) {
   const { env } = context;
   const id = Number(context.params.id);
@@ -27,15 +29,17 @@ export async function onRequestPut(context) {
     icon: existing.icon, color: existing.color, method: existing.method,
     target: existing.target, unit: existing.unit,
     bed_time: existing.bed_time, rise_time: existing.rise_time, nap_time: existing.nap_time,
+    freqType: existing.freq_type || 'daily', freqValue: existing.freq_value || 1,
   };
   const parsed = parseHabitBody(body, current);
   if (parsed.error) return json({ error: parsed.error }, 400);
   const h = parsed.habit;
 
   await env.DB.prepare(
-    `UPDATE habits SET name=?, icon=?, color=?, target=?, unit=?, category=?, type=?, method=?, bed_time=?, rise_time=?, nap_time=? WHERE id=?`
+    `UPDATE habits SET name=?, icon=?, color=?, target=?, unit=?, category=?, type=?, method=?, bed_time=?, rise_time=?, nap_time=?, freq_type=?, freq_value=? WHERE id=?`
   )
-    .bind(h.name, h.icon, h.color, h.target, h.unit, h.category, h.type, h.method, h.bed_time, h.rise_time, h.nap_time, id)
+    .bind(h.name, h.icon, h.color, h.target, h.unit, h.category, h.type, h.method,
+      h.bed_time, h.rise_time, h.nap_time, h.freqType, h.freqValue, id)
     .run();
 
   const updated = await env.DB.prepare('SELECT * FROM habits WHERE id = ?').bind(id).first();
@@ -52,6 +56,8 @@ export async function onRequestPut(context) {
       method: updated.method,
       target: Number(updated.target) || 1,
       unit: updated.unit,
+      freqType: updated.freq_type || 'daily',
+      freqValue: Number(updated.freq_value) || 1,
       bed_time: updated.bed_time || '',
       rise_time: updated.rise_time || '',
       nap_time: updated.nap_time || '',

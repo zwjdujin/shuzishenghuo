@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/2ef79358/css/style.css">
+  <link rel="stylesheet" href="./assets/754fb133/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -61,6 +61,7 @@
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
@@ -158,6 +159,53 @@
               <button class="quick-action sage" data-nav="growth"><svg><use href="#i-sprout"/></svg><span><strong>去打卡</strong><small>成长习惯</small></span><i>+</i></button>
               <button class="quick-action sand" data-nav="calendar"><svg><use href="#i-calendar"/></svg><span><strong>看日历</strong><small>日程事件</small></span><i>+</i></button>
             </div>
+          </article>
+
+          <!-- ===== v0.6.0 P3：随手记（一句话 → AI 解析/存 memo） ===== -->
+          <article class="panel p3-span" id="p3QuickNote">
+            <div class="panel-head">
+              <div><p class="eyebrow">随手记</p><h2>一句话，先记下来</h2></div>
+              <span class="ts-badge" id="qnModeBadge">备忘</span>
+            </div>
+            <form class="qn-row" id="qnForm">
+              <input id="qnInput" class="inp" maxlength="200" placeholder="例：昨天午饭花了35 / 提醒周五拿体检报告 / 今天走了1万步 #运动" autocomplete="off">
+              <button class="btn primary" type="submit" id="qnSubmitBtn"><svg><use href="#i-plus"/></svg><span>记下</span></button>
+            </form>
+            <div class="qn-hint">带金额或「提醒」的句子会尝试智能解析成账单/待办（需配置 AI）；其余按备忘保存，可用 #标签 归类</div>
+            <div class="qn-memos" id="qnMemoList"></div>
+          </article>
+
+          <!-- ===== v0.6.0 P3：那年今天 + 保持联系（并列，手机端上下堆叠） ===== -->
+          <article class="panel p3-card" id="p3OnThisDay" hidden>
+            <div class="panel-head">
+              <div><p class="eyebrow">那年今天</p><h2>时光回望</h2></div>
+              <button class="icon-btn" id="otdRefresh" title="换一条看看" aria-label="换一条"><svg><use href="#i-sun"/></svg></button>
+            </div>
+            <div class="otd-body" id="otdBody"></div>
+          </article>
+          <article class="panel p3-card" id="p3Touch" hidden>
+            <div class="panel-head">
+              <div><p class="eyebrow">保持联系</p><h2>该问候一下啦</h2></div>
+            </div>
+            <div class="touch-list" id="touchList"></div>
+          </article>
+
+          <!-- ===== v0.6.0 P3：今日服药（有计划才显示） ===== -->
+          <article class="panel p3-span" id="p3MedToday" hidden>
+            <div class="panel-head">
+              <div><p class="eyebrow">家庭药箱</p><h2>今日服药计划</h2></div>
+              <button class="icon-btn" data-nav="medicine" title="去药箱" aria-label="去药箱"><svg><use href="#i-pill"/></svg></button>
+            </div>
+            <div class="medtoday-list" id="medTodayList"></div>
+          </article>
+
+          <!-- ===== v0.6.0 P3：本周回顾 ===== -->
+          <article class="panel p3-span" id="p3Review" hidden>
+            <div class="panel-head">
+              <div><p class="eyebrow">本周回顾</p><h2 id="rvTitle">这一周</h2></div>
+            </div>
+            <div class="rv-grid" id="rvGrid"></div>
+            <p class="rv-cats" id="rvCats"></p>
           </article>
 
           <article class="panel stat-card" id="card-todos">
@@ -274,8 +322,18 @@
         <!-- 概览：收入 / 支出 / 结余 / 日均 -->
         <div class="led-overview" id="ledgerStats"></div>
 
-        <!-- 月预算 -->
-        <article class="panel led-budget" id="ledgerBudget"></article>
+        <!-- 月预算（v0.6.0：总额度 + 每分类进度条） -->
+        <article class="panel led-budget" id="ledgerBudget">
+          <div class="panel-head">
+            <div><p class="eyebrow">本月预算</p><h2>分类额度</h2></div>
+            <div class="gh-actions">
+              <button class="icon-btn" id="recurringBtn" title="周期账单" aria-label="周期账单"><svg><use href="#i-swap"/></svg></button>
+              <button class="icon-btn" id="budgetAddBtn" title="设置分类预算" aria-label="设置分类预算"><svg><use href="#i-plus"/></svg></button>
+            </div>
+          </div>
+          <div class="lb-bar" id="lbTotalBar"></div>
+          <div class="bg-list" id="budgetList"></div>
+        </article>
 
         <!-- 近 6 个月收支趋势 -->
         <article class="panel" id="ledgerTrendPanel">
@@ -369,6 +427,14 @@
             <button class="btn primary" id="addMedBtn" type="button"><svg><use href="#i-plus"/></svg>录入药品</button>
           </div>
         </div>
+
+        <!-- v0.6.0：今日服药计划（有计划才显示；确认服药自动扣库存） -->
+        <article class="panel" id="medTodayPanel" hidden>
+          <div class="panel-head">
+            <div><p class="eyebrow">服药计划</p><h2>今日要吃的药</h2></div>
+          </div>
+          <div class="medtoday-list" id="medTodayPlanList"></div>
+        </article>
 
         <div class="ledger-stats med-stats" id="medStats"></div>
 
@@ -493,6 +559,8 @@
             <div><p class="eyebrow">联系人档案</p><h2 id="pfName">—</h2></div>
             <div class="cal-actions">
               <button class="btn ghost" id="pfBack" type="button">← 返回列表</button>
+              <!-- v0.6.0：保持联系（节奏设置 + 今天联系过） -->
+              <span class="pf-touch" id="pfTouchBox"></span>
               <button class="btn ghost danger" id="pfDelete" type="button">删除</button>
               <button class="btn primary" id="pfEditBtn" type="button"><svg><use href="#i-edit"/></svg>编辑基本信息</button>
             </div>
@@ -509,7 +577,7 @@
             </article>
           </div>
           <article class="panel">
-            <div class="panel-head"><div><p class="eyebrow">联系方式</p><h2>电话 / 邮箱 / 地址</h2></div></div>
+            <div class="panel-head"><div><p class="eyebrow">联系方式</p><h2>电话 / 邮箱 / QQ / 微信 / 地址</h2></div></div>
             <div id="pfMethods"></div>
           </article>
           <article class="panel">
@@ -533,6 +601,21 @@
               <span class="muted" id="pfFinSum"></span></div>
             <p class="ts-hint">在「记一笔」时选择该联系人，账目会自动关联到这里。</p>
             <div id="pfFinance" class="txn-stack"></div>
+          </article>
+          <!-- v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） -->
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">个人信息</p><h2>身高体重与尺码</h2></div></div>
+            <div id="pfBody"></div>
+          </article>
+          <!-- v0.6.0：附件（照片/视频/文档，存 R2 桶 rjgx/姓名+手机号/ 目录） -->
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow">附件</p><h2>照片 / 视频 / 文档</h2></div>
+              <div class="cal-actions">
+                <span class="muted" id="pfFilesHint"></span>
+                <button class="btn ghost" id="pfFileBtn" type="button"><svg><use href="#i-upload"/></svg>上传附件</button>
+                <input type="file" id="pfFileInput" multiple hidden>
+              </div></div>
+            <div id="pfFiles" class="pf-files"></div>
           </article>
         </div>
       </section>
@@ -763,6 +846,17 @@
           <div class="field-row" style="margin-top:10px">
             <label class="field"><span>目标值</span><input name="target" type="number" min="1" step="1" value="1"></label>
             <label class="field"><span>单位</span><select name="unit" id="unitSelect"></select></label>
+          </div>
+          <!-- v0.6.0：频率目标（每天 / 每周 N 次 / 每 N 天一次） -->
+          <div class="field-row" style="margin-top:10px">
+            <label class="field"><span>频率</span>
+              <select name="freqType" id="freqTypeSel">
+                <option value="daily">每天</option>
+                <option value="weekly">每周 N 次</option>
+                <option value="interval">每 N 天一次</option>
+              </select>
+            </label>
+            <label class="field"><span>N（每周/隔天用）</span><input name="freqValue" id="freqValueInput" type="number" min="1" max="30" step="1" value="1"></label>
           </div>
           <small class="field-hint" id="methodHint">按次：每打一次卡 +1。</small>
         </label>
@@ -1072,6 +1166,22 @@
         <label class="field"><span>参考单价（元）</span><input name="price" type="number" min="0" step="0.01" placeholder="选填"></label>
         <label class="check-line"><input type="checkbox" name="rx"><span>处方药（需凭医师处方购买与使用）</span></label>
         <p class="field-hint">有效期留空表示「未填效期」，该药品不会出现在临期与过期一览表中。</p>
+
+        <!-- v0.6.0：服药计划（可选；设置后到点推送提醒，确认服药自动扣库存） -->
+        <div class="medplan-box">
+          <label class="check-line"><input type="checkbox" id="mpEnable"><span><b>服药计划</b>（到点提醒 · 确认后自动扣 1 份库存）</span></label>
+          <div class="medplan-fields" id="mpFields" hidden>
+            <div class="field-row">
+              <label class="field"><span>时间</span><input id="mpTime" type="text" placeholder="08:00" maxlength="5" inputmode="numeric"></label>
+              <label class="field"><span>剂量</span><input id="mpDose" type="text" placeholder="如 1 片" maxlength="30"></label>
+            </div>
+            <div class="mp-days" id="mpDays">
+              <button type="button" class="chip on" data-d="1">一</button><button type="button" class="chip on" data-d="2">二</button><button type="button" class="chip on" data-d="3">三</button><button type="button" class="chip on" data-d="4">四</button><button type="button" class="chip on" data-d="5">五</button><button type="button" class="chip on" data-d="6">六</button><button type="button" class="chip on" data-d="7">日</button>
+            </div>
+            <p class="field-hint" id="mpHint">保存后可在药箱页「今日服药」卡片确认服药/跳过。</p>
+          </div>
+        </div>
+
         <button class="btn primary full" type="submit" id="medSubmitBtn">保存</button>
         <p class="login-error" id="medFormError" hidden></p>
       </form>
@@ -1137,9 +1247,84 @@
     </div>
   </div>
 
+  <!-- ===== v0.6.0 P3：AI 解析预览（随手记 → 可编辑草稿 → 确认入库） ===== -->
+  <div class="modal-overlay" id="aiPreviewModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>帮你解析好了，确认一下</h3>
+        <button class="icon-btn" id="aiPreviewClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <p class="muted" id="aiRawText"></p>
+      <label class="field" style="margin-top:12px"><span>类型</span>
+        <select id="aiModule">
+          <option value="transaction">账单</option>
+          <option value="todo">待办</option>
+          <option value="memo">备忘</option>
+        </select>
+      </label>
+      <div id="aiTxnFields">
+        <label class="field"><span>收支</span>
+          <select id="aiFlow"><option value="expense">支出</option><option value="income">收入</option></select>
+        </label>
+        <label class="field"><span>金额</span><input id="aiAmount" type="number" min="0" step="0.01" inputmode="decimal"></label>
+        <label class="field"><span>分类</span><input id="aiCategory" maxlength="20" list="aiCatList"><datalist id="aiCatList"></datalist></label>
+        <label class="field"><span>日期</span><input id="aiDate" type="text" placeholder="YYYY-MM-DD" inputmode="numeric"></label>
+      </div>
+      <div id="aiTodoFields" hidden>
+        <label class="field"><span>内容</span><input id="aiTitle" maxlength="40"></label>
+        <label class="field"><span>日期</span><input id="aiTodoDate" type="text" placeholder="YYYY-MM-DD" inputmode="numeric"></label>
+      </div>
+      <div class="data-actions" style="margin-top:6px">
+        <button class="btn ghost" id="aiCancelBtn" type="button">不记了</button>
+        <button class="btn primary" id="aiOkBtn" type="button"><svg><use href="#i-check"/></svg><span>确认入账</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== v0.6.0 P3：周期账单管理 ===== -->
+  <div class="modal-overlay" id="recurringModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>周期账单</h3>
+        <button class="icon-btn" id="recurringModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <p class="muted">房租、工资、会员等固定收支设一次，到期打开账本自动入账。</p>
+      <div class="rc-list" id="rcList"></div>
+      <div class="rc-add">
+        <div class="rc-add-row">
+          <select id="rcFlow"><option value="expense">支出</option><option value="income">收入</option></select>
+          <input id="rcAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="金额">
+          <input id="rcCategory" maxlength="20" placeholder="分类" list="aiCatList">
+        </div>
+        <div class="rc-add-row">
+          <select id="rcFreq"><option value="monthly">每月</option><option value="weekly">每周</option><option value="daily">每天</option></select>
+          <input id="rcNext" type="text" placeholder="下次日期 YYYY-MM-DD" inputmode="numeric">
+          <input id="rcNote" maxlength="60" placeholder="备注（如 房租）">
+        </div>
+        <button class="btn primary full" id="rcAddBtn" type="button"><svg><use href="#i-plus"/></svg><span>添加周期账单</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== v0.6.0 P3：分类预算编辑 ===== -->
+  <div class="modal-overlay" id="budgetModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="budgetModalTitle">设置预算</h3>
+        <button class="icon-btn" id="budgetModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <label class="field"><span>分类</span><input id="bgCategory" maxlength="20" list="aiCatList"></label>
+      <label class="field"><span>本月额度（元，0 = 取消该预算）</span><input id="bgAmount" type="number" min="0" step="1" inputmode="numeric"></label>
+      <div class="data-actions" style="margin-top:6px">
+        <button class="btn ghost" id="bgCancelBtn" type="button">取消</button>
+        <button class="btn primary" id="bgSaveBtn" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
-  <script src="./assets/77d42057/js/profile.js"></script>
-  <script src="./assets/cb0f1021/js/medicine.js"></script>
-  <script src="./assets/9156f506/js/app.js"></script>
+  <script src="./assets/b48cf48f/js/profile.js"></script>
+  <script src="./assets/71b130e7/js/medicine.js"></script>
+  <script src="./assets/5f834905/js/app.js"></script>
 </body>
 </html>

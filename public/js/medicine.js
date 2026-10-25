@@ -24,6 +24,7 @@
     all: [],
     expiring: [],
     expired: [],
+    plans: [],
     options: null,
     stats: null,
     filter: 'all',
@@ -328,6 +329,7 @@
       form.expiry.value = plusMonths(todayLocal(), 24);
     }
     if (window.syncDtBtns) window.syncDtBtns(form);
+    prefillMedPlan(item ? item.id : null);   // v0.6.0：回填服药计划
     $('#medModal').hidden = false;
   }
 
@@ -335,6 +337,91 @@
     const el = $('#medModal');
     if (el) el.hidden = true;
     state.editingId = null;
+  }
+
+  // ===== v0.6.0：服药计划（到点提醒 → 确认服药 → 扣库存） =====
+  async function loadMedPlans() {
+    try {
+      const res = await api('/api/med-plans');
+      const d = await res.json();
+      state.plans = d.list || [];
+    } catch (_) { state.plans = []; }
+    renderMedPlans();
+  }
+  function renderMedPlans() {
+    const panel = $('#medTodayPanel');
+    if (!panel) return;
+    const due = (state.plans || []).filter((p) => p.active && p.today.due);
+    const done = (state.plans || []).filter((p) => p.today.status);
+    if (!due.length && !done.length) { panel.hidden = true; return; }
+    panel.hidden = false;
+    const box = $('#medTodayPlanList');
+    if (!box) return;
+    const all = [...due.sort((a, b) => a.time.localeCompare(b.time)), ...done];
+    box.innerHTML = all.map((p) => {
+      const st = p.today.status;
+      return `<div class="medtoday-row${st ? ' done' : ''}">
+        <b>${p.time}</b><span></span>${p.dose ? `<small class="mtd-dose"></small>` : ''}
+        ${st ? `<span class="mtd-st">${st === 'taken' ? '已服' : '已跳过'}</span>` : `
+          <button class="btn sm" data-mplog="${p.id}" data-st="taken">已服</button>
+          <button class="btn ghost sm" data-mplog="${p.id}" data-st="skipped">跳过</button>`}
+      </div>`;
+    }).join('');
+    const rows = box.querySelectorAll('.medtoday-row');
+    all.forEach((p, i) => {
+      rows[i].querySelector('span').textContent = p.medicine;
+      const doseEl = rows[i].querySelector('.mtd-dose');
+      if (doseEl) doseEl.textContent = p.dose;
+    });
+    box.querySelectorAll('[data-mplog]').forEach((b) => {
+      b.onclick = async () => {
+        try {
+          const res = await api('/api/med-plans/' + b.dataset.mplog + '/log', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: b.dataset.st }),
+          });
+          if (res.ok) {
+            toast(b.dataset.st === 'taken' ? '已确认服药，库存 -1' : '已跳过');
+            markSynced();
+            renderMedicine();
+          }
+        } catch (_) { /* 401 已处理 */ }
+      };
+    });
+  }
+  /** 编辑弹窗回填该药品的现有计划 */
+  function prefillMedPlan(medId) {
+    const plan = (state.plans || []).find((p) => p.medicineId === medId && p.active);
+    const enable = $('#mpEnable');
+    const fields = $('#mpFields');
+    if (!enable || !fields) return;
+    enable.checked = !!plan;
+    fields.hidden = !plan;
+    $('#mpTime').value = plan ? plan.time : '08:00';
+    $('#mpDose').value = plan ? plan.dose : '';
+    const days = plan ? plan.days : [1, 2, 3, 4, 5, 6, 7];
+    $mpDays().forEach((b) => { b.classList.toggle('on', days.includes(Number(b.dataset.d))); });
+  }
+  function $mpDays() { return Array.from((document.querySelectorAll('#mpDays .chip') || [])); }
+  /** 保存药品后同步计划：勾选→建/重建；未勾选但有旧计划→删除 */
+  async function saveMedPlanFlow(medId) {
+    const enable = $('#mpEnable');
+    if (!enable) return;
+    const old = (state.plans || []).find((p) => p.medicineId === medId);
+    if (!enable.checked) {
+      if (old) await api('/api/med-plans/' + old.id, { method: 'DELETE' }).catch(() => {});
+      return;
+    }
+    const time = String($('#mpTime').value || '').trim();
+    if (!/^\d{1,2}:\d{2}$/.test(time)) { toast('服药时间格式应为 HH:MM'); return; }
+    const days = $mpDays().filter((b) => b.classList.contains('on')).map((b) => Number(b.dataset.d));
+    if (!days.length) { toast('请至少选择一个服药日'); return; }
+    if (old) await api('/api/med-plans/' + old.id, { method: 'DELETE' }).catch(() => {});
+    const res = await api('/api/med-plans', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ medicineId: medId, dose: $('#mpDose').value.trim(), time, days }),
+    }).catch(() => null);
+    if (res && res.ok) toast('服药计划已设置，到点会推送提醒');
   }
 
   // ===== 加载 =====
@@ -355,6 +442,7 @@
       renderMainList();
       renderSoon();
       renderExpired();
+      loadMedPlans();
       renderCatChart(data.categories);
       renderLocList(data.byLocation);
       renderChecklist();
@@ -441,6 +529,19 @@
       });
     });
 
+    // v0.6.0：服药计划开关与星期选择
+    const mpEnable = $('#mpEnable');
+    if (mpEnable) {
+      mpEnable.addEventListener('change', () => { const f = $('#mpFields'); if (f) f.hidden = !mpEnable.checked; });
+    }
+    const mpDaysBox = $('#mpDays');
+    if (mpDaysBox) {
+      mpDaysBox.addEventListener('click', (e) => {
+        const b = e.target.closest('.chip');
+        if (b) b.classList.toggle('on');
+      });
+    }
+
     // 表单提交
     const form = $('#medForm');
     if (form) {
@@ -487,6 +588,8 @@
                 body: JSON.stringify(payload),
               });
           if (res.ok) {
+            const medId = editing ? editing : (await res.json().catch(() => ({}))).id;
+            await saveMedPlanFlow(medId);     // v0.6.0：同步服药计划
             closeMedModal();
             toast(editing ? '已更新' : '已入库');
             markSynced();

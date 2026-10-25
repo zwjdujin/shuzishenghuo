@@ -1,8 +1,8 @@
 import { json } from '../../_lib.js';
 import { syncPrimaryPhone } from './detail.js';
 
-// ===== 联系方式：电话 / 电子邮件 / 联系地址（可多个，带备注标签） =====
-const KINDS = ['phones', 'emails', 'addresses'];
+// ===== 联系方式：电话 / 电子邮件 / 联系地址 / QQ / 微信（可多个，带备注标签） =====
+const KINDS = ['phones', 'emails', 'addresses', 'qq', 'wechat'];
 const clean = (s, max) => String(s || '').trim().slice(0, max);
 
 // POST /api/profile/contacts {person_id, kind, value, label}

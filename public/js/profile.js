@@ -162,7 +162,7 @@ async function pfOpenProfile(id) {
   if (location.hash !== '#/relations/' + PF.pid) location.hash = '#/relations/' + PF.pid;
   pfEl('relListView').hidden = true;
   pfEl('relProfileView').hidden = false;
-  ['pfHero', 'pfBasic', 'pfSocial', 'pfMethods', 'pfRelatives', 'pfWork', 'pfEdu', 'pfPets']
+  ['pfHero', 'pfBasic', 'pfSocial', 'pfMethods', 'pfRelatives', 'pfWork', 'pfEdu', 'pfPets', 'pfBody', 'pfFiles']
     .forEach((k) => { const el = pfEl(k); if (el) el.innerHTML = '<div class="empty-hint">加载中…</div>'; });
   if (pfEl('pfFinance')) pfEl('pfFinance').innerHTML = '<div class="empty-hint">加载中…</div>';
   pfRenderFinance();
@@ -207,6 +207,187 @@ function pfRenderAll() {
   pfRenderWork();
   pfRenderEdu();
   pfRenderPets();
+  pfRenderTouch();   // v0.6.0：保持联系（节奏 + 今天联系过）
+  pfRenderBody();    // v0.6.0：个人信息（尺码 + 身高表 + 体重折线）
+  pfRenderFiles();   // v0.6.0：附件（R2）
+}
+
+// ===== v0.6.0：keep-in-touch（联系节奏设置 + 一键记录今天联系过） =====
+async function pfRenderTouch() {
+  const box = pfEl('pfTouchBox');
+  if (!box || !PF.data || !PF.data.base) return;
+  let cadence = 0;
+  try {
+    const res = await api('/api/profile/touch?id=' + PF.pid);
+    if (res.ok) cadence = Number((await res.json()).cadence) || 0;
+  } catch (_) { /* 忽略 */ }
+  const b = PF.data.base;
+  box.innerHTML = `
+    <select class="pf-touch-sel" id="pfTouchSel" aria-label="联系节奏">
+      <option value="0"${cadence ? '' : ' selected'}>不提醒</option>
+      <option value="3"${cadence === 3 ? ' selected' : ''}>每 3 天</option>
+      <option value="7"${cadence === 7 ? ' selected' : ''}>每 7 天</option>
+      <option value="14"${cadence === 14 ? ' selected' : ''}>每 14 天</option>
+      <option value="30"${cadence === 30 ? ' selected' : ''}>每 30 天</option>
+      <option value="90"${cadence === 90 ? ' selected' : ''}>每 90 天</option>
+    </select>
+    <button class="btn ghost sm" type="button" id="pfTouchNow" title="记录今天联系过">今天联系过</button>`;
+  const sel = box.querySelector('#pfTouchSel');
+  sel.onchange = async () => {
+    try {
+      const res = await api('/api/profile/touch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: PF.pid, cadence: Number(sel.value) }),
+      });
+      if (res.ok) { toast(Number(sel.value) ? '已设置联系节奏' : '已关闭提醒'); markSynced(); }
+    } catch (_) { /* 401 已处理 */ }
+  };
+  box.querySelector('#pfTouchNow').onclick = async () => {
+    try {
+      const res = await api('/api/profile/touch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: PF.pid, touched: true }),
+      });
+      if (res.ok) { toast('已记录：今天联系过'); markSynced(); }
+    } catch (_) { /* 401 已处理 */ }
+  };
+}
+
+// ===== v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） =====
+function pfToday() { return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10); }
+
+/** 体重折线：纯 SVG，min/max 参考线 + 末值标注；单点/空数据有兜底 */
+function pfWeightSvg(recs) {
+  if (!recs.length) return '';
+  const W = 640, H = 190, L = 46, R = 16, T = 14, B = 30;
+  const vs = recs.map((r) => r.value);
+  let min = Math.min(...vs), max = Math.max(...vs);
+  if (min === max) { min -= 2; max += 2; }
+  const pad = (max - min) * 0.12;
+  min -= pad; max += pad;
+  const x = (i) => (recs.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (recs.length - 1));
+  const y = (v) => T + ((max - v) / (max - min)) * (H - T - B);
+  const pts = recs.map((r, i) => `${x(i).toFixed(1)},${y(r.value).toFixed(1)}`).join(' ');
+  const last = recs[recs.length - 1];
+  const grid = (v) => `
+    <line x1="${L}" y1="${y(v)}" x2="${W - R}" y2="${y(v)}" stroke="var(--line)" stroke-dasharray="3 4" stroke-width="1"/>
+    <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" class="pf-wc-lab">${v % 1 ? v.toFixed(1) : v}kg</text>`;
+  return `
+    <svg class="pf-weight" viewBox="0 0 ${W} ${H}" role="img" aria-label="体重趋势折线图，共 ${recs.length} 次记录">
+      ${grid(Math.max(...vs))}${grid(Math.min(...vs))}
+      ${recs.length > 1 ? `<polyline points="${pts}" fill="none" stroke="var(--terra)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+      ${recs.map((r, i) => `<circle cx="${x(i)}" cy="${y(r.value)}" r="4" fill="var(--terra)" stroke="var(--card)" stroke-width="2"><title>${r.date} · ${r.value}kg</title></circle>`).join('')}
+      <text x="${x(recs.length - 1)}" y="${y(last.value) - 10}" text-anchor="middle" class="pf-wc-last">${last.value}kg</text>
+      <text x="${x(0)}" y="${H - 8}" text-anchor="middle" class="pf-wc-lab">${recs[0].date.slice(5)}</text>
+      ${recs.length > 1 ? `<text x="${x(recs.length - 1)}" y="${H - 8}" text-anchor="middle" class="pf-wc-lab">${last.date.slice(5)}</text>` : ''}
+    </svg>`;
+}
+
+async function pfRenderBody() {
+  const box = pfEl('pfBody');
+  if (!box || !PF.pid) return;
+  let data = { records: [], sizes: {} };
+  try {
+    const res = await api('/api/profile/body?id=' + PF.pid);
+    if (res.ok) data = await res.json();
+  } catch (_) { /* 401 已处理 */ }
+  const heights = (data.records || []).filter((r) => r.kind === 'height').reverse(); // 新记录在前
+  const weights = (data.records || []).filter((r) => r.kind === 'weight');
+  const sz = data.sizes || {};
+  const t = pfToday();
+
+  box.innerHTML = `
+    <div class="pf-hm">
+      <div class="pf-hm-block">
+        <b class="pm-block-title">身高记录 <span class="muted">cm</span></b>
+        <div class="pf-hm-add">
+          <input class="inp" id="pfHVal" type="number" inputmode="decimal" step="0.1" min="30" max="260" placeholder="如 175">
+          <input type="hidden" id="pfHDateInput" value="${t}">
+          <button type="button" class="dt-btn" data-dt="pfHDate" data-ph="今天"><svg><use href="#i-calendar"/></svg><span>今天</span></button>
+          <button class="btn ghost" data-act="hadd">记录</button>
+        </div>
+        ${heights.length ? `
+        <div class="pf-hm-table">
+          <div class="pf-hm-tr pf-hm-th"><span>日期</span><span>身高</span><span></span></div>
+          ${heights.map((r) => `
+          <div class="pf-hm-tr"><span>${pfEsc(r.date)}</span><b>${r.value} cm</b>
+            <button class="icon-btn" data-act="hdel" data-id="${r.id}" title="删除"><svg><use href="#i-x"/></svg></button></div>`).join('')}
+        </div>` : '<div class="empty-hint">还没有身高记录；22 岁前可随成长多次记录，之后基本定型。</div>'}
+      </div>
+      <div class="pf-hm-block">
+        <b class="pm-block-title">体重趋势 <span class="muted">kg</span></b>
+        <div class="pf-hm-add">
+          <input class="inp" id="pfWVal" type="number" inputmode="decimal" step="0.1" min="1" max="500" placeholder="如 62.5">
+          <input type="hidden" id="pfWDateInput" value="${t}">
+          <button type="button" class="dt-btn" data-dt="pfWDate" data-ph="今天"><svg><use href="#i-calendar"/></svg><span>今天</span></button>
+          <button class="btn ghost" data-act="wadd">记录</button>
+        </div>
+        ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">记录两次及以上体重，这里会画出趋势折线。</div>'}
+      </div>
+    </div>
+    <div class="pf-sizes">
+      <b class="pm-block-title">尺码 <span class="muted">买衣服鞋子前翻这里</span></b>
+      <div class="pf-size-grid">
+        <label>衣裤<input class="inp" id="szClothing" value="${pfEsc(sz.clothing || '')}" placeholder="如 XL / 175/96A" maxlength="20"></label>
+        <label>鞋子<input class="inp" id="szShoe" value="${pfEsc(sz.shoe || '')}" placeholder="如 42" maxlength="20"></label>
+        <label>戒指<input class="inp" id="szRing" value="${pfEsc(sz.ring || '')}" placeholder="如 17 号" maxlength="20"></label>
+        <label>手镯<input class="inp" id="szBracelet" value="${pfEsc(sz.bracelet || '')}" placeholder="如 58mm" maxlength="20"></label>
+      </div>
+      <button class="btn ghost" data-act="szsave">保存尺码</button>
+    </div>`;
+  // 日期按钮接全站统一选择器（补录用）
+  ['pfHDate', 'pfWDate'].forEach((k) => {
+    const btn = box.querySelector(`.dt-btn[data-dt="${k}"]`);
+    if (btn) window.attachSitePicker(btn, { mode: 'date', title: '记录日期' });
+  });
+  box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
+}
+
+// ===== v0.6.0：附件（照片 / 视频 / 文档，R2 桶 rjgx/姓名+手机号/） =====
+function pfFileIcon(mime, name) {
+  const m = String(mime || '');
+  if (m.startsWith('image/')) return '🖼️';
+  if (m.startsWith('video/')) return '🎬';
+  if (m.startsWith('audio/')) return '🎵';
+  if (m.includes('pdf')) return '📕';
+  if (/\.(docx?|pptx?|xlsx?|txt|csv)$/i.test(name || '')) return '📄';
+  return '📎';
+}
+function pfFileSize(n) {
+  if (!n) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function pfRenderFiles() {
+  const box = pfEl('pfFiles');
+  const hint = pfEl('pfFilesHint');
+  if (!box || !PF.pid) return;
+  let data = { files: [] };
+  try {
+    const res = await api('/api/profile/files?id=' + PF.pid);
+    if (res.ok) data = await res.json();
+  } catch (_) { /* 401 已处理 */ }
+  if (hint) hint.textContent = data.folder ? `rjgx/${data.folder}/` : '';
+  const fs = data.files || [];
+  box.innerHTML = fs.length ? fs.map((f) => {
+    const url = `/api/profile/files?id=${PF.pid}&fid=${f.id}`;
+    const isImg = String(f.mime || '').startsWith('image/');
+    return `
+    <div class="pf-file">
+      ${isImg ? `<a href="${url}" target="_blank" rel="noopener" class="pf-file-thumb"><img src="${url}" alt="${pfEsc(f.name)}" loading="lazy"></a>`
+        : `<a href="${url}" target="_blank" rel="noopener" class="pf-file-icon">${pfFileIcon(f.mime, f.name)}</a>`}
+      <div class="pf-file-meta">
+        <a href="${url}" target="_blank" rel="noopener" class="pf-file-name" title="${pfEsc(f.name)}">${pfEsc(f.name)}</a>
+        <span class="muted">${pfFileSize(f.size)}${f.date ? ' · ' + String(f.date).slice(5, 16) : ''}</span>
+      </div>
+      <div class="pf-file-ops">
+        <a class="icon-btn" href="${url}&dl=1" title="下载"><svg><use href="#i-upload"/></svg></a>
+        <button class="icon-btn" data-act="fdel" data-id="${f.id}" data-name="${pfEsc(f.name)}" title="删除"><svg><use href="#i-x"/></svg></button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-hint">暂无附件。照片、视频、文档都可上传，存在你自己的对象存储里。</div>';
 }
 
 function pfRenderHero() {
@@ -279,6 +460,8 @@ function pfRenderSocial() {
 const METHOD_META = [
   ['phones', '电话号码', '如：13800000000', ['个人', '工作', '家庭']],
   ['emails', '电子邮件', '如：name@example.com', ['个人', '工作']],
+  ['qq', 'QQ 号', '如：123456789', ['个人', '工作']],
+  ['wechat', '微信号', '如：wxid_xxx 或手机号', ['个人', '工作']],
   ['addresses', '联系地址', '如：江苏省南京市××路×号', ['家庭', '公司']],
 ];
 function pfRenderMethods() {
@@ -906,6 +1089,66 @@ function pfBindEvents() {
         company: fm.querySelector('[data-k=company]').value.trim(),
         position: fm.querySelector('[data-k=position]').value.trim() }) });
     if (res.ok) { toast('已保存'); pfOpenProfile(PF.pid); }
+  });
+
+  // —— v0.6.0 个人信息：身高/体重记录 + 尺码（事件委托）——
+  const bodyBox = pfEl('pfBody');
+  if (bodyBox) bodyBox.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'hadd' || act === 'wadd') {
+      const kind = act === 'hadd' ? 'height' : 'weight';
+      const val = pfEl(act === 'hadd' ? 'pfHVal' : 'pfWVal');
+      const date = pfEl(act === 'hadd' ? 'pfHDateInput' : 'pfWDateInput');
+      const value = Number(val && val.value);
+      if (!Number.isFinite(value) || value <= 0) { toast(kind === 'height' ? '请输入身高（cm）' : '请输入体重（kg）'); return; }
+      const res = await api('/api/profile/body', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, kind, value, date: date ? date.value : '' }) });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) { toast('已记录'); pfRenderBody(); markSynced(); } else toast(d.error || '保存失败');
+    } else if (act === 'hdel') {
+      if (!(await confirmModal('删除这条身高记录？'))) return;
+      const res = await api(`/api/profile/body?rid=${btn.dataset.id}`, { method: 'DELETE' });
+      if (res.ok) { toast('已删除'); pfRenderBody(); }
+    } else if (act === 'szsave') {
+      const g = (id) => { const el = pfEl(id); return el ? el.value.trim() : ''; };
+      const res = await api('/api/profile/body', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: PF.pid, sizes: { clothing: g('szClothing'), shoe: g('szShoe'), ring: g('szRing'), bracelet: g('szBracelet') } }) });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) { toast('尺码已保存'); markSynced(); } else toast(d.error || '保存失败');
+    }
+  });
+
+  // —— v0.6.0 附件：上传 + 删除 ——
+  const fileBtn = pfEl('pfFileBtn');
+  const fileInput = pfEl('pfFileInput');
+  if (fileBtn && fileInput) {
+    fileBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const files = [...fileInput.files];
+      fileInput.value = '';
+      if (!files.length || !PF.pid) return;
+      if (files.some((f) => f.size > 50 * 1024 * 1024)) { toast('单个文件不能超过 50MB'); return; }
+      const fd = new FormData();
+      fd.append('id', PF.pid);
+      files.forEach((f) => fd.append('file', f));
+      toast(`正在上传 ${files.length} 个文件…`);
+      try {
+        const res = await api('/api/profile/files', { method: 'POST', body: fd });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) { toast(`已上传 ${d.saved.length} 个文件` + (d.skipped && d.skipped.length ? `，${d.skipped.length} 个超限跳过` : '')); pfRenderFiles(); markSynced(); }
+        else toast(d.error || '上传失败');
+      } catch (err) { toast('上传失败：' + (err && err.message)); }
+    });
+  }
+  const filesBox = pfEl('pfFiles');
+  if (filesBox) filesBox.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-act=fdel]');
+    if (!btn) return;
+    if (!(await confirmModal(`删除附件「${btn.dataset.name || ''}」？对象存储里的文件也会一并删除。`))) return;
+    const res = await api(`/api/profile/files?id=${PF.pid}&fid=${btn.dataset.id}`, { method: 'DELETE' });
+    if (res.ok) { toast('已删除'); pfRenderFiles(); }
   });
 
   // —— 教育 ——

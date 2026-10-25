@@ -174,8 +174,14 @@ export function birthdayWithin30Of(c) {
  * 返回被删的联系人行（id 不存在时返回 null）。
  */
 export async function deleteContactCascade(env, id) {
-  const person = await env.DB.prepare('SELECT name FROM contacts WHERE id=?').bind(id).first();
+  const person = await env.DB.prepare('SELECT name, phone FROM contacts WHERE id=?').bind(id).first();
   if (!person) return null;
+  // v0.6.0：附件 R2 对象键先取出来（DB 行删掉就拿不到了）
+  let fileKeys = [];
+  try {
+    fileKeys = ((await env.DB.prepare('SELECT file_key FROM contact_files WHERE contact_id=?').bind(id).all()).results || [])
+      .map((r) => r.file_key);
+  } catch (_) { /* 表不存在（未迁移）时忽略 */ }
   await env.DB.batch([
     // 先清他人指向此人的引用（引荐人 / 家庭关系跳转 / 账本往来关联）
     env.DB.prepare('UPDATE contacts SET referrer_id=NULL WHERE referrer_id=?').bind(id),
@@ -187,7 +193,13 @@ export async function deleteContactCascade(env, id) {
     env.DB.prepare('DELETE FROM contact_work WHERE person_id=?').bind(id),
     env.DB.prepare('DELETE FROM contact_relatives WHERE person_id=?').bind(id),
     env.DB.prepare('DELETE FROM rel_pets WHERE person_id=?').bind(id),
+    env.DB.prepare('DELETE FROM body_records WHERE contact_id=?').bind(id),
+    env.DB.prepare('DELETE FROM contact_files WHERE contact_id=?').bind(id),
     env.DB.prepare('DELETE FROM contacts WHERE id=?').bind(id),
   ]);
+  // R2 里的附件对象一并清理（尽力而为；失败不影响联系人删除）
+  if (fileKeys.length && env.BUCKET) {
+    await Promise.all(fileKeys.map((k) => env.BUCKET.delete(k).catch(() => {})));
+  }
   return person;
 }

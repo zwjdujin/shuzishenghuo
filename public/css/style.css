@@ -528,7 +528,7 @@ html[data-mode="night"]{
 .cat-chip.on{background:var(--plum);border-color:var(--plum);color:#fff}
 
 /* ===== 家庭药箱（v0.3.7） ===== */
-.med-stats{grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:22px}
+.med-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:22px}
 .med-stats .ms{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .med-stats .ms::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--mc,var(--plum))}
 .med-stats .ms span{display:block;font-size:12px;color:var(--muted)}
@@ -931,6 +931,10 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
   html,body{overflow-x:hidden}
   .sidebar{display:none}
   .main-content{margin-left:0;padding:18px 16px calc(96px + env(safe-area-inset-bottom))}
+  /* 药箱概览手机端：5 格两列排布（2/2/1），五列太挤 */
+  .med-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .med-stats .ms{padding:12px 14px}
+  .med-stats .ms strong{font-size:22px}
   .dashboard-grid,.hero-card,.span-2{grid-column:auto;grid-template-columns:1fr}
   .hero-card{min-height:150px}
   .quick-grid{grid-template-columns:repeat(2,1fr)}
@@ -1296,8 +1300,6 @@ html[data-mode="night"] .txn-flow-seg .seg-item:has(input:checked){color:#fff!im
 .gh-actions{display:flex;align-items:center;gap:8px}
 /* 成长打卡「我的习惯」空提示：横跨整个网格行，文字与上下面板一样居中 */
 .habit-grid .empty-hint{grid-column:1/-1}
-/* 家庭药箱统计：5 张卡片一行展示（此前缺 display:grid，卡片竖向堆叠） */
-.med-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
 
 /* ================= v0.5.5：hash 路由配套 / 启动骨架 / 通用确认弹窗 ================= */
 /* 人际关系列表行：窄屏允许右侧徽标换行（替代已删除的 v0.3.0 窄屏规则） */
@@ -1328,3 +1330,138 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .confirm-actions .btn{flex:1;justify-content:center}
 .btn.danger{background:var(--red,#b3564d);border-color:var(--red,#b3564d);color:#fff}
 .btn.danger:hover{filter:brightness(1.06)}
+
+/* ================= v0.6.0 · P3 功能组件 ================= */
+/* 布局：通栏卡片占满网格行；「那年今天/保持联系」两卡并列，窄屏自动堆叠 */
+.p3-span{grid-column:1/-1}
+.p3-card{grid-column:span 1;min-width:0}
+@media (max-width:960px){.p3-card{grid-column:1/-1}}
+@media (max-width:860px){.p3-span{grid-column:auto}}
+
+/* --- 随手记（一句话 → AI 解析 / memo） --- */
+.qn-row{display:flex;gap:10px;margin-top:2px}
+.qn-row .inp{flex:1;min-width:0;height:46px;padding:0 15px;border:1px solid var(--line);border-radius:13px;background:var(--surface);font-size:14px;color:var(--ink)}
+.qn-row .inp:focus{outline:none;border-color:var(--plum);box-shadow:0 0 0 3px var(--plum-soft)}
+.qn-hint{margin:9px 2px 0;font-size:11.5px;color:var(--muted);line-height:1.6}
+.qn-memos{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.qn-memo{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px dashed var(--line);border-radius:12px;background:var(--surface)}
+.qn-memo small{flex:0 0 auto;color:var(--muted);font-weight:700;font-size:11px;padding-top:2px}
+.qn-memo span{flex:1;min-width:0;font-size:13px;line-height:1.55;color:var(--ink);word-break:break-word}
+.qn-memo .icon-btn{width:26px;height:26px;flex:0 0 auto}
+.qn-memos:empty{display:none}
+
+/* --- 那年今天 --- */
+.otd-body{min-height:74px}
+.otd-item{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,var(--plum-soft),var(--surface));border:1px dashed var(--line)}
+.otd-year{font:700 22px/1 var(--font-serif);color:var(--plum)}
+.otd-text{font-size:13.5px;line-height:1.6;color:var(--ink);word-break:break-word}
+.otd-kind{align-self:flex-start;font-size:10.5px;font-weight:700;color:var(--plum);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+
+/* --- 保持联系 --- */
+.touch-list{display:flex;flex-direction:column;gap:8px}
+.touch-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;text-align:left;font:inherit;color:inherit}
+.touch-row:hover{border-color:var(--plum)}
+.touch-row .contact-avatar{width:34px;height:34px;font-size:13px}
+.touch-row b{font-size:13.5px}
+.touch-row small{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+
+/* --- 今日服药（首页卡 + 药箱卡共用行样式） --- */
+.medtoday-list{display:flex;flex-direction:column;gap:8px}
+.medtoday-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.medtoday-row b{font:700 13px/1 ui-monospace,Menlo,Consolas,monospace;color:var(--plum);flex:0 0 44px}
+.medtoday-row span{flex:1;min-width:0;font-size:13.5px}
+.medtoday-row small.mtd-dose{flex:0 0 auto;color:var(--muted);font-size:11.5px}
+.medtoday-row .mtd-st{flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--sage)}
+.medtoday-row.done{opacity:.62}
+.btn.sm{height:32px;padding:0 12px;font-size:12.5px;border-radius:10px}
+
+/* --- 本周回顾 --- */
+.rv-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:4px}
+.rv-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:13px 6px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}
+.rv-item svg{width:17px;height:17px;color:var(--plum)}
+.rv-item b{font-size:14px}
+.rv-item small{font-size:11px;color:var(--muted)}
+.rv-cats{margin:11px 2px 0;font-size:12px;color:var(--muted)}
+@media (max-width:640px){.rv-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.rv-item:nth-child(4),.rv-item:nth-child(5){grid-column:span 1}}
+
+/* --- 分类预算行 --- */
+.lb-tip{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.6}
+.bg-list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.bg-list:empty{display:none}
+.bg-row{display:grid;grid-template-columns:minmax(56px,110px) 1fr auto;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:9px 12px;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.bg-row:hover{border-color:var(--plum)}
+.bg-name{font-size:12.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bg-bar{height:8px;border-radius:99px;background:var(--plum-soft);overflow:hidden}
+.bg-bar i{display:block;height:100%;border-radius:99px;background:var(--plum);transition:width .3s}
+.bg-bar i.warn{background:var(--sand)}
+.bg-bar i.over{background:var(--red)}
+.bg-num{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:560px){.bg-row{grid-template-columns:minmax(48px,84px) 1fr}.bg-num{grid-column:1/-1;text-align:right;margin-top:-2px}}
+
+/* --- 周期账单 --- */
+.rc-list{margin-top:12px;display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto}
+.rc-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.rc-row.off{opacity:.55}
+.rc-info{flex:1;min-width:0}
+.rc-info b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-info small{font-size:11px;color:var(--muted)}
+.rc-ops{display:flex;gap:2px}
+.rc-add{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.rc-add-row{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:8px}
+.rc-add-row input,.rc-add-row select{height:38px;padding:0 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:13px;min-width:0}
+.rc-add-row input:focus,.rc-add-row select:focus{outline:none;border-color:var(--plum)}
+
+/* --- 习惯：强度条 + 频率标签 --- */
+.strength{height:5px;border-radius:99px;background:var(--plum-soft);overflow:hidden;margin-top:7px}
+.strength i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--sand),var(--plum))}
+.hc-extra{display:flex;align-items:center;gap:8px;margin-top:9px}
+.hc-extra .strength{flex:1;margin-top:0}
+.hc-freq{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--terra);background:var(--terra-soft);border-radius:999px;padding:2px 9px}
+.hc-freq.met{color:var(--sage);background:var(--sage-soft)}
+.ci-text{min-width:0}
+.ci-text .strength{max-width:150px}
+
+/* --- 联系人档案：保持联系控件 --- */
+.pf-touch{display:inline-flex;align-items:center;gap:7px}
+.pf-touch-sel{height:36px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-size:12.5px}
+@media (max-width:640px){.pf-touch{margin-top:8px}}
+
+/* --- 药品表单：服药计划区块 --- */
+.medplan-box{margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:12px;background:var(--surface)}
+.medplan-fields{margin-top:10px}
+.mp-days{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+.mp-days .chip{min-width:34px;justify-content:center}
+
+/* --- v0.6.0 档案：个人信息（身高/体重/尺码） --- */
+.pf-hm{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.pf-hm-block{min-width:0}
+.pf-hm-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 12px}
+.pf-hm-add .inp{width:110px}
+.pf-hm-table{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pf-hm-tr{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font-size:13px}
+.pf-hm-tr:first-child{border-top:0}
+.pf-hm-tr.pf-hm-th{background:var(--surface);color:var(--muted);font-size:12px}
+.pf-hm-tr b{font-family:var(--font-serif);font-size:14px}
+.pf-weight{width:100%;height:auto;display:block;margin-top:4px}
+.pf-wc-lab{font-size:11px;fill:var(--muted)}
+.pf-wc-last{font-size:13px;font-weight:700;fill:var(--ink)}
+.pf-sizes{margin-top:22px;border-top:1px dashed var(--line);padding-top:16px}
+.pf-size-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.pf-size-grid label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+@media (max-width:860px){
+  .pf-hm{grid-template-columns:1fr}
+  .pf-size-grid{grid-template-columns:1fr 1fr}
+}
+
+/* --- v0.6.0 档案：附件（R2） --- */
+.pf-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.pf-file{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.pf-file-thumb{display:block;aspect-ratio:4/3;background:var(--card)}
+.pf-file-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pf-file-icon{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;font-size:34px;text-decoration:none;background:var(--card)}
+.pf-file-meta{padding:8px 10px 4px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.pf-file-name{font-size:12.5px;color:var(--ink);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf-file-name:hover{text-decoration:underline}
+.pf-file-meta .muted{font-size:11px}
+.pf-file-ops{display:flex;gap:2px;padding:2px 6px 6px;margin-top:auto}
+.pf-file-ops .icon-btn{width:28px;height:28px}

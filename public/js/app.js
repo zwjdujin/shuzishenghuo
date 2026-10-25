@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.5
-const VERSION = '0.5.5';
+// 数字生活 · 前端逻辑 v0.5.6
+const VERSION = '0.5.6';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = 'P1 流程地基（hash 发布/迁移管理/CI）+ P2 体验修复（hash 路由/首屏三件套/confirmModal/CSS 清理/外键/小修包）';
+const __BUILD_ID__ = 'P3 功能整合 + 档案增强：首页随手记(AI)/那年今天/保持联系/今日服药/本周回顾；账本分类预算/周期账单；习惯频率与强度；药箱今日服药(手机端概览两列)；档案 QQ/微信/身高体重尺码/R2附件(rjgx)；Worker 统一提醒调度(日检6:00)';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -645,6 +645,251 @@ function renderHome(d) {
   renderTodayTasks(d.todayTasks || []);
   renderPendingHabits(d.pendingHabits || []);
   renderGlance(d);
+  renderP3(d.p3 || {});   // v0.6.0：随手记 / 那年今天 / 保持联系 / 今日服药
+}
+
+/* ================= v0.6.0 · P3 首页卡片 ================= */
+
+/** 随手记：一句话 → 优先 AI 解析（可编辑预览），未配置 AI 则直接存 memo */
+async function quickNoteSubmit(e) {
+  e.preventDefault();
+  const input = $('#qnInput');
+  const btn = $('#qnSubmitBtn');
+  const text = String(input.value || '').trim();
+  if (!text) return;
+  btn.disabled = true;
+  try {
+    let parsed = null;
+    try {
+      const res = await api('/api/ai/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const d = await res.json();
+      if (d.ok) parsed = d.draft;
+    } catch (_) { /* AI 不可用走 memo */ }
+    if (parsed && (parsed.module === 'transaction' || parsed.module === 'todo')) {
+      openAiPreview(text, parsed);   // 人做最后确认
+    } else {
+      const res = await api('/api/memos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text }),
+      });
+      if (res.ok) { toast('已记下'); markSynced(); await refreshP3Memos(); }
+    }
+    input.value = '';
+  } catch (_) { /* 401 已处理 */ } finally { btn.disabled = false; }
+}
+
+/** AI 解析预览弹窗：字段可改，确认后入库 */
+function openAiPreview(rawText, draft) {
+  const m = $('#aiPreviewModal');
+  if (!m) return;
+  $('#aiRawText').textContent = '「' + rawText + '」';
+  const mod = draft.module === 'todo' ? 'todo' : 'transaction';
+  $('#aiModule').value = mod;
+  $('#aiFlow').value = draft.flow === 'income' ? 'income' : 'expense';
+  $('#aiAmount').value = draft.amount != null ? draft.amount : '';
+  $('#aiCategory').value = draft.category || '';
+  $('#aiDate').value = draft.date || todayStrLocal();
+  $('#aiTitle').value = draft.title || rawText.slice(0, 40);
+  $('#aiTodoDate').value = draft.date || todayStrLocal();
+  aiPreviewToggleFields();
+  openModal(m);
+}
+function aiPreviewToggleFields() {
+  const mod = $('#aiModule').value;
+  $('#aiTxnFields').hidden = mod !== 'transaction';
+  $('#aiTodoFields').hidden = mod !== 'todo';
+  $('#aiOkBtn').querySelector('span').textContent = mod === 'transaction' ? '确认入账' : (mod === 'todo' ? '添加待办' : '存为备忘');
+}
+async function aiPreviewConfirm() {
+  const mod = $('#aiModule').value;
+  try {
+    if (mod === 'transaction') {
+      const amount = Number($('#aiAmount').value);
+      if (!Number.isFinite(amount) || amount <= 0) { toast('请填写有效金额'); return; }
+      const res = await api('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          flow: $('#aiFlow').value, amount,
+          category: $('#aiCategory').value.trim() || '其他',
+          date: $('#aiDate').value.trim() || todayStrLocal(),
+          note: $('#aiRawText').textContent.replace(/[「」]/g, '').slice(0, 60),
+        }),
+      });
+      if (!res.ok) { toast('保存失败'); return; }
+      toast('已记账'); markSynced();
+    } else if (mod === 'todo') {
+      const title = $('#aiTitle').value.trim();
+      if (!title) { toast('请填写内容'); return; }
+      const res = await api('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, date: $('#aiTodoDate').value.trim() || todayStrLocal(), list: '生活' }),
+      });
+      if (!res.ok) { toast('保存失败'); return; }
+      toast('已添加待办'); markSynced();
+    } else {
+      const raw = $('#aiRawText').textContent.replace(/[「」]/g, '');
+      await api('/api/memos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: raw }) });
+      toast('已记下'); markSynced();
+    }
+    closeModal($('#aiPreviewModal'));
+    refreshP3Memos();
+  } catch (_) { /* 401 已处理 */ }
+}
+
+async function refreshP3Memos() {
+  try {
+    const res = await api('/api/memos?limit=3');
+    const d = await res.json();
+    renderP3Memos(d.list || []);
+  } catch (_) { /* 忽略 */ }
+}
+function renderP3Memos(list) {
+  const box = $('#qnMemoList');
+  if (!box) return;
+  if (!list.length) { box.innerHTML = ''; return; }
+  box.innerHTML = list.map((m) => `
+    <div class="qn-memo">
+      <small>${escHtml(m.date.slice(5))}</small>
+      <span></span>
+      <button class="icon-btn del" data-memo-id="${m.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
+    </div>`).join('');
+  const spans = box.querySelectorAll('.qn-memo span');
+  list.forEach((m, i) => { spans[i].textContent = m.content; });
+  box.querySelectorAll('.del').forEach((b) => {
+    b.onclick = async () => {
+      if (!(await confirmModal('删除这条备忘？'))) return;
+      await api('/api/memos/' + b.dataset.memoId, { method: 'DELETE' }).catch(() => {});
+      refreshP3Memos();
+    };
+  });
+}
+
+/** 首页 P3 卡片渲染入口 */
+function renderP3(p3) {
+  if (!p3) return;
+  renderP3Memos(p3.memos || []);
+  // 那年今天
+  const otd = $('#p3OnThisDay');
+  if (otd) {
+    if (p3.onthisday) {
+      otd.hidden = false;
+      renderOnThisDay();
+    } else otd.hidden = true;
+  }
+  // 保持联系
+  const tc = $('#p3Touch');
+  if (tc) {
+    const list = p3.touchDue || [];
+    tc.hidden = !list.length;
+    if (list.length) {
+      $('#touchList').innerHTML = list.map((t) => `
+        <button class="touch-row" data-pf-id="${t.id}">
+          <span class="contact-avatar">${escHtml((t.name || '?')[0])}</span>
+          <b></b><small>超 ${t.days} 天 · 每 ${t.cadence} 天一次</small>
+        </button>`).join('');
+      $('#touchList').querySelectorAll('.touch-row').forEach((el, i) => { el.querySelector('b').textContent = list[i].name; });
+      $('#touchList').querySelectorAll('.touch-row').forEach((el) => {
+        el.onclick = () => { location.hash = '#/relations/' + el.dataset.pfId; };
+      });
+    }
+  }
+  // 今日服药（在药箱模块渲染详情，首页只列条目）
+  const mc = $('#p3MedToday');
+  if (mc) {
+    const list = p3.medToday || [];
+    mc.hidden = !list.length;
+    if (list.length) {
+      $('#medTodayList').innerHTML = list.map((p) => `
+        <div class="medtoday-row"><b>${p.time}</b><span></span>
+          <button class="btn sm" data-med-log="${p.id}" data-st="taken">已服</button>
+          <button class="btn ghost sm" data-med-log="${p.id}" data-st="skipped">跳过</button>
+        </div>`).join('');
+      const spans = $('#medTodayList').querySelectorAll('span');
+      list.forEach((p, i) => { spans[i].textContent = p.medicine + (p.time ? '' : ''); });
+      $('#medTodayList').querySelectorAll('[data-med-log]').forEach((b) => {
+        b.onclick = async () => {
+          try {
+            const res = await api('/api/med-plans/' + b.dataset.medLog + '/log', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: b.dataset.st }),
+            });
+            if (res.ok) { toast(b.dataset.st === 'taken' ? '已确认服药，库存 -1' : '已跳过'); markSynced(); loadHome(); }
+          } catch (_) { /* 401 已处理 */ }
+        };
+      });
+    }
+  }
+  // 本周回顾（异步拉取）
+  renderP3Review();
+}
+
+/** 那年今天：进页拉全量，随机/轮换展示一条 */
+let otdPool = [];
+let otdIdx = 0;
+async function renderOnThisDay() {
+  try {
+    if (!otdPool.length) {
+      const res = await api('/api/onthisday');
+      const d = await res.json();
+      otdPool = [];
+      (d.years || []).forEach((y) => {
+        y.memos.forEach((x) => otdPool.push({ year: y.year, text: x.content, kind: '备忘' }));
+        y.habits.forEach((x) => otdPool.push({ year: y.year, text: `${x.habit} 打卡 ${x.done} ${x.unit || '次'}`, kind: '打卡' }));
+        y.todos.forEach((x) => otdPool.push({ year: y.year, text: '完成待办：' + x.title, kind: '待办' }));
+        y.events.forEach((x) => otdPool.push({ year: y.year, text: x.title, kind: '日程' }));
+        y.txnItems.slice(0, 3).forEach((x) => otdPool.push({
+          year: y.year,
+          text: `${x.flow === 'income' ? '收入' : '支出'} ¥${x.amount} · ${x.category}${x.note ? '（' + x.note + '）' : ''}`,
+          kind: '账本',
+        }));
+      });
+      otdPool.sort(() => Math.random() - 0.5);
+    }
+    const body = $('#otdBody');
+    if (!body) return;
+    if (!otdPool.length) { body.innerHTML = '<div class="empty-hint">数据积累中，明年的今天这里会有故事。</div>'; return; }
+    otdIdx = (otdIdx + 1) % otdPool.length;
+    const it = otdPool[otdIdx];
+    body.innerHTML = `
+      <div class="otd-item">
+        <div class="otd-year">${it.year}</div>
+        <div class="otd-text"></div>
+        <div class="otd-kind">${it.kind}</div>
+      </div>`;
+    body.querySelector('.otd-text').textContent = it.text;
+  } catch (_) { /* 忽略 */ }
+}
+
+/** 本周回顾卡片 */
+async function renderP3Review() {
+  const card = $('#p3Review');
+  if (!card) return;
+  try {
+    const res = await api('/api/review');
+    const d = await res.json();
+    const items = [
+      { icon: 'sprout', label: '打卡', val: `${d.habits.doneDays} 天` },
+      { icon: 'bell', label: '完成待办', val: `${d.todos.done} 件` },
+      { icon: 'wallet', label: '支出', val: money(d.ledger.expense) },
+      { icon: 'book', label: '随手记', val: `${d.memos} 条` },
+      { icon: 'calendar', label: '日程', val: `${d.events} 个` },
+    ];
+    $('#rvTitle').textContent = `这一周（${d.week.from.slice(5)} ~ ${d.week.to.slice(5)}）`;
+    $('#rvGrid').innerHTML = items.map((x) => `
+      <div class="rv-item"><svg><use href="#i-${x.icon}"/></svg><b>${escHtml(x.val)}</b><small>${x.label}</small></div>`).join('');
+    const cats = (d.ledger.topCats || []).slice(0, 3);
+    $('#rvCats').textContent = cats.length
+      ? '花得最多的三样：' + cats.map((c) => `${c.name} ${money(c.value)}`).join(' · ')
+      : '本周还没有支出记录。';
+    card.hidden = false;
+  } catch (_) { card.hidden = true; }
 }
 
 function summaryLine(s) {
@@ -1451,9 +1696,11 @@ async function renderLedger() {
       payees: data.payees || {},
       linked: data.linked || {},
       budget: Number(data.budget) || 0,
+      budgets: data.budgets || [],
       summary: data.summary || {},
       social: data.social || { out: 0, in: 0, count: 0 },
     };
+    if (data.recurringGenerated > 0) toast(`已自动记入 ${data.recurringGenerated} 笔周期账单`);
     if (data.catTree) catTree = data.catTree;
     renderLedgerStats();
     renderBudget();
@@ -1479,58 +1726,170 @@ function renderLedgerStats() {
     <div class="ls"><span>日均支出</span><strong>${money(s.avgDaily)}</strong><small>人情往来 ${sc.count} 笔 · 出 ${money(sc.out)}</small></div>`;
 }
 
-// 月预算：进度条 + 超支提醒（预算存 app_settings.ledger_budget，多端一致）
+// 月预算（v0.6.0：总额度条沿用 app_settings.ledger_budget；新增每分类额度进度）
+// 面板骨架（标题/周期账单入口/预算入口/总额条/分类列表容器）在 index.html 静态存在
 function renderBudget() {
-  const box = $('#ledgerBudget');
-  if (!box) return;
+  const bar = $('#lbTotalBar');
+  const list = $('#budgetList');
+  if (!bar || !list) return;
   const b = ledgerData.budget;
   const spent = Number(ledgerData.summary.expense) || 0;
+  const buds = ledgerData.budgets || [];
+
   if (!b) {
-    box.innerHTML = `
+    bar.innerHTML = `
       <div class="lb-head">
-        <div><p class="eyebrow">本月预算</p><h2>还没有设置预算</h2></div>
+        <div><p class="eyebrow">总额度</p><h2>还没有设置预算</h2></div>
         <button class="text-btn" type="button" id="lbSetBtn">设置</button>
       </div>
-      <p class="lb-tip">设一个月度预算，平时能看到已用比例，超支时这里会直接提醒你。</p>
-      <div class="lb-edit" id="lbEdit" hidden>
-        <input type="number" min="1" step="1" id="lbInput" placeholder="例如 5000" inputmode="decimal" aria-label="月预算金额">
-        <button class="btn primary" type="button" id="lbSaveBtn">保存</button>
-      </div>`;
+      <p class="lb-tip">设一个月度预算或下面的分类额度，超支时这里会直接提醒你。</p>`;
   } else {
     const pct = Math.round((spent / b) * 100);
     const cls = pct > 100 ? 'over' : pct >= 80 ? 'warn' : '';
-    box.innerHTML = `
+    bar.innerHTML = `
       <div class="lb-head">
-        <div><p class="eyebrow">本月预算</p><h2>${money(b)} · 已用 ${pct}%</h2></div>
-        <button class="text-btn" type="button" id="lbSetBtn">设置</button>
+        <div><p class="eyebrow">总额度</p><h2>${money(b)} · 已用 ${pct}%</h2></div>
+        <button class="text-btn" type="button" id="lbSetBtn">改</button>
       </div>
       <div class="lb-bar"><i class="${cls}" style="width:${Math.min(100, Math.max(pct, 1))}%"></i></div>
       <div class="lb-foot">
         <span>已支出 <b>${money(spent)}</b></span>
         <span class="${pct > 100 ? 'over' : ''}">${pct > 100 ? '已超支 ' + money(spent - b) : '还剩 ' + money(b - spent)}</span>
-      </div>
-      <div class="lb-edit" id="lbEdit" hidden>
-        <input type="number" min="1" step="1" id="lbInput" value="${b}" inputmode="decimal" aria-label="月预算金额">
-        <button class="btn primary" type="button" id="lbSaveBtn">保存</button>
-        <button class="btn ghost" type="button" id="lbClearBtn">清除预算</button>
       </div>`;
   }
   // 幂等绑定（renderBudget 会被反复调用，必须用 onclick 赋值而非 addEventListener）
   const setBtn = $('#lbSetBtn');
   if (setBtn) setBtn.onclick = () => {
-    const e = $('#lbEdit');
-    e.hidden = !e.hidden;
-    if (!e.hidden) { const i = $('#lbInput'); if (i) i.focus(); }
+    const v = promptBudgetTotal(b);
+    if (v !== null) saveLedgerBudget(v);
   };
-  const saveBtn = $('#lbSaveBtn');
-  if (saveBtn) saveBtn.onclick = () => saveLedgerBudget();
-  const clearBtn = $('#lbClearBtn');
-  if (clearBtn) clearBtn.onclick = () => saveLedgerBudget(0);
+
+  // 每分类额度进度（点行可改额度）
+  list.innerHTML = buds.map((x) => {
+    const pct = Math.round((x.pct || 0) * 100);
+    const cls = pct > 100 ? 'over' : pct >= 80 ? 'warn' : '';
+    return `<button class="bg-row" type="button" data-cat="${escHtml(x.category)}">
+      <span class="bg-name"></span>
+      <span class="bg-bar"><i class="${cls}" style="width:${Math.min(100, Math.max(pct, 1))}%"></i></span>
+      <span class="bg-num">${money(x.used)} / ${money(x.amount)}${pct > 100 ? ' 超了' : ''}</span>
+    </button>`;
+  }).join('');
+  const rows = list.querySelectorAll('.bg-row');
+  buds.forEach((x, i) => { if (rows[i]) rows[i].querySelector('.bg-name').textContent = x.category; });
+  rows.forEach((r) => { r.onclick = () => openBudgetModal(r.dataset.cat); });
 }
 
-async function saveLedgerBudget(force) {
-  const v = force === 0 ? 0 : Number(($('#lbInput') || {}).value);
-  if (force !== 0 && (!Number.isFinite(v) || v <= 0)) { toast('请输入大于 0 的金额'); return; }
+/** 总额预算用 askText 弹窗输入（WebView 下 prompt 不可用） */
+async function promptBudgetTotal(cur) {
+  const v = await askText({ title: '本月总预算（元，填 0 清除）', value: String(cur || ''), maxlen: 8 });
+  if (v === null || v === undefined || v === '') return null;
+  return Number(v);
+}
+
+/** 分类预算编辑弹窗 */
+async function openBudgetModal(cat) {
+  const m = $('#budgetModal');
+  if (!m) return;
+  $('#bgCategory').value = cat || '';
+  const cur = (ledgerData.budgets || []).find((x) => x.category === cat);
+  $('#bgAmount').value = cur ? cur.amount : '';
+  $('#budgetModalTitle').textContent = cat ? '调整「' + cat + '」预算' : '设置分类预算';
+  openModal(m);
+}
+async function saveBudgetModal() {
+  const cat = String($('#bgCategory').value || '').trim();
+  const amount = Number($('#bgAmount').value);
+  if (!cat) { toast('请填写分类'); return; }
+  if (!Number.isFinite(amount) || amount < 0) { toast('额度无效'); return; }
+  try {
+    const res = await api('/api/budgets', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, month: ledgerState.month, amount }),
+    });
+    if (res.ok) {
+      closeModal($('#budgetModal'));
+      toast(amount > 0 ? '预算已保存' : '已取消该分类预算');
+      markSynced();
+      await renderLedger();
+    } else toast('保存失败');
+  } catch (_) { /* 401 已处理 */ }
+}
+
+/** 周期账单管理弹窗 */
+async function openRecurringModal() {
+  const m = $('#recurringModal');
+  if (!m) return;
+  openModal(m);
+  await refreshRecurringList();
+}
+async function refreshRecurringList() {
+  const box = $('#rcList');
+  if (!box) return;
+  try {
+    const res = await api('/api/recurring');
+    const d = await res.json();
+    const list = d.list || [];
+    // datalist 供新增表单联想
+    const dl = $('#aiCatList');
+    if (dl && catTree) dl.innerHTML = [...catTree.expense, ...catTree.income].map((c) => `<option value="${escHtml(c.name)}">`).join('');
+    if (!list.length) { box.innerHTML = '<div class="empty-hint">还没有周期账单，加一条试试（如每月房租）。</div>'; return; }
+    box.innerHTML = list.map((r) => `
+      <div class="rc-row${r.active ? '' : ' off'}">
+        <div class="rc-info"><b></b>
+          <small>${r.freq === 'monthly' ? '每月' : r.freq === 'weekly' ? '每周' : '每天'} · 下次 ${escHtml(r.next)} · ${money(r.amount)}</small>
+        </div>
+        <div class="rc-ops">
+          <button class="icon-btn" data-rc-toggle="${r.id}" data-active="${r.active ? 0 : 1}" title="${r.active ? '暂停' : '启用'}" aria-label="${r.active ? '暂停' : '启用'}"><svg><use href="#i-${r.active ? 'eye' : 'sun'}"/></svg></button>
+          <button class="icon-btn del" data-rc-del="${r.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
+        </div>
+      </div>`).join('');
+    const names = box.querySelectorAll('.rc-info b');
+    list.forEach((r, i) => { names[i].textContent = `${r.flow === 'income' ? '收入' : '支出'} · ${r.note || r.category}`; });
+    box.querySelectorAll('[data-rc-toggle]').forEach((b) => {
+      b.onclick = async () => {
+        await api('/api/recurring/' + b.dataset.rcToggle, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: b.dataset.active === '1' }) }).catch(() => {});
+        refreshRecurringList();
+      };
+    });
+    box.querySelectorAll('[data-rc-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmModal('删除这条周期账单？'))) return;
+        await api('/api/recurring/' + b.dataset.rcDel, { method: 'DELETE' }).catch(() => {});
+        refreshRecurringList();
+      };
+    });
+  } catch (_) { box.innerHTML = '<div class="empty-hint">加载失败</div>'; }
+}
+async function addRecurring() {
+  const amount = Number($('#rcAmount').value);
+  if (!Number.isFinite(amount) || amount <= 0) { toast('请填写有效金额'); return; }
+  const next = String($('#rcNext').value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(next)) { toast('下次日期应为 YYYY-MM-DD'); return; }
+  try {
+    const res = await api('/api/recurring', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow: $('#rcFlow').value, amount,
+        category: $('#rcCategory').value.trim() || '其他',
+        freq: $('#rcFreq').value, next, note: $('#rcNote').value.trim(),
+      }),
+    });
+    if (res.ok) {
+      toast('已添加，到期打开账本自动入账');
+      $('#rcAmount').value = ''; $('#rcNext').value = ''; $('#rcNote').value = '';
+      refreshRecurringList();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      toast(d.error || '添加失败');
+    }
+  } catch (_) { /* 401 已处理 */ }
+}
+
+async function saveLedgerBudget(v) {
+  if (v === null || v === undefined) return;
+  if (!Number.isFinite(v) || v < 0) { toast('请输入有效金额'); return; }
   try {
     const res = await api('/api/settings', {
       method: 'PUT',
@@ -2685,6 +3044,58 @@ async function renderGrowth() {
   }
 }
 
+/* ===== v0.6.0：习惯频率目标与坚持强度（Loop Habit Tracker 思路） ===== */
+function habitWeekRange() {
+  const t = new Date(todayStrLocal() + 'T00:00:00');
+  const dow = t.getDay() || 7;
+  const mon = new Date(t);
+  mon.setDate(t.getDate() - dow + 1);
+  const p = (n) => String(n).padStart(2, '0');
+  const f = (d) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return [f(mon), f(t)];
+}
+/** 频率目标进度：weekly → 本周 x/N；interval → 距上次天数。daily/睡眠返回 null */
+function habitPeriodInfo(h) {
+  if (!h.freqType || h.freqType === 'daily' || h.type === 'sleep') return null;
+  const logs = h.logs30 || [];
+  const today = todayStrLocal();
+  if (h.freqType === 'weekly') {
+    const [mon] = habitWeekRange();
+    let occ = 0;
+    logs.forEach(([d, done]) => {
+      if (d >= mon && d <= today) occ += Math.min(1, (Number(done) || 0) / ((Number(h.target) || 1)));
+    });
+    return { text: `本周 ${Math.min(occ, h.freqValue)}/${h.freqValue}`, met: occ >= h.freqValue };
+  }
+  let last = null;
+  logs.forEach(([d]) => { if (d <= today && (!last || d > last)) last = d; });
+  const since = last ? Math.round((Date.parse(today) - Date.parse(last)) / 86400000) : null;
+  return {
+    text: last ? `上次 ${since} 天前 · 每 ${h.freqValue} 天一次` : `还没打过卡 · 每 ${h.freqValue} 天一次`,
+    met: since !== null && since < h.freqValue,
+  };
+}
+/** 坚持强度：近 30 天打卡按 14 天半衰指数加权（一次遗漏不清零，连续中断才快速回落） */
+function habitStrength(h) {
+  const logs = h.logs30 || [];
+  if (!logs.length) return 0;
+  const today = todayStrLocal();
+  let s = 0;
+  logs.forEach(([d, done]) => {
+    const age = Math.max(0, Math.round((Date.parse(today) - Date.parse(d)) / 86400000));
+    s += (Number(done) || 0) * Math.pow(0.5, age / 14);
+  });
+  let norm = 0;
+  for (let i = 0; i < 30; i++) norm += Math.pow(0.5, i / 14);
+  const periodFactor = h.freqType === 'weekly' ? (Number(h.freqValue) || 1) / 7
+    : h.freqType === 'interval' ? 1 / (Number(h.freqValue) || 1) : 1;
+  return Math.max(0, Math.min(1, s / ((Number(h.target) || 1) * periodFactor * norm)));
+}
+function habitStrengthBar(h) {
+  const pct = Math.round(habitStrength(h) * 100);
+  return `<div class="strength" title="坚持强度 ${pct}%"><i style="width:${Math.max(3, pct)}%"></i></div>`;
+}
+
 function checkinCard(h) {
   const el = document.createElement('div');
   el.className = 'checkin-card';
@@ -2725,7 +3136,7 @@ function checkinCard(h) {
   el.innerHTML = `
     <div class="ci-main">
       <span class="ci-icon" style="background:${catTint(h.color)};color:${catColor(h.color)}"><svg><use href="#i-${h.icon}"/></svg></span>
-      <div class="ci-text"><b></b><small>${cat} ${sub}</small></div>
+      <div class="ci-text"><b></b><small>${cat} ${sub}${(() => { const p = habitPeriodInfo(h); return p ? ' · ' + p.text : ''; })()}</small>${habitStrengthBar(h)}</div>
     </div>
     <div class="ci-actions${h.type === 'sleep' ? ' tri' : ''}">${actions}</div>`;
   el.querySelector('b').textContent = h.name;
@@ -2804,7 +3215,8 @@ function renderHabitGrid(habits) {
         <button class="icon-btn edit" data-id="${h.id}" title="编辑" aria-label="编辑"><svg><use href="#i-edit"/></svg></button>
         <button class="icon-btn del" data-id="${h.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
       </div>
-      <div class="hc-prog">${prog}</div>`;
+      <div class="hc-prog">${prog}</div>
+      <div class="hc-extra">${habitStrengthBar(h)}${(() => { const p = habitPeriodInfo(h); return p ? `<span class="hc-freq${p.met ? ' met' : ''}">${p.text}</span>` : ''; })()}</div>`;
     el.querySelector('b').textContent = h.name;
     el.querySelector('.edit').addEventListener('click', () => editHabit(h.id));
     el.querySelector('.del').addEventListener('click', () => deleteHabit(h.id, h.name));
@@ -2898,6 +3310,9 @@ async function editHabit(id) {
   const f = $('#habitForm');
   f.reset();
   f.querySelector('[name=name]').value = h.name;
+  // v0.6.0：频率目标回填
+  if (h.freqType) f.querySelector('[name=freqType]').value = h.freqType;
+  if (h.freqValue) f.querySelector('[name=freqValue]').value = h.freqValue;
   const preset = ['学习', '锻炼', '睡眠'].includes(h.category);
   const catSel = f.querySelector('[name=category]');
   if (preset) {
@@ -2978,6 +3393,7 @@ bind('#habitForm', 'submit', async (e) => {
   const payload = {
     name, icon: fd.get('icon') || 'sprout', color: fd.get('color') || 'sage',
     category, type, method, target, unit, bed_time, rise_time, nap_time,
+    freqType: fd.get('freqType') || 'daily', freqValue: Number(fd.get('freqValue')) || 1,
   };
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true;
@@ -3852,6 +4268,24 @@ $$('#ledFlowFilter .lf-btn').forEach((b) => {
   };
 });
 bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; renderTxnList(); });
+
+// ===== v0.6.0 · P3 事件绑定 =====
+bind('#qnForm', 'submit', quickNoteSubmit);
+bind('#otdRefresh', 'click', renderOnThisDay);
+bind('#aiPreviewClose', 'click', () => closeModal($('#aiPreviewModal')));
+bind('#aiPreviewModal', 'click', (e) => { if (e.target === $('#aiPreviewModal')) closeModal($('#aiPreviewModal')); });
+bind('#aiModule', 'change', aiPreviewToggleFields);
+bind('#aiCancelBtn', 'click', () => closeModal($('#aiPreviewModal')));
+bind('#aiOkBtn', 'click', aiPreviewConfirm);
+bind('#recurringBtn', 'click', openRecurringModal);
+bind('#recurringModalClose', 'click', () => closeModal($('#recurringModal')));
+bind('#recurringModal', 'click', (e) => { if (e.target === $('#recurringModal')) closeModal($('#recurringModal')); });
+bind('#rcAddBtn', 'click', addRecurring);
+bind('#budgetAddBtn', 'click', () => openBudgetModal(''));
+bind('#budgetModalClose', 'click', () => closeModal($('#budgetModal')));
+bind('#budgetModal', 'click', (e) => { if (e.target === $('#budgetModal')) closeModal($('#budgetModal')); });
+bind('#bgSaveBtn', 'click', saveBudgetModal);
+bind('#bgCancelBtn', 'click', () => closeModal($('#budgetModal')));
 
 // ===== PWA =====
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
