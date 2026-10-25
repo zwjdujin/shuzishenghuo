@@ -53,11 +53,9 @@ if [ -f wrangler.toml ]; then
   echo "    wrangler.toml 已更新 database_id"
 fi
 
-# ---------- 2) 初始化表结构 + 示例数据 ----------
-echo "==> 执行 schema.sql"
-wrangler d1 execute "$PROJECT" --file=./schema.sql --yes
-echo "==> 执行 seed.sql"
-wrangler d1 execute "$PROJECT" --file=./seed.sql --yes
+# ---------- 2) 初始化数据库（统一走 migrations，有执行记录、可增量）----------
+echo "==> 应用数据库迁移（migrations/）"
+wrangler d1 migrations apply "$PROJECT" --remote
 
 # ---------- 3) 创建 R2 存储桶（失败不阻断，当前版本未使用）----------
 echo "==> 确保 R2 桶 $PROJECT 存在"
