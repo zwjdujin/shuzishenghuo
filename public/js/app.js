@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.21
-const VERSION = '0.5.21';
+// 数字生活 · 前端逻辑 v0.5.22
+const VERSION = '0.5.22';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '随手记拍照/上传图片 AI 识别 + AI 记忆面板 + 模型测试连接与视觉勾选（补 qnSetImage(null) 清理遗漏：提交后图片数据残留会污染后续解析）';
+const __BUILD_ID__ = '手机端横向溢出修复：首页 dashboard 与账本构成/明细的移动端网格轨道改 minmax(0,1fr)+子项 min-width:0（此前被内容 min-content 撑出右边界）；账本分类管理增删改/隐藏/排序不再全量重渲染账本，返回账本时统一刷新';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -3283,7 +3283,7 @@ function ledsetRow(cat, level, opt = {}) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: v }),
     });
-    if (res.ok) { toast('已重命名'); markSynced(); renderLedgerSet(); renderLedger(); }
+    if (res.ok) { toast('已重命名'); markSynced(); renderLedgerSet(); }
     else toast((await res.json().catch(() => ({}))).error || '修改失败');
   };
   row.querySelector('.del').onclick = async () => {
@@ -3292,7 +3292,7 @@ function ledsetRow(cat, level, opt = {}) {
       : `删除二级分类「${cat.name}」？`;
     if (!(await confirmModal(tip))) return;
     const res = await api(`/api/txn-categories/${cat.id}`, { method: 'DELETE' });
-    if (res.ok) { toast('已删除'); markSynced(); renderLedgerSet(); renderLedger(); }
+    if (res.ok) { toast('已删除'); markSynced(); renderLedgerSet(); }
     else toast((await res.json().catch(() => ({}))).error || '删除失败');
   };
 
@@ -3362,7 +3362,7 @@ function bindLedgerDrag(handle, row, level, parentId) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids }),
       }).then((res) => {
-        if (res.ok) { toast('排序已保存'); markSynced(); renderLedgerSet(); renderLedger(); }
+        if (res.ok) { toast('排序已保存'); markSynced(); renderLedgerSet(); }
         else toast('排序保存失败');
       }).catch(() => {});
     };

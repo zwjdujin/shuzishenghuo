@@ -1661,3 +1661,16 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .ai-memory-text{width:100%;max-width:100%;min-height:110px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font-size:13.5px;line-height:1.6;outline:none;resize:vertical;margin-top:10px}
 .ai-memory-text:focus{border-color:var(--plum)}
 #aiTestResult{margin-top:8px;overflow-wrap:anywhere}
+
+/* --- v0.5.22 手机端横向溢出修复 --- */
+/* 根因：860px 断点的 grid-template-columns:1fr 未包 minmax(0,·)，
+   轨道被子内容 min-content 撑宽 → 首页各模块、账本构成/明细右侧被裁 */
+@media (max-width:860px){
+  .dashboard-grid{grid-template-columns:minmax(0,1fr)}
+  .dashboard-grid > *{min-width:0}
+  .ledger-grid{grid-template-columns:minmax(0,1fr)}
+  .ledger-grid > .panel{min-width:0}
+  .ledger-grid .panel{overflow-wrap:anywhere}
+  .txn-row > div{min-width:0}
+  .cs-row > div{min-width:0}
+}
