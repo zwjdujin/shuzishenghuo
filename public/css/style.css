@@ -1256,9 +1256,10 @@ html[data-mode="night"] .login-overlay{background:radial-gradient(circle at 30% 
   #relListView .growth-head .btn{flex:0 0 auto;padding:7px 12px;font-size:13px}
   /* 全局移动端规则 .cal-actions{width:100%} 会把按钮组挤到第二行，人际页头需要同行右对齐 */
   #relListView .cal-actions{width:auto;flex:0 0 auto}
-  #relProfileView .growth-head{flex-direction:row;align-items:center;justify-content:space-between;gap:8px}
-  #relProfileView .growth-head h2{font-size:19px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #relProfileView .cal-actions{flex-wrap:nowrap}
+  /* v0.5.18：标题与按钮上下堆叠——按钮贴右，名字不再被挤到 40% 裁切 */
+  #relProfileView .growth-head{flex-direction:column;align-items:stretch;gap:8px}
+  #relProfileView .growth-head h2{font-size:19px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #relProfileView .cal-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
   #relProfileView .cal-actions .btn{padding:7px 10px;font-size:12.5px;flex:0 0 auto}
 }
 /* 筛选按钮激活态 */
