@@ -1674,3 +1674,17 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .txn-row > div{min-width:0}
   .cs-row > div{min-width:0}
 }
+
+/* --- v0.5.25 药典检索 --- */
+.med-name-wrap{position:relative;min-width:0}
+.med-name-wrap input{padding-right:44px}
+.med-lookup-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:9px;background:var(--plum-soft);color:var(--plum);cursor:pointer;display:grid;place-items:center}
+.med-lookup-btn svg{width:16px;height:16px}
+.med-lookup-btn:hover{background:var(--plum);color:#fff}
+.med-lookup-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);padding:4px}
+.ml-item{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit;color:inherit}
+.ml-item:hover{background:var(--plum-soft)}
+.ml-item b{display:block;font-size:13.5px;color:var(--ink)}
+.ml-item small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.ml-item.ml-static{cursor:default;color:var(--muted);font-size:12.5px}
+.ml-item.ml-static.ml-fail{color:var(--terra)}

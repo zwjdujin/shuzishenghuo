@@ -533,10 +533,82 @@
     }
   }
 
+  // ===== v0.5.25 药典检索 =====
+  async function doMedLookup() {
+    const name = ($('#medForm input[name=name]').value || '').trim();
+    const drop = $('#medLookupDrop');
+    if (!drop) return;
+    if (name.length < 2) { toast('请先输入至少 2 个字的药品名称'); return; }
+    drop.hidden = false;
+    drop.innerHTML = '<div class="ml-item ml-static">药典检索中…</div>';
+    try {
+      const res = await api('/api/medicines/lookup?name=' + encodeURIComponent(name));
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) { drop.innerHTML = '<div class="ml-item ml-static ml-fail">' + esc(d.error || '检索失败，请手动填写') + '</div>'; return; }
+      if (!(d.results || []).length) { drop.innerHTML = '<div class="ml-item ml-static ml-fail">药典未收录该名称，请手动填写</div>'; return; }
+      drop.innerHTML = d.results.map((x) => `
+        <button type="button" class="ml-item" data-entry="${x.id}">
+          <b>${esc(x.title)}</b>
+          <small>${esc(x.bookName)}${x.pageNum ? ' · 第' + x.pageNum + '页' : ''}</small>
+        </button>`).join('');
+    } catch (_) { drop.innerHTML = '<div class="ml-item ml-static ml-fail">检索失败，请手动填写</div>'; }
+  }
+
+  /** 选中药典条目 → 抽取字段预填表单，人工核验后保存 */
+  async function pickMedLookup(entryId) {
+    const drop = $('#medLookupDrop');
+    if (drop) drop.innerHTML = '<div class="ml-item ml-static">获取药典详情…</div>';
+    try {
+      const res = await api('/api/medicines/lookup?entryId=' + entryId);
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) throw new Error(d.error || '获取失败');
+      const e = d.entry;
+      const form = $('#medForm');
+      form.name.value = e.title;
+      if (e.efficacy) form.efficacy.value = e.efficacy;
+      if (e.dosage) form.dosage.value = e.dosage;
+      if (e.spec) form.spec.value = e.spec;
+      // 剂型按名称关键词推断（顺序敏感：软膏先于膏，注射液先于注射）
+      const title = e.title || '';
+      const FORM_MATCH = [
+        ['注射液', '注射剂'], ['胶囊', '胶囊剂'], ['颗粒', '颗粒剂'], ['口服液', '口服液'],
+        ['糖浆', '糖浆剂'], ['软膏', '软膏剂'], ['栓', '栓剂'], ['喷雾', '喷雾剂'],
+        ['酊', '酊剂'], ['锭', '锭剂'], ['丸', '丸剂'], ['散', '散剂'],
+        ['煎膏', '煎膏剂'], ['片', '片剂'],
+      ];
+      for (const [kw, formName] of FORM_MATCH) {
+        if (title.includes(kw) && [...form.form.options].some((o) => o.value === formName)) { form.form.value = formName; break; }
+      }
+      const hint = $('#medLookupHint');
+      if (hint) {
+        hint.hidden = false;
+        hint.textContent = `来源：《${e.bookName}》${e.pageNum ? '第' + e.pageNum + '页' : ''} · 已按药典预填，请人工核验后再保存`;
+      }
+      if (drop) { drop.hidden = true; drop.innerHTML = ''; }
+    } catch (_) {
+      if (drop) drop.innerHTML = '<div class="ml-item ml-static ml-fail">获取详情失败，请手动填写</div>';
+    }
+  }
+
   // ===== 事件绑定 =====
   function bindEvents() {
     const addBtn = $('#addMedBtn');
     if (addBtn) addBtn.addEventListener('click', () => openMedModal(null));
+
+    // ===== v0.5.25 药典检索：名称输入后点放大镜 → 药典匹配 → 人工核验保存 =====
+    const lookupBtn = $('#medLookupBtn');
+    if (lookupBtn) lookupBtn.addEventListener('click', () => doMedLookup());
+    const lookupDrop = $('#medLookupDrop');
+    if (lookupDrop) lookupDrop.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-entry]');
+      if (item) pickMedLookup(Number(item.dataset.entry));
+    });
+    // 点弹窗其他区域收起检索结果
+    const medModal = $('#medModal');
+    if (medModal) medModal.addEventListener('click', (e) => {
+      const drop = $('#medLookupDrop');
+      if (drop && !drop.hidden && !e.target.closest('.med-name-wrap')) { drop.hidden = true; }
+    });
 
     // v0.5.13：药箱设置（齿轮）
     const setBtn = $('#medSetBtn');

@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/f5bb3152/css/style.css">
+  <link rel="stylesheet" href="./assets/3738bf29/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -64,6 +64,7 @@
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4Z"/><circle cx="19" cy="5" r="1.4"/><circle cx="5" cy="19" r="1.4"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h3l2-2h6l2 2h3v13H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-magnifier" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8-8"/><path d="M15 8l2.5 2.5"/><path d="M18.5 4.5 21 7"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
@@ -1184,7 +1185,14 @@
         <button class="icon-btn" id="medModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
       <form id="medForm">
-        <label class="field"><span>药品名称 *</span><input name="name" maxlength="40" placeholder="例如：布洛芬缓释胶囊" required></label>
+        <label class="field"><span>药品名称（输入后点 🔍 检索《中国药典》）</span>
+          <div class="med-name-wrap">
+            <input name="name" maxlength="40" placeholder="例如：布洛芬缓释胶囊 / 板蓝根颗粒" required autocomplete="off">
+            <button type="button" class="med-lookup-btn" id="medLookupBtn" title="检索《中国药典》自动填充" aria-label="检索中国药典"><svg><use href="#i-magnifier"/></svg></button>
+            <div class="med-lookup-drop" id="medLookupDrop" hidden></div>
+          </div>
+          <p class="ts-hint" id="medLookupHint" hidden></p>
+        </label>
         <label class="field"><span>功效（主治 / 作用）</span><textarea name="efficacy" maxlength="300" rows="2" placeholder="例如：解热镇痛，用于头痛、牙痛及发热；也可缓解轻中度疼痛（内容长可换行）"></textarea></label>
         <div class="field-row">
           <label class="field"><span>规格</span><input name="spec" maxlength="40" placeholder="例如：0.3g×20粒"></label>
@@ -1423,7 +1431,7 @@
 
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/61e7cd69/js/profile.js"></script>
-  <script src="./assets/4088283c/js/medicine.js"></script>
-  <script src="./assets/f21cbbb3/js/app.js"></script>
+  <script src="./assets/de996f76/js/medicine.js"></script>
+  <script src="./assets/701e3909/js/app.js"></script>
 </body>
 </html>
