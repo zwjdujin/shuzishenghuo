@@ -1165,12 +1165,12 @@
       </div>
       <form id="medForm">
         <label class="field"><span>药品名称 *</span><input name="name" maxlength="40" placeholder="例如：布洛芬缓释胶囊" required></label>
-        <label class="field"><span>功效（主治 / 作用）</span><input name="efficacy" maxlength="60" placeholder="例如：解热镇痛，用于头痛、牙痛及退热"></label>
+        <label class="field"><span>功效（主治 / 作用）</span><textarea name="efficacy" maxlength="300" rows="2" placeholder="例如：解热镇痛，用于头痛、牙痛及发热；也可缓解轻中度疼痛（内容长可换行）"></textarea></label>
         <div class="field-row">
           <label class="field"><span>规格</span><input name="spec" maxlength="40" placeholder="例如：0.3g×20粒"></label>
           <label class="field"><span>剂型</span><select name="form" id="medFormSel"></select></label>
         </div>
-        <label class="field"><span>用量（用法用量）</span><input name="dosage" maxlength="60" placeholder="例如：每次1片，每日3次，饭后服用"></label>
+        <label class="field"><span>用量（用法用量）</span><input name="dosage" maxlength="150" placeholder="例如：每次1片，每日3次，饭后服用"></label>
         <div class="field-row">
           <label class="field"><span>有效期至</span>
             <input type="hidden" name="expiry" id="medExpiryInput">
@@ -1402,6 +1402,6 @@
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/cb9ae58d/js/profile.js"></script>
   <script src="./assets/71b130e7/js/medicine.js"></script>
-  <script src="./assets/f932508e/js/app.js"></script>
+  <script src="./assets/9de191ac/js/app.js"></script>
 </body>
 </html>

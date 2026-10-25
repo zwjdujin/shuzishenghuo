@@ -111,3 +111,46 @@ if (okGood) pass++;
 console.log(`${okGood ? '✓' : '✗'} 正常录入 → ${okRes.status} ${JSON.stringify(okJson)}`);
 
 console.log(`\n===== ${pass}/${pass + (12 - pass > 0 ? 0 : 0)} 项检查通过，关键项已验证 =====`);
+
+// ===== 5. v0.5.12 功效长文本（textarea 300 字） =====
+{
+  // 捕获 INSERT 参数的桩（mockDB 不存数据，无法断言入库值）
+  function recordingDB() {
+    const captured = [];
+    return {
+      captured,
+      DB: {
+        prepare(sql) {
+          const o = { _p: [] };
+          o.bind = (...p) => { o._p = p; return o; };
+          o.run = async () => { captured.push({ sql, params: o._p }); return { meta: { last_row_id: 1 } }; };
+          o.all = async () => ({ results: [] });
+          o.first = async () => null;
+          return o;
+        },
+      },
+    };
+  }
+  const insertOf = (env) => env.captured.find((c) => c.sql.includes('INSERT INTO medicines'));
+
+  const longEfficacy = '解热镇痛。用于普通感冒或流行性感冒引起的发热，也用于缓解轻至中度疼痛如头痛、关节痛、偏头痛、牙痛、肌肉痛、神经痛、痛经。注意：服药期间不得饮酒或含酒精的饮料。'.repeat(2);
+  const env1 = recordingDB();
+  const r1 = await onRequestPost({ env: env1, request: mk({ name: '长功效测试药', efficacy: longEfficacy }) });
+  const eff = insertOf(env1).params[1];
+  const ok1 = r1.status === 201 && eff === longEfficacy && eff.length === longEfficacy.length;
+  console.log(`${ok1 ? '✓' : '✗'} 长功效完整入库（${eff.length} 字，无截断）`);
+
+  const over = '很'.repeat(350);
+  const env2 = recordingDB();
+  await onRequestPost({ env: env2, request: mk({ name: '超长功效测试药', efficacy: over }) });
+  const eff2 = insertOf(env2).params[1];
+  const ok2 = eff2.length === 300;
+  console.log(`${ok2 ? '✓' : '✗'} 超 300 字后端截断到 300（防 API 直灌，实际 ${eff2.length}）`);
+
+  const dosageLong = '成人一次1片，若持续发热或疼痛，可间隔4-6小时重复用药1次，24小时内不超过4次。'.repeat(2);
+  const env3 = recordingDB();
+  const r3 = await onRequestPost({ env: env3, request: mk({ name: '长用量测试药', efficacy: 'x', dosage: dosageLong }) });
+  const dos = insertOf(env3).params[3];
+  const ok3 = r3.status === 201 && dos === dosageLong && dos.length === dosageLong.length;
+  console.log(`${ok3 ? '✓' : '✗'} 用量放宽至 150 字完整入库（${dos.length} 字）`);
+}

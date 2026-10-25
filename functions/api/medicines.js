@@ -69,7 +69,7 @@ function shape(r, today) {
 
 // 解析 / 清洗入库字段
 export function parseMedBody(body) {
-  const name = String(body.name || '').trim();
+  const name = String(body.name || '').trim().slice(0, 40);
   if (!name) return { error: '请填写药品名称' };
   const expiry = String(body.expiry || '').trim();
   if (expiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) return { error: '有效期格式不正确' };
@@ -85,21 +85,22 @@ export function parseMedBody(body) {
   return {
     data: {
       name,
-      efficacy: String(body.efficacy || '').trim(),
-      spec: String(body.spec || '').trim(),
-      dosage: String(body.dosage || '').trim(),
+      // 长度守卫与表单 maxlength 对齐（功效 v0.5.12 起为 textarea 300 字）
+      efficacy: String(body.efficacy || '').trim().slice(0, 300),
+      spec: String(body.spec || '').trim().slice(0, 60),
+      dosage: String(body.dosage || '').trim().slice(0, 150),
       form: String(body.form || '').trim(),
       expiry: expiry || null,
       category: String(body.category || '其他').trim() || '其他',
       location: String(body.location || '客厅药箱').trim() || '客厅药箱',
-      manufacturer: String(body.manufacturer || '').trim(),
+      manufacturer: String(body.manufacturer || '').trim().slice(0, 60),
       stock: num(body.stock, 1),
       stockMin: num(body.stockMin !== undefined ? body.stockMin : body.stock_min, 1),
       forWhom: String(body.forWhom || body.for_whom || '通用').trim() || '通用',
       rx: body.rx ? 1 : 0,
       openDate: openDate || null,
       price: Number.isFinite(price) ? price : null,
-      note: String(body.note || '').trim(),
+      note: String(body.note || '').trim().slice(0, 200),
     },
   };
 }
