@@ -32,7 +32,11 @@ export async function onRequest(context) {
           headers: { 'Content-Type': 'application/json' },
         });
       }
-      await env.DB.prepare('UPDATE sessions SET last_seen_at = datetime(\'now\') WHERE sid = ?').bind(payload.sid).run();
+      // last_seen 每过 5 分钟才写一次：既保活会话清理逻辑，又不放大 D1 写入（此前每个请求都 UPDATE）
+      await env.DB.prepare(
+        "UPDATE sessions SET last_seen_at = datetime('now') WHERE sid = ?" +
+        " AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))"
+      ).bind(payload.sid).run();
     } catch (_) {
       // sessions 表不存在时放行（向后兼容），不做强制校验
     }

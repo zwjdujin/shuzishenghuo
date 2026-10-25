@@ -1,11 +1,9 @@
-// 数字生活 · Service Worker（PWA 可“添加到主屏幕”当 APP 用）
-// 策略：除 /api/ 接口外，所有静态资源（HTML/JS/CSS/图标/manifest）一律“网络优先”，
-// 失败再回退缓存。这样每次部署新版本后，浏览器刷新即能拿到最新代码，不再被旧缓存卡住。
-// 注意：本文件必须在站点根目录（/sw.js）注册，作用域才是整站；放在 /js/ 下时只有 /js/ 生效。
-// 发版时：CACHE 名 +1，PRECACHE 的 ?v= 与 index.html 引用保持一致（见版本号约定）。
-const CACHE = 'shuzishenghuo-v30';
-const V = 'v=0.4.0';
-const PRECACHE = ['./', './index.html', './manifest.webmanifest', `./css/style.css?${V}`, `./js/lunar.js?${V}`, `./js/profile.js?${V}`, `./js/medicine.js?${V}`, `./js/app.js?${V}`];
+// 数字生活 · Service Worker（由 scripts/release.mjs 自动生成，勿手改）
+// 策略：除 /api/ 外静态资源网络优先、离线回退缓存；install 时预缓存版本化资源。
+// 文件名固定为 sw.js（_headers 对其 no-cache）；内容变化 → 字节变化 → 浏览器自动更新。
+const CACHE = 'shuzishenghuo-f26e2b70';
+
+const PRECACHE = ['./', './index.html', './manifest.webmanifest', './assets/2ef79358/css/style.css', './assets/c5cb3fe4/js/lunar.js', './assets/77d42057/js/profile.js', './assets/cb0f1021/js/medicine.js', './assets/9156f506/js/app.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

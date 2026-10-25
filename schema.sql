@@ -1,21 +1,17 @@
--- 数字生活 shuzishenghuo · D1 数据库结构 v0.0.1
--- 在 Cloudflare 上执行：`wrangler d1 execute shuzishenghuo --remote --file=./schema.sql`
+-- 数字生活 · 数据库结构文档（仅供参考展示用）
+-- ⚠️ 新环境/迁移一律使用 migrations/ 目录：wrangler d1 migrations apply shuzishenghuo --remote
+-- 本文件与 migrations/0001_baseline_v0.5.4.sql 内容保持同步（勿在此另行修改结构）。
+-- 历史迁移已归档至 migrations-archive/。
+-- 新环境统一使用：wrangler d1 migrations apply shuzishenghuo --remote/--local
+-- ============================================================
 
-PRAGMA foreign_keys = ON;
-
--- 应用设置（品牌名、头像字、副标题、主题色等，单行键值）
+-- 应用设置（品牌、外观、管理员自定义密码哈希等，键值表）
 CREATE TABLE IF NOT EXISTS app_settings (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
 
--- 成长打卡：习惯定义
--- category：所属分类（学习/锻炼/睡眠/自定义名）
--- type：普通习惯 'normal' | 睡眠习惯 'sleep'
--- method（仅 normal 使用）：'count' 按次打卡 / 'duration' 按时间（累计时长）打卡
--- target / unit：目标值与单位（如 3 次、60 分钟）
--- bed_time / rise_time：睡眠类型——几点前睡/起算早睡早起
--- nap_time：睡眠类型——午睡有效区间（如 12:30-14:00）
+-- 成长打卡：习惯定义（type: normal | sleep；method: count | duration）
 CREATE TABLE IF NOT EXISTS habits (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT NOT NULL,
@@ -33,9 +29,6 @@ CREATE TABLE IF NOT EXISTS habits (
 );
 
 -- 成长打卡：每日打卡记录（每习惯每天一条）
--- normal(count)：done = 已打卡次数
--- normal(duration)：done = 已累计分钟数
--- sleep：done_bed / done_rise / done_nap 各 0/1
 CREATE TABLE IF NOT EXISTS habit_logs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   habit_id   INTEGER NOT NULL,
@@ -49,9 +42,7 @@ CREATE TABLE IF NOT EXISTS habit_logs (
   UNIQUE(habit_id, log_date)
 );
 
--- 待办提醒
--- priority：P0 重要且紧急 / P1 重要不紧急 / P2 紧急不重要 / P3 不重要不紧急
--- important / urgent：优先级背后的两个独立维度（1/0），用于筛选与排序
+-- 待办提醒（P0-P3 四象限优先级；sort_order 为列表内排序预留）
 CREATE TABLE IF NOT EXISTS todos (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   title      TEXT NOT NULL,
@@ -64,6 +55,7 @@ CREATE TABLE IF NOT EXISTS todos (
   note       TEXT,
   remind     INTEGER DEFAULT 0,
   done       INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -73,13 +65,13 @@ CREATE TABLE IF NOT EXISTS transactions (
   flow         TEXT NOT NULL CHECK(flow IN ('expense','income','transfer')),
   amount       REAL NOT NULL,
   category     TEXT,
-  sub_category TEXT,                            -- 二级分类（挂在 category 之下）
+  sub_category TEXT,
   txn_date     TEXT NOT NULL,
-  txn_time     TEXT,                            -- 'HH:MM'；NULL 表示未记录时分
-  account      TEXT DEFAULT '默认账户',          -- 支出/收入：付款账户；转账：转出账户
-  to_account   TEXT,                            -- 转账：转入账户
-  contact_id   INTEGER,                         -- 关联「人际关系」联系人
-  item         TEXT,                            -- 物品（预留）
+  txn_time     TEXT,
+  account      TEXT DEFAULT '默认账户',
+  to_account   TEXT,
+  contact_id   INTEGER,
+  item         TEXT,
   note         TEXT,
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -89,26 +81,36 @@ CREATE TABLE IF NOT EXISTS txn_categories (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   flow       TEXT NOT NULL CHECK(flow IN ('expense','income')),
   name       TEXT NOT NULL,
-  parent_id  INTEGER,                          -- NULL = 一级分类；否则为父分类 id
+  parent_id  INTEGER,
   sort_order INTEGER NOT NULL DEFAULT 0,
-  hidden     INTEGER NOT NULL DEFAULT 0,       -- 1 = 不在「记一笔」前端显示
+  hidden     INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 家庭药箱
+-- 家庭药箱（v0.3.7 起扩充：功效/剂型/库存/价位/处方等）
 CREATE TABLE IF NOT EXISTS medicines (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  spec       TEXT,
-  quantity   TEXT,
-  expiry     TEXT,
-  note       TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT NOT NULL,
+  spec         TEXT,
+  quantity     TEXT,
+  expiry       TEXT,
+  note         TEXT,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  efficacy     TEXT,
+  dosage       TEXT,
+  category     TEXT DEFAULT '其他',
+  location     TEXT DEFAULT '客厅药箱',
+  manufacturer TEXT,
+  form         TEXT,
+  stock        INTEGER DEFAULT 1,
+  stock_min    INTEGER DEFAULT 1,
+  for_whom     TEXT DEFAULT '通用',
+  rx           INTEGER DEFAULT 0,
+  open_date    TEXT,
+  price        REAL
 );
 
 -- 日历中心：事件
--- calendar：所属日历（工作/生活/家庭/健康），用于颜色区分
--- color：自定义颜色（可选，优先取 calendar 对应色）
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   title      TEXT NOT NULL,
@@ -122,8 +124,7 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 人际关系（v0.4.0 重建）
--- 名字六字段任选其一必填，name 为显示名；生日三形态（未知/只知月日/确切）+ 阳历或农历
+-- 人际关系（v0.4.0 重建）：联系人主表
 CREATE TABLE IF NOT EXISTS contacts (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   name              TEXT NOT NULL,
@@ -149,27 +150,35 @@ CREATE TABLE IF NOT EXISTS contacts (
   note              TEXT,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_contacts_gender ON contacts(gender);
 
--- 联系方式：电话 / 电子邮件 / 联系地址（可多个，带备注标签）
+-- 联系方式（电话/邮箱/地址，可多条）
 CREATE TABLE IF NOT EXISTS contact_contacts (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id  INTEGER NOT NULL,
-  kind       TEXT NOT NULL,               -- phones / emails / addresses
+  kind       TEXT NOT NULL,
   value      TEXT NOT NULL,
   label      TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_cc_person ON contact_contacts(person_id, kind);
 
--- 公司/组织与职位（值可多人共用，候选词在词库 rel_company / rel_position）
+-- 公司/组织与职位
 CREATE TABLE IF NOT EXISTS contact_work (
   person_id INTEGER PRIMARY KEY,
   company   TEXT,
   position  TEXT
 );
 
--- 家庭关系："对方是当前联系人的 ___"（称谓词库 rel_kin 可扩展）
+-- 教育经历
+CREATE TABLE IF NOT EXISTS contact_edu (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id   INTEGER NOT NULL,
+  school      TEXT, major TEXT, degree TEXT,
+  start_year  TEXT, end_year TEXT, story TEXT,
+  sort_order  INTEGER DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 家庭关系（kin 称谓；ref_id 可指向另一联系人）
 CREATE TABLE IF NOT EXISTS contact_relatives (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id  INTEGER NOT NULL,
@@ -178,9 +187,8 @@ CREATE TABLE IF NOT EXISTS contact_relatives (
   ref_id     INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_relatives_person ON contact_relatives(person_id);
 
--- 宠物（种类候选词在词库 pet_species）
+-- 宠物
 CREATE TABLE IF NOT EXISTS rel_pets (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id     INTEGER NOT NULL,
@@ -189,9 +197,17 @@ CREATE TABLE IF NOT EXISTS rel_pets (
   memorial_date TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_pets_person ON rel_pets(person_id);
 
--- 心情一句话（占位，避免 schema 与迁移不一致）
+-- 词库（称谓/标签/群组/公司/职位/宠物种类等候选词；v0.5.1 加 sort_order）
+CREATE TABLE IF NOT EXISTS vocab (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind       TEXT NOT NULL,
+  word       TEXT NOT NULL,
+  hits       INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  sort_order INTEGER
+);
+
 -- 登录会话（账户安全：展示/登出各登录设备）
 CREATE TABLE IF NOT EXISTS sessions (
   sid          TEXT PRIMARY KEY,
@@ -202,10 +218,63 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_seen_at TEXT
 );
 
--- 索引（加速按日期/完成状态查询）
-CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(log_date);
-CREATE INDEX IF NOT EXISTS idx_todos_date      ON todos(todo_date);
-CREATE INDEX IF NOT EXISTS idx_todos_done      ON todos(done);
-CREATE INDEX IF NOT EXISTS idx_txn_date        ON transactions(txn_date);
-CREATE INDEX IF NOT EXISTS idx_txncat_flow     ON txn_categories(flow, parent_id, sort_order);
-CREATE INDEX IF NOT EXISTS idx_events_start     ON events(start);
+-- Web Push 订阅（每设备浏览器一条）
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  endpoint   TEXT NOT NULL UNIQUE,
+  p256dh     TEXT,
+  auth       TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ===== 索引（与线上实际索引一致） =====
+CREATE INDEX IF NOT EXISTS idx_contacts_gender   ON contacts(gender);
+CREATE INDEX IF NOT EXISTS idx_cc_person         ON contact_contacts(person_id, kind);
+CREATE INDEX IF NOT EXISTS idx_edu_person        ON contact_edu(person_id);
+CREATE INDEX IF NOT EXISTS idx_relatives_person  ON contact_relatives(person_id);
+CREATE INDEX IF NOT EXISTS idx_pets_person       ON rel_pets(person_id);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_date   ON habit_logs(log_date);
+CREATE INDEX IF NOT EXISTS idx_todos_date        ON todos(todo_date);
+CREATE INDEX IF NOT EXISTS idx_todos_done        ON todos(done);
+CREATE INDEX IF NOT EXISTS idx_txn_date          ON transactions(txn_date);
+CREATE INDEX IF NOT EXISTS idx_txncat_flow       ON txn_categories(flow, parent_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_events_start      ON events(start);
+CREATE INDEX IF NOT EXISTS idx_medicines_category ON medicines(category);
+CREATE INDEX IF NOT EXISTS idx_medicines_expiry  ON medicines(expiry);
+CREATE INDEX IF NOT EXISTS idx_sessions_user     ON sessions(user);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vocab_unique ON vocab(kind, word);
+
+-- ===== 预置数据（词库候选词 + 账本默认分类）=====
+-- vocab 有 (kind,word) 唯一索引，INSERT OR IGNORE 天然幂等
+INSERT OR IGNORE INTO vocab(kind, word) VALUES
+  ('rel_kin','母亲'),('rel_kin','父亲'),('rel_kin','爱人'),('rel_kin','儿子'),
+  ('rel_kin','女儿'),('rel_kin','同学'),('rel_kin','老师'),('rel_kin','同事');
+INSERT OR IGNORE INTO vocab(kind, word) VALUES
+  ('rel_tag','徒步'),('rel_tag','医生'),('rel_tag','喝茶'),('rel_tag','书画'),('rel_tag','一技之长'),
+  ('rel_group','家人'),('rel_group','亲戚'),('rel_group','同学'),('rel_group','同事'),('rel_group','客户');
+
+-- 账本默认分类：逐行判重（与 v0.5.0 迁移同款写法，幂等且不覆盖用户自定义）
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','餐饮',NULL,0 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='餐饮' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','零食',NULL,1 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='零食' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','美妆',NULL,2 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='美妆' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','烟酒',NULL,3 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='烟酒' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','日常',NULL,4 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='日常' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','购物',NULL,5 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='购物' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','交通',NULL,6 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='交通' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','娱乐',NULL,7 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='娱乐' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','社交',NULL,8 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='社交' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','装修',NULL,9 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='装修' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','旅游',NULL,10 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='旅游' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','医疗',NULL,11 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='医疗' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','学习',NULL,12 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='学习' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'expense','其他',NULL,13 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='expense' AND name='其他' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','礼金',NULL,0 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='礼金' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','理财',NULL,1 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='理财' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','报销',NULL,2 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='报销' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','工资',NULL,3 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='工资' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','奖金',NULL,4 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='奖金' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','生活费',NULL,5 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='生活费' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','外快兼职',NULL,6 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='外快兼职' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','退款',NULL,7 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='退款' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','投资收益',NULL,8 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='投资收益' AND parent_id IS NULL);
+INSERT INTO txn_categories (flow, name, parent_id, sort_order) SELECT 'income','其他',NULL,9 WHERE NOT EXISTS (SELECT 1 FROM txn_categories WHERE flow='income' AND name='其他' AND parent_id IS NULL);

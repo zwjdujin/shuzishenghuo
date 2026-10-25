@@ -1,12 +1,14 @@
 {
   "name": "shuzishenghuo",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "private": true,
   "description": "数字生活 - 个人数字工作台（Cloudflare Pages + D1 + R2）",
   "scripts": {
     "dev": "wrangler pages dev ./public",
     "deploy": "wrangler pages deploy ./public",
-    "db:init": "wrangler d1 execute shuzishenghuo --local --file=./schema.sql",
+    "release": "node scripts/release.mjs",
+    "db:migrate": "wrangler d1 migrations apply shuzishenghuo --local",
+    "db:migrate:remote": "wrangler d1 migrations apply shuzishenghuo --remote",
     "db:seed": "wrangler d1 execute shuzishenghuo --local --file=./seed.sql"
   }
 }

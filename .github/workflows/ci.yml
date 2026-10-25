@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 语法检查（前端 classic + Functions ESM）
+        run: |
+          for f in public/js/*.js; do node --check "$f"; done
+          if [ -f public/sw.js ]; then node --check public/sw.js; fi
+          find functions worker/src -name '*.js' -print0 | while IFS= read -r -d '' f; do
+            node --input-type=module --check < "$f" || exit 1
+          done
+
+      - name: 本地 D1 应用迁移（同时验证 migrations 可从零建库）
+        run: npx --yes wrangler@latest d1 migrations apply shuzishenghuo --local
+
+      - name: 启动本地服务并等待就绪
+        env:
+          ADMIN_USER: admin
+          ADMIN_PASS: test-pass-123
+          SESSION_SECRET: ci-secret-not-for-prod
+        run: |
+          npx --yes wrangler@latest pages dev ./public --port 8799 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8799/api/health >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8799/api/health
+
+      - name: 端到端测试（API；data-api 会清库故放最后）
+        run: |
+          node scripts/test-relations-v4.mjs
+          node scripts/test-medicines.mjs
+          node scripts/test-password-api.mjs
+          node scripts/test-data-api.mjs
+
+      - name: 端到端测试（UI 主题对比度）
+        run: node scripts/test-theme.mjs
