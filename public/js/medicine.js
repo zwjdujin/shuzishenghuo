@@ -350,6 +350,7 @@
     const el = $('#medModal');
     if (el) el.hidden = true;
     state.editingId = null;
+    if (window.aiQueueCancel && !window.__aiSavedJustNow) window.aiQueueCancel();   // v0.5.27：非保存关闭取消 AI 队列
   }
 
   // ===== v0.6.0：服药计划（到点提醒 → 确认服药 → 扣库存） =====
@@ -805,10 +806,13 @@
           if (res.ok) {
             const medId = editing ? editing : (await res.json().catch(() => ({}))).id;
             await saveMedPlanFlow(medId);     // v0.6.0：同步服药计划
+            window.__aiSavedJustNow = true;   // 保存关闭：不清 AI 队列
             closeMedModal();
+            window.__aiSavedJustNow = false;
             toast(editing ? '已更新' : '已入库');
             markSynced();
             renderMedicine();
+            if (window.aiSaveHookRun) window.aiSaveHookRun();   // v0.5.27：AI 队列继续
           }
         } catch (_) { /* 401 已处理 */ } finally { if (btn) btn.disabled = false; }
       });
@@ -818,6 +822,32 @@
   // 暴露给 app.js
   window.medRenderMedicine = renderMedicine;
   window.medBindEvents = bindEvents;
+  // v0.5.27：AI 识别的药品 → 打开录入弹窗，自动药典检索预填，人工核验后保存
+  window.medAiFill = async function (draft) {
+    openMedModal(null);
+    const name = String(draft.mname || '').trim();
+    const nameInp = $('#medForm input[name=name]');
+    if (nameInp) nameInp.value = name;
+    try {
+      const res = await api('/api/medicines/lookup?name=' + encodeURIComponent(name));
+      const d = await res.json().catch(() => ({}));
+      if (d.ok && (d.results || []).length) {
+        const key = name.replace(/\s/g, '');
+        const hit = d.results.find((x) => x.title.replace(/\s/g, '') === key)
+          || d.results.find((x) => x.title.replace(/\s/g, '').includes(key))
+          || d.results[0];
+        await pickMedLookup(hit.id);
+      }
+    } catch (_) { /* 检索失败保留 AI 字段 */ }
+    // AI 草稿补充：剂型/效期/用量（药典缺失时）
+    const form = $('#medForm');
+    if (!form) return;
+    if (draft.form) { const has = [...form.form.options].some((o) => o.value === draft.form); if (has) form.form.value = draft.form; }
+    if (!form.dosage.value && draft.dosage) form.dosage.value = String(draft.dosage).slice(0, 150);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(draft.expiry || '')) { form.expiry.value = draft.expiry; window.syncDtBtns(form); }
+    const hint = $('#medLookupHint');
+    if (hint && hint.hidden) { hint.hidden = false; hint.textContent = '已按 AI 识别预填，请人工核验后再保存'; }
+  };
   if (typeof document !== 'undefined' && document.readyState !== 'loading') {
     // app.js 在末尾才调用 medBindEvents()，这里不重复绑定
   }

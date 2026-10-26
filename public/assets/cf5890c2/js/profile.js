@@ -879,7 +879,7 @@ async function pfOpenEditModal() {
   setTimeout(() => { try { f.firstName.focus(); } catch (_) {} }, 40);
 }
 
-function pfCloseEditModal() { pfEl('contactEditModal').hidden = true; }
+function pfCloseEditModal() { pfEl('contactEditModal').hidden = true; if (window.aiQueueCancel && !window.__aiSavedJustNow) window.aiQueueCancel(); }   // v0.5.27：非保存关闭取消 AI 队列
 
 // ===== 名字标签行（v0.5.1 改版）：6 个标签单选切换，默认显示「姓名」 =====
 // 输入框常驻表单（hidden 切换），切走不清值、提交照常携带；有值的非激活标签带「·」提示
@@ -1009,12 +1009,16 @@ async function pfSubmitEdit(e) {
           body: JSON.stringify(payload) });
     const d = await res.json().catch(() => ({}));
     if (!res.ok) return err(d.error || '保存失败，请稍后重试');
+    window.__aiSavedJustNow = true;   // 保存关闭：不清 AI 队列
     pfCloseEditModal();
     toast(PF.editingId ? '已保存' : '已添加联系人');
     markSynced();
     if (window.invalidateContacts) window.invalidateContacts(); // 「记一笔→联系人」名单同步失效
     if (PF.editingId) await pfOpenProfile(PF.editingId);
     else { PF.view = 'list'; await pfLoadList(); }
+    window.__aiSavedJustNow = false;
+    if (!PF.editingId && window.aiSaveHookRun) window.aiSaveHookRun();   // v0.5.27：AI 队列继续
+    if (!PF.editingId && window.aiSaveHookRun) window.aiSaveHookRun();   // v0.5.27：AI 队列继续
   } catch (e2) {
     if (!String(e2.message).includes('unauthorized')) err('网络错误，请稍后重试');
   } finally {

@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.26
-const VERSION = '0.5.26';
+// 数字生活 · 前端逻辑 v0.5.27
+const VERSION = '0.5.27';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '药典检索增强：西药制剂条目药典未收录功效/用法时，由默认 AI 模型补建议（aiSuggested 标注，前端提示须核验）；剂型推断支持乳膏并优先按自定义剂型字典最长匹配';
+const __BUILD_ID__ = '随手记 AI 识别结果全面接入各模块专属录入窗口：账单→记一笔、药品→录入药品弹窗自动药典检索预填、详细描述待办→新增待办弹窗预填（简单待办直接录入）、联系人→添加联系人弹窗预填（电话/微信暂存备注）；移除简易确认框；保存后队列自动续发，取消即终止';
 const __BUILD_TIME__ = '2026-10-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -706,17 +706,14 @@ async function quickNoteSubmit(e) {
       toast(parseErr);
       return;
     }
-    const txnDrafts = (drafts || []).filter((x) => x.module === 'transaction');
-    const restDrafts = (drafts || []).filter((x) => x.module !== 'transaction');
-    if (txnDrafts.length) {
-      // v0.5.23：账单弹「记一笔」完整表单预填；多笔排队逐笔确认，其余类型走确认弹窗
-      openTxnFromAi(txnDrafts[0]);
-      aiQueue = [...txnDrafts.slice(1), ...restDrafts];
-      if (aiQueue.length) toast(`AI 识别出 ${txnDrafts.length + restDrafts.length} 条，请逐条确认`);
-    } else if (restDrafts.length) {
-      openAiPreview(text, restDrafts);   // 待办/联系人/药品/备忘走确认弹窗
+    // v0.5.27：识别结果全部按类型走专属录入窗口（账单→记一笔 / 药品→录入药品+药典 /
+    // 待办→直接录入或新增待办弹窗 / 联系人→添加联系人弹窗 / 备忘→直接保存），无简易确认框
+    aiQueue = (drafts || []).slice(0, 10);
+    if (aiQueue.length) {
+      toast('AI 已识别，请逐条确认');
+      await drainAiQueue();
     } else {
-      const res = await api('/api/memos', {
+    const res = await api('/api/memos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: text }),
@@ -733,192 +730,32 @@ async function quickNoteSubmit(e) {
   } catch (_) { /* 401 已处理 */ } finally { btn.disabled = false; }
 }
 
-/** v0.5.20 AI 多笔解析预览：每笔一行（类型/收支/金额/分类/日期可改，可删行），确认后批量入库 */
-let aiRowsData = [];
-async function openAiPreview(rawText, drafts) {
-  const m = $('#aiPreviewModal');
-  if (!m) return;
-  $('#aiRawText').textContent = '「' + rawText + '」';
-  // 分类联想（catTree 在账本页渲染后才有，首页直达时拉一次）
-  if (!catTree || (!catTree.expense.length && !catTree.income.length)) {
-    try {
-      const t = await (await api('/api/txn-categories')).json();
-      if (t && t.expense) catTree = t;
-    } catch (_) { /* 忽略 */ }
-  }
-  const dl = $('#aiCatList');
-  if (dl && catTree) dl.innerHTML = [...(catTree.expense || []), ...(catTree.income || [])].map((c) => `<option value="${escHtml(c.name)}">`).join('');
-
-  const today = todayStrLocal();
-  aiRowsData = (drafts || []).map((x, i) => ({
-    module: ['transaction', 'todo', 'relation', 'medicine', 'memo'].includes(x.module) ? x.module : 'memo',
-    flow: x.flow === 'income' ? 'income' : 'expense',
-    amount: Number(x.amount) > 0 ? Number(x.amount) : '',
-    category: x.category || '',
-    sub: String(x.sub || '').slice(0, 20),
-    date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : today,
-    title: x.title || String(x.note || rawText).slice(0, 40),
-    note: x.note || rawText,
-    // relation / medicine（v0.5.21 拍照识别）
-    rname: x.rname || x.name || '',
-    phone: x.phone || '', wechat: x.wechat || '', qq: x.qq || '',
-    company: x.company || '', position: x.position || '',
-    mname: x.mname || x.name || '',
-    spec: x.spec || '', form: x.form || '', dosage: x.dosage || '',
-    expiry: /^\d{4}-\d{2}-\d{2}$/.test(x.expiry || '') ? x.expiry : '',
-  }));
-  renderAiRows();
-  openModal(m);
+/** v0.5.23：AI 识别的待办直接录入（仅事情+时间时） */
+async function saveTodoFromAi(d) {
+  const title = String(d.title || '').trim();
+  if (!title) return false;
+  const res = await api('/api/todos', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      date: /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') ? d.date : todayStrLocal(),
+      time: /^\d{2}:\d{2}$/.test(d.time || '') ? d.time : '',
+      list: '生活',
+    }),
+  });
+  return res.ok;
 }
 
-function renderAiRows() {
-  const box = $('#aiRows');
-  if (!box) return;
-  box.innerHTML = aiRowsData.map((r, i) => `
-    <div class="ai-row" data-i="${i}">
-      <div class="ai-row-head">
-        <select class="inp" data-k="module" data-i="${i}">
-          <option value="transaction"${r.module === 'transaction' ? ' selected' : ''}>账单</option>
-          <option value="todo"${r.module === 'todo' ? ' selected' : ''}>待办</option>
-          <option value="relation"${r.module === 'relation' ? ' selected' : ''}>联系人</option>
-          <option value="medicine"${r.module === 'medicine' ? ' selected' : ''}>药品</option>
-          <option value="memo"${r.module === 'memo' ? ' selected' : ''}>备忘</option>
-        </select>
-        <button type="button" class="icon-btn" data-k="del" data-i="${i}" title="删除这行"><svg><use href="#i-x"/></svg></button>
-      </div>
-      <div class="ai-row-body" data-i="${i}"></div>
-    </div>`).join('');
-  box.querySelectorAll('[data-k=module]').forEach((sel) => sel.addEventListener('change', () => {
-    aiRowsData[Number(sel.dataset.i)].module = sel.value;
-    renderAiRowBody(Number(sel.dataset.i));
-  }));
-  box.querySelectorAll('[data-k=del]').forEach((btn) => btn.addEventListener('click', () => {
-    aiRowsData.splice(Number(btn.dataset.i), 1);
-    renderAiRows();
-  }));
-  aiRowsData.forEach((_, i) => renderAiRowBody(i));
-}
-
-function renderAiRowBody(i) {
-  const r = aiRowsData[i];
-  const body = document.querySelector(`.ai-row-body[data-i="${i}"]`);
-  if (!body) return;
-  if (r.module === 'transaction') {
-    body.innerHTML = `
-      <div class="ai-fields">
-        <select class="inp" data-k="flow"><option value="expense"${r.flow === 'expense' ? ' selected' : ''}>支出</option><option value="income"${r.flow === 'income' ? ' selected' : ''}>收入</option></select>
-        <input class="inp" data-k="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="金额" value="${r.amount}">
-        <input class="inp" data-k="category" maxlength="20" list="aiCatList" placeholder="分类" value="${escHtml(r.category)}">
-        <input class="inp" data-k="sub" maxlength="20" placeholder="二级分类" value="${escHtml(r.sub || '')}">
-        <input class="inp" data-k="date" placeholder="YYYY-MM-DD" value="${r.date}">
-      </div>`;
-  } else if (r.module === 'relation') {
-    body.innerHTML = `
-      <div class="ai-fields">
-        <input class="inp" data-k="rname" maxlength="20" placeholder="姓名 *" value="${escHtml(r.rname)}">
-        <input class="inp" data-k="phone" maxlength="20" placeholder="电话" value="${escHtml(r.phone)}">
-        <input class="inp" data-k="wechat" maxlength="30" placeholder="微信" value="${escHtml(r.wechat)}">
-        <input class="inp" data-k="qq" maxlength="15" placeholder="QQ" value="${escHtml(r.qq)}">
-        <input class="inp" data-k="company" maxlength="40" placeholder="公司" value="${escHtml(r.company)}">
-        <input class="inp" data-k="position" maxlength="40" placeholder="职位" value="${escHtml(r.position)}">
-      </div>`;
-  } else if (r.module === 'medicine') {
-    body.innerHTML = `
-      <div class="ai-fields">
-        <input class="inp" data-k="mname" maxlength="40" placeholder="药品名 *" value="${escHtml(r.mname)}">
-        <input class="inp" data-k="form" maxlength="20" placeholder="剂型（如 片剂）" value="${escHtml(r.form)}">
-        <input class="inp" data-k="spec" maxlength="40" placeholder="规格" value="${escHtml(r.spec)}">
-        <input class="inp" data-k="dosage" maxlength="150" placeholder="用法用量" value="${escHtml(r.dosage)}">
-        <input class="inp" data-k="expiry" placeholder="有效期 YYYY-MM-DD" value="${escHtml(r.expiry)}">
-      </div>`;
-  } else if (r.module === 'todo') {
-    body.innerHTML = `
-      <div class="ai-fields">
-        <input class="inp" data-k="title" maxlength="40" placeholder="待办内容" value="${escHtml(r.title)}">
-        <input class="inp" data-k="date" placeholder="YYYY-MM-DD" value="${r.date}">
-      </div>`;
-  } else {
-    body.innerHTML = `<div class="ai-memo-text">${escHtml(r.note)}</div>`;
-  }
-  body.querySelectorAll('[data-k]').forEach((el) => el.addEventListener('input', () => {
-    const k = el.dataset.k;
-    aiRowsData[i][k] = k === 'amount' ? (el.value === '' ? '' : Number(el.value)) : el.value;
-  }));
-  const flowSel = body.querySelector('[data-k=flow]');
-  if (flowSel) flowSel.addEventListener('change', () => { aiRowsData[i].flow = flowSel.value; });
-}
-
-async function aiPreviewConfirm() {
-  if (!aiRowsData.length) { closeModal($('#aiPreviewModal')); return; }
-  let okN = 0, failN = 0;
-  for (const r of aiRowsData) {
-    try {
-      if (r.module === 'transaction') {
-        const amount = Number(r.amount);
-        if (!(amount > 0)) { failN++; continue; }
-        const res = await api('/api/transactions', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            flow: r.flow, amount,
-            category: String(r.category || '').trim() || '其他',
-            sub: String(r.sub || '').trim(),
-            date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : todayStrLocal(),
-            note: String(r.note || '').slice(0, 60),
-          }),
-        });
-        res.ok ? okN++ : failN++;
-      } else if (r.module === 'relation') {
-        const rname = String(r.rname || '').trim();
-        if (!rname) { failN++; continue; }
-        const methods = [];
-        if (String(r.phone || '').trim()) methods.push({ kind: 'phones', value: String(r.phone).trim() });
-        if (String(r.wechat || '').trim()) methods.push({ kind: 'wechat', value: String(r.wechat).trim() });
-        if (String(r.qq || '').trim()) methods.push({ kind: 'qq', value: String(r.qq).trim() });
-        const res = await api('/api/profile/detail', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ firstName: rname, gender: '未知', methods, note: String(r.note || '').slice(0, 60) || undefined }),
-        });
-        if (res.ok && (String(r.company || '').trim() || String(r.position || '').trim())) {
-          const cd = await res.json().catch(() => ({}));
-          if (cd.id) await api('/api/profile/work', {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ person_id: cd.id, company: String(r.company || '').trim(), position: String(r.position || '').trim() }),
-          });
-        }
-        res.ok ? okN++ : failN++;
-      } else if (r.module === 'medicine') {
-        const mname = String(r.mname || '').trim();
-        if (!mname) { failN++; continue; }
-        const res = await api('/api/medicines', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: mname,
-            form: String(r.form || '').trim() || undefined,
-            spec: String(r.spec || '').trim(),
-            dosage: String(r.dosage || '').trim(),
-            expiry: r.expiry || undefined,
-            note: String(r.note || '').slice(0, 60),
-          }),
-        });
-        res.ok ? okN++ : failN++;
-      } else if (r.module === 'todo') {
-        const title = String(r.title || '').trim();
-        if (!title) { failN++; continue; }
-        const res = await api('/api/todos', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, date: /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : todayStrLocal(), list: '生活' }),
-        });
-        res.ok ? okN++ : failN++;
-      } else {
-        const res = await api('/api/memos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: String(r.note || '').slice(0, 500) }) });
-        res.ok ? okN++ : failN++;
-      }
-    } catch (_) { failN++; }
-  }
-  toast(okN && !failN ? `已记下 ${okN} 条` : `成功 ${okN} 条${failN ? '，失败 ' + failN + ' 条' : ''}`);
-  markSynced();
-  closeModal($('#aiPreviewModal'));
-  refreshP3Memos();
+/** v0.5.27：AI 识别的联系人 → 打开「添加联系人」弹窗预填（电话/微信暂存备注由人工归档） */
+function openContactFromAi(d) {
+  if (window.pfOpenEditModal) window.pfOpenEditModal();
+  const f = document.getElementById('contactEditForm');
+  if (!f) return;
+  if (d.rname) f.firstName.value = String(d.rname).slice(0, 20);
+  const bits = [d.phone && '电话 ' + d.phone, d.wechat && '微信 ' + d.wechat, d.qq && 'QQ ' + d.qq,
+    d.company && ('公司 ' + d.company + (d.position ? ' · ' + d.position : ''))].filter(Boolean);
+  if (bits.length && f.note) f.note.value = bits.join('；').slice(0, 60);
+  toast('已按识别预填，请核验后保存');
 }
 
 async function refreshP3Memos() {
@@ -2745,14 +2582,13 @@ function openTxnModal(t) {
 function closeTxnModal() {
   const m = $('#txnModal');
   if (m) m.hidden = true;
-  if (!aiChaining) aiQueue = [];  // 非链式保存的手动关闭：丢弃剩余 AI 队列
 }
 
 // ===== v0.5.23 随手记 AI → 记一笔表单 =====
 // 带金额内容不再用简易确认框，而是弹出「记一笔」完整表单并预填 AI 识别内容；
 // 多笔时保存一笔后自动弹出下一笔；非账单条目（待办/联系人/药品/备忘）走确认弹窗。
 let aiQueue = [];
-let aiChaining = false;
+let aiSaveHook = null;   // 当前 AI 弹窗保存后的续发钩子
 
 /** 用 AI 草稿预填「记一笔」表单（catTree 里没有的分类临时补一枚芯片，仅本次会话） */
 function openTxnFromAi(draft) {
@@ -2792,18 +2628,41 @@ function openTxnFromAi(draft) {
 }
 
 /** 保存一笔后消耗 AI 队列：还有账单 → 继续弹记一笔；只剩待办/联系人/药品 → 确认弹窗 */
-function drainAiQueue() {
-  if (!aiQueue.length) return;
-  const next = aiQueue[0];
-  if (next.module === 'transaction') {
-    aiQueue = aiQueue.slice(1);
-    openTxnFromAi(next);
-    if (aiQueue.length) toast(`AI 共识别 ${aiQueue.length + 1} 笔，保存本笔后继续确认下一笔`);
-    return;
-  }
-  const rest = aiQueue;
-  aiQueue = [];
-  openAiPreview(next.note || 'AI 识别内容', rest);
+async function drainAiQueue() {
+  if (window.__aiDraining) return;
+  window.__aiDraining = true;
+  try {
+    while (aiQueue.length) {
+      const next = aiQueue.shift();
+      if (next.module === 'transaction') { aiSaveHook = () => drainAiQueue(); openTxnFromAi(next); return; }          // 记一笔：保存后继续
+      if (next.module === 'medicine') { aiSaveHook = () => drainAiQueue(); if (window.medAiFill) window.medAiFill(next); return; }  // 录入药品：保存后继续
+      if (next.module === 'todo') {
+        if (next.detail) { aiSaveHook = () => drainAiQueue(); openTodoFromAi(next); return; }                        // 详细描述 → 新增待办弹窗
+        const okSave = await saveTodoFromAi(next);                                                                    // 简单 → 直接录入
+        if (okSave) { toast('待办已添加'); continue; }
+        aiSaveHook = () => drainAiQueue(); openTodoFromAi(next); return;                                             // 失败回退弹窗
+      }
+      if (next.module === 'relation') { aiSaveHook = () => drainAiQueue(); openContactFromAi(next); return; }        // 联系人：保存后继续
+      // memo：直接保存
+      const res = await api('/api/memos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: String(next.note || '').slice(0, 500) }) });
+      if (res.ok) { toast('备忘已保存'); await refreshP3Memos(); }
+    }
+  } finally { window.__aiDraining = false; }
+}
+window.drainAiQueue = drainAiQueue;
+window.aiQueueCancel = () => { aiQueue = []; aiSaveHook = null; };
+window.aiSaveHookRun = () => { const h = aiSaveHook; aiSaveHook = null; if (h) h(); };
+/** v0.5.27：AI 识别的详细待办 → 新增待办弹窗预填 */
+function openTodoFromAi(d) {
+  const f = $('#todoForm');
+  if (!f) return;
+  f.reset();
+  f.title.value = String(d.title || '').slice(0, 30);
+  f.date.value = /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') ? d.date : todayStrLocal();
+  f.time.value = /^\d{2}:\d{2}$/.test(d.time || '') ? d.time : '';
+  window.syncDtBtns(f);
+  $('#todoFormError').hidden = true;
+  $('#todoModal').hidden = false;
 }
 
 function syncTxnHint() {
@@ -2851,13 +2710,11 @@ async function submitTxn(e) {
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      aiChaining = aiQueue.length > 0;   // 链式保存：closeTxnModal 不清队列
       closeTxnModal();
       toast(id ? '已保存修改' : '已记账');
       markSynced();
       await renderLedger();
-      drainAiQueue();   // v0.5.23：随手记 AI 多笔时，保存一笔后续笔继续确认
-      aiChaining = false;
+      window.aiSaveHookRun();   // v0.5.27：随手记 AI 多笔时，保存一笔后续笔继续确认
     } else {
       const d = await res.json().catch(() => ({}));
       errEl.textContent = d.error || '保存失败，请稍后重试';
@@ -4689,7 +4546,7 @@ bind('#aiMemorySave', 'click', async () => {
 // v0.5.21 随手记图片
 bind('#qnImageBtn', 'click', () => $('#qnImageInput').click());
 bind('#qnImageInput', 'change', (e) => { const f = e.target.files && e.target.files[0]; qnReadImage(f); e.target.value = ''; });
-bind('#qnImageRemove', 'click', () => qnSetImage(null));
+bind('#qnImageRemove', 'click', () => { qnSetImage(null); if (window.aiQueueCancel) window.aiQueueCancel(); });
 bind('#aiModelList', 'click', async (e) => {
   const btn = e.target.closest('[data-ai]');
   if (!btn) return;
@@ -4868,8 +4725,8 @@ bind('#addTodoBtn', 'click', () => {
   $('#todoModal').hidden = false;
 });
 bind('#enableNotifyBtn', 'click', enableTodoNotify);
-bind('#todoModalClose', 'click', () => { $('#todoModal').hidden = true; });
-bind('#todoModal', 'click', (e) => { if (e.target === $('#todoModal')) $('#todoModal').hidden = true; });
+bind('#todoModalClose', 'click', () => { $('#todoModal').hidden = true; if (window.aiQueueCancel) window.aiQueueCancel(); });
+bind('#todoModal', 'click', (e) => { if (e.target === $('#todoModal')) { if (window.aiQueueCancel) window.aiQueueCancel(); $('#todoModal').hidden = true; } });
 bind('#todoForm', 'submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -4887,7 +4744,7 @@ bind('#todoForm', 'submit', async (e) => {
         note: fd.get('note'), remind: e.target.remind.checked,
       }),
     });
-    if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); await renderTodos(); }
+    if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); await renderTodos(); if (window.aiSaveHookRun) window.aiSaveHookRun(); }
   } catch { /* 401 已处理 */ } finally { if (btn) btn.disabled = false; }
 });
 
@@ -5082,10 +4939,6 @@ bind('#ledSearch', 'input', (e) => { ledgerState.q = e.target.value || ''; rende
 // ===== v0.6.0 · P3 事件绑定 =====
 bind('#qnForm', 'submit', quickNoteSubmit);
 bind('#otdRefresh', 'click', renderOnThisDay);
-bind('#aiPreviewClose', 'click', () => closeModal($('#aiPreviewModal')));
-bind('#aiPreviewModal', 'click', (e) => { if (e.target === $('#aiPreviewModal')) closeModal($('#aiPreviewModal')); });
-bind('#aiCancelBtn', 'click', () => closeModal($('#aiPreviewModal')));
-bind('#aiOkBtn', 'click', aiPreviewConfirm);
 bind('#recurringBtn', 'click', openRecurringModal);
 bind('#recurringModalClose', 'click', () => closeModal($('#recurringModal')));
 bind('#recurringModal', 'click', (e) => { if (e.target === $('#recurringModal')) closeModal($('#recurringModal')); });
