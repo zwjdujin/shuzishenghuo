@@ -593,12 +593,17 @@
         }
       }
       const hint = $('#medLookupHint');
+      // v0.5.28：外用药/处方药按药典+AI 判定预填勾选
+      if (e.external === true) form.external.checked = true;
+      if (e.rx === true) form.rx.checked = true;
+      else if (e.rx === false) form.rx.checked = false;
       if (hint) {
         hint.hidden = false;
         const src = `来源：《${e.bookName}》${e.pageNum ? '第' + e.pageNum + '页' : ''}`;
+        const rxNote = e.rx === true ? ' · 处方药' : (e.rx === false ? ' · OTC' : (e.rx === null && e.category ? ' · 请核验处方/OTC' : ''));
         hint.textContent = e.aiSuggested
-          ? `${src} · 药典未收录临床用法，功效/用法为 AI 建议仅供参考，请务必核验后再保存`
-          : `${src} · 已按药典预填，请人工核验后再保存`;
+          ? `${src}${rxNote} · 药典未收录临床用法，功效/用法为 AI 建议仅供参考，请务必核验后再保存`
+          : `${src}${rxNote} · 已按药典预填，请人工核验后再保存`;
       }
       if (drop) { drop.hidden = true; drop.innerHTML = ''; }
     } catch (_) {
