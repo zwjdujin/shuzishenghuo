@@ -11,8 +11,8 @@ android {
         minSdk 23
         targetSdk 35
         // 与 package.json 保持一致，发版时同步更新（versionCode = 去掉点的三段数字）
-        versionCode 530
-        versionName "0.5.30"
+        versionCode 531
+        versionName "0.5.31"
     }
 
     signingConfigs {

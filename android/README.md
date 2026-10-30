@@ -28,8 +28,8 @@ android/
 
 发版时把根目录 `package.json` 的版本同步到 `android/app/build.gradle`：
 
-- `versionName` = `"0.5.30"`（与 package.json 一致）
-- `versionCode` = `530`（去掉点号的三段数字）
+- `versionName` = `"0.5.31"`（与 package.json 一致）
+- `versionCode` = `531`（去掉点号的三段数字）
 
 ## 本机构建（Windows 示例）
 

@@ -1,122 +1,54 @@
-# 数字生活 · 打包成安卓 APP（TWA 侧载自用）
+# 数字生活 · 打包成安卓 APP（TWA，已落地）
 
-本项目是 Cloudflare Pages 上的 Web 应用（已带 PWA manifest + Service Worker）。
-用 **TWA（Trusted Web Activity）** 可把线上站点套一层原生安卓外壳，生成 APK：
-全屏、有独立图标、从应用抽屉启动、登录态与网站共用；**后端零改动**。
+本项目是 Cloudflare Pages 上的 Web 应用（PWA manifest + Service Worker 齐全）。
+安卓 APP 采用 **TWA（Trusted Web Activity）**：原生壳全屏加载线上站点，
+登录态、数据、功能与网站完全一致，**后端零改动**。目标是侧载自用，不上架商店。
 
-> 目标：装自己手机（侧载），不走 Google Play 商店。
-
----
-
-## 0. 前置：把仓库里的占位域名换成真实部署域名
-
-TWA 要求 `start_url` / `scope` 是绝对地址，打包前先把 `public/manifest.webmanifest` 里的相对路径（`./`）改成你的线上域名。全局替换（也可以用编辑器的全局搜索替换）：
-
-编辑 `public/manifest.webmanifest`，把这两行：
-
-```json
-"id": "./",
-"start_url": "./",
-"scope": "./"
-```
-
-改成（域名换成你的）：
-
-```json
-"id": "https://你的真实域名/",
-"start_url": "https://你的真实域名/",
-"scope": "https://你的真实域名/"
-```
+> **2026-10-30 已完成首版打包并发布**：APK 见 GitHub Releases（版本号随代码）。
+> 工程已提交在本仓库 `android/` 目录，本文记录的是实际执行过的流程，供下次发版参考。
 
 ---
 
-## 1. 部署并更新 PWA 资源
+## 仓库内工程（android/）
+
+- 入口：`androidbrowserhelper` 库的 `LauncherActivity`，启动即全屏打开
+  `https://szsh.110011.best/`（Chrome 渲染，无地址栏，见下方 assetlinks）。
+- 包名：`com.shuzishenghuo.twa`；`minSdk 23`、`targetSdk 35`。
+- 版本号：`android/app/build.gradle` 的 `versionName / versionCode`，
+  **发版时与根 `package.json` 同步**（versionCode = 去掉点号的三段数字）。
+- 签名密钥：`android/app/release.keystore`（alias `szsh`，密码写在
+  `android/app/build.gradle` 与 `android/README.md`），随仓库保存以便可复现构建。
+- 构建产物：`android/app/build/outputs/apk/release/app-release.apk`（已签名）。
+
+## 首版打包时做过的三处站点改动（已完成，勿回退）
+
+1. `public/manifest.webmanifest`：`id / start_url / scope` 由相对路径改为
+   `https://szsh.110011.best/` 绝对地址（TWA 硬性要求）。
+2. `public/.well-known/assetlinks.json`：回填 `android/app/release.keystore`
+   的 SHA256 指纹（`d69098da...f3d867`）。Chrome 校验通过才不显示地址栏。
+3. 两个改动均随 Git 推送自动部署（Cloudflare Pages Git 集成）。
+
+## 日常发版（网站出新版后让 APP 跟上）
 
 ```bash
-# 方式 A：Cloudflare Pages Git 连接（推荐，已配 SSH）
-git add -A && git commit -m "chore: TWA-ready manifest + icons" && git push
-
-# 方式 B：wrangler 直接部署
-npx wrangler pages deploy ./public
+# 1. 改 android/app/build.gradle 的 versionCode / versionName
+# 2. 出包（需 JDK 17 + Android SDK platforms;android-35 / build-tools;35.0.0）
+cd android && gradle assembleRelease
+# 3. 提交、打 tag、发 GitHub Release 并挂 APK（见 android/README.md）
 ```
 
-部署后确认：
-- `https://你的真实域名/manifest.webmanifest` 可访问且 `start_url/scope` 是绝对地址。
-- `https://你的真实域名/icons/icon-512.png` 可访问。
-- `https://你的真实域名/.well-known/assetlinks.json` 可访问（暂为占位 SHA256，第 3 步回填）。
+没有本机工具链时，任何装好 Android SDK 的 CI/电脑拉取本仓库执行上面第 2 步即可。
 
----
+## 安装到手机
 
-## 2. 本机准备工具链（仅出包时需要，沙箱里没有）
+把 `app-release.apk` 传到手机直接安装（需允许「未知来源/侧载」）。
+若打开后有地址栏：检查线上 `/.well-known/assetlinks.json` 指纹是否与
+当前 keystore 一致，或手机 Chrome 版本过旧（TWA 需较新 Chrome）。
 
-1. **JDK 17**（Android 构建要求）
-   - Windows：装 [Adoptium Temurin 17](https://adoptium.net/) ，`java -version` 验证。
-2. **Android SDK 命令行工具**
-   - 下载 commandlinetools，设 `ANDROID_HOME`，执行：
-     ```bash
-     sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-     sdkmanager --licenses
-     ```
-3. **Node/npm**（已有）安装 Bubblewrap：
-   ```bash
-   npm i -g @bubblewrap/cli
-   ```
+## 当初否决的替代方案（留档）
 
----
-
-## 3. 生成 TWA 工程与签名密钥
-
-```bash
-bubblewrap init --manifest https://你的真实域名/manifest.webmanifest
-```
-
-- 会自动生成 `twa-manifest.json`、`android/` 工程和一个 `release.keystore`。
-- 命令结束会**打印 keystore 的 SHA256**（也会写到 `twa-manifest.json` 注释附近）。
-- 把该 SHA256 填进 `public/.well-known/assetlinks.json` 的
-  `sha256_cert_fingerprints` 占位处，然后重新部署一次（第 1 步），让线上生效。
-
-> 若想自定义包名，编辑 `twa-manifest.json` 的 `packageId`（默认 `com.shuzishenghuo.twa`）。
-
----
-
-## 4. 编译并签名 APK（侧载用）
-
-```bash
-cd android
-./gradlew assembleRelease          # 产出未签名 app-release-unsigned.apk
-```
-
-用第 3 步生成的 keystore 签名（密码在 `bubblewrap init` 时设置/打印）：
-
-```bash
-apksigner sign \
-  --ks ../release.keystore \
-  --ks-key-alias android \
-  --out app-release-signed.apk \
-  app/build/outputs/apk/release/app-release-unsigned.apk
-```
-
-装到手机（手机需开启「未知来源」安装）：
-
-```bash
-adb install app-release-signed.apk
-```
-
-或直接把 `app-release-signed.apk` 拷到手机点开安装。
-
----
-
-## 5. 可选：上架 Google Play
-
-`bubblewrap build` 会产出 `app-release-bundle.aab`，按 Play 商店流程上传即可
-（需 $25 一次性开发者账号 + 走审核）。本方案已满足上架所需的 assetlinks 校验。
-
----
-
-## 常见坑
-
-- **TWA 必须绝对 URL**：manifest 的 `start_url/scope` 不能用 `./` 相对路径。
-- **没 assetlinks 也能跑**：只是 Chrome 会显示地址栏（非全屏）。侧载自用建议补全。
-- **登录态**：TWA 用 Chrome 自定义标签页，与你的 Chrome 共享 Cookie，网站登录一次即可。
-- **离线**：取决于现有 `sw.js` 的缓存策略；数据始终走 Cloudflare 后端。
-- **沙箱限制**：本机没有 JDK/Android SDK，无法在此直接出 APK；按上面步骤在本机/CI 出包。
+- **Bubblewrap**：`bubblewrap init` 向导是交互式的，在本环境（无 TTY）会崩溃；
+  且它自带的 JDK/SDK 下载器同样走交互确认。故改为手写 Gradle 工程（本仓库现状），
+  工具链全部手动安装：Temurin JDK 17 便携包 + Android commandlinetools + Gradle 8.9 zip。
+- **WebView 自建壳**：需自己处理文件上传（拍照识别/R2 附件）、返回键、Cookie 等；
+  TWA 由 Chrome 原生处理这些，代码量为零，故选 TWA。
