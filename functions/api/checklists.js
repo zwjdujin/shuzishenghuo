@@ -39,10 +39,16 @@ export async function onRequestPut(context) {
   let body = {};
   try { body = await request.json(); } catch (_) {}
   const id = Number(body.id);
-  const name = nameOf(body.name);
-  if (!id || !name) return json({ error: '参数不完整' }, 400);
+  if (!id) return json({ error: '参数不完整' }, 400);
   const row = await env.DB.prepare('SELECT id FROM checklist_groups WHERE id=?').bind(id).first();
   if (!row) return json({ error: '清单不存在' }, 404);
+  // reset：一键恢复该清单下所有条目为未完成
+  if (body.reset) {
+    await env.DB.prepare('UPDATE checklist_items SET done=0 WHERE group_id=?').bind(id).run();
+    return json({ ok: true, id, reset: true });
+  }
+  const name = nameOf(body.name);
+  if (!name) return json({ error: '请填写清单名称' }, 400);
   await env.DB.prepare('UPDATE checklist_groups SET name=? WHERE id=?').bind(name, id).run();
   return json({ ok: true, id, name });
 }

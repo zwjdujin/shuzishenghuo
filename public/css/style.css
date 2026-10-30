@@ -1711,3 +1711,9 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 @media (max-width:640px){
   .ck-wrap{grid-template-columns:minmax(0,1fr);gap:12px}
 }
+
+/* --- v0.5.30 待办清单：默认收缩，点清单名展开 --- */
+.ck-card.folded .ck-body{display:none}
+.ck-caret{flex:0 0 auto;width:14px;font-size:11px;color:var(--muted);text-align:center}
+.ck-head b.ck-name{cursor:pointer}
+.ck-head b.ck-name:hover{color:var(--plum)}

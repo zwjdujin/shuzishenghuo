@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.29
-const VERSION = '0.5.29';
+// 数字生活 · 前端逻辑 v0.5.30
+const VERSION = '0.5.30';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '随手记记账弹窗对齐账本（账户可选/时间到时分）；账本明细前置、预算与近6月后置；总额度保存修复；新增待办清单';
+const __BUILD_ID__ = '待办清单默认收缩点名称展开；重命名弹窗新增重置（一键全部未完成）；记一笔备注放宽到100字';
 const __BUILD_TIME__ = '2026-10-30';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -1853,6 +1853,7 @@ async function removeTodo(id, title) {
 
 // ===== 待办清单（v0.5.29：自定义清单 + 物品/事项勾选；未备齐的排前面） =====
 let ckData = [];
+let ckExpanded = new Set();   // 展开的清单 id；默认全部收缩，点清单名展开/收起
 async function renderChecklists() {
   const box = $('#ckListBox');
   if (!box) return;
@@ -1873,27 +1874,31 @@ async function renderChecklists() {
   }
   box.innerHTML = ckData.map((g) => {
     const doneN = g.items.filter((i) => i.done).length;
+    const folded = !ckExpanded.has(g.id);
     return `
-    <div class="ck-card" data-gid="${g.id}">
+    <div class="ck-card${folded ? ' folded' : ''}" data-gid="${g.id}">
       <div class="ck-head">
-        <b class="ck-name">${escHtml(g.name)}</b>
+        <span class="ck-caret">${folded ? '▸' : '▾'}</span>
+        <b class="ck-name" title="点击展开 / 收起">${escHtml(g.name)}</b>
         <span class="muted">${doneN}/${g.items.length}</span>
         <span class="ck-ops">
-          <button class="icon-btn" data-ck-grename="${g.id}" title="重命名清单" aria-label="重命名清单"><svg><use href="#i-edit"/></svg></button>
+          <button class="icon-btn" data-ck-grename="${g.id}" title="重命名 / 重置" aria-label="重命名清单"><svg><use href="#i-edit"/></svg></button>
           <button class="icon-btn del" data-ck-gdel="${g.id}" title="删除清单" aria-label="删除清单"><svg><use href="#i-x"/></svg></button>
         </span>
       </div>
-      <div class="ck-items">
+      <div class="ck-body">
+        <div class="ck-items">
         ${g.items.map((i) => `
         <div class="ck-item${i.done ? ' done' : ''}">
           <button class="ck-check" data-ck-toggle="${i.id}" data-done="${i.done ? 1 : 0}" title="${i.done ? '取消勾选' : '标记备齐'}" aria-label="${i.done ? '取消勾选' : '标记备齐'}"><svg><use href="#i-check"/></svg></button>
           <span class="ck-text">${escHtml(i.content)}</span>
           <button class="icon-btn del" data-ck-idel="${i.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
         </div>`).join('') || '<div class="empty-hint">还没有条目，在下面添加。</div>'}
-      </div>
-      <div class="ck-add">
-        <input class="inp" maxlength="60" placeholder="添加物品或事项，回车确认">
-        <button class="btn ghost" data-ck-iadd="${g.id}" type="button">添加</button>
+        </div>
+        <div class="ck-add">
+          <input class="inp" maxlength="60" placeholder="添加物品或事项，回车确认">
+          <button class="btn ghost" data-ck-iadd="${g.id}" type="button">添加</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1912,6 +1917,17 @@ function bindChecklists() {
   if (!box || box.dataset.ckBound) return;
   box.dataset.ckBound = '1';
   box.addEventListener('click', async (e) => {
+    // 点清单名（非右侧操作钮）展开 / 收起该清单
+    const head = e.target.closest('.ck-head');
+    if (head && !e.target.closest('.ck-ops')) {
+      const card = head.closest('.ck-card');
+      const gid = Number(card.dataset.gid);
+      if (ckExpanded.has(gid)) ckExpanded.delete(gid); else ckExpanded.add(gid);
+      card.classList.toggle('folded');
+      const caret = card.querySelector('.ck-caret');
+      if (caret) caret.textContent = card.classList.contains('folded') ? '▸' : '▾';
+      return;
+    }
     const toggle = e.target.closest('[data-ck-toggle]');
     if (toggle) {
       const done = toggle.dataset.done === '1';
@@ -1941,9 +1957,18 @@ function bindChecklists() {
     const grename = e.target.closest('[data-ck-grename]');
     if (grename) {
       const g = ckData.find((x) => String(x.id) === grename.dataset.ckGrename);
-      const name = await askText({ title: '重命名清单', value: g ? g.name : '', maxlen: 30, placeholder: '清单名称' });
-      if (name === null || !name.trim()) return;
-      if (await ckCall('/api/checklists', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(grename.dataset.ckGrename), name: name.trim() }) })) await renderChecklists();
+      const gid = Number(grename.dataset.ckGrename);
+      const res = await askText({ title: '重命名清单', value: g ? g.name : '', maxlen: 30, placeholder: '清单名称', alt: '重置' });
+      if (res === '__alt__') {   // 一键恢复该清单所有条目为未完成
+        if (await ckCall('/api/checklists', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: gid, reset: true }) })) {
+          toast('已全部重置为未完成');
+          ckExpanded.add(gid);   // 重置后展开方便直接勾选
+          await renderChecklists();
+        }
+        return;
+      }
+      if (res === null || !res.trim()) return;
+      if (await ckCall('/api/checklists', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: gid, name: res.trim() }) })) await renderChecklists();
       return;
     }
     const gdel = e.target.closest('[data-ck-gdel]');
@@ -2069,8 +2094,9 @@ function hashCat(name) {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h;
 }
-/* ---------- 通用文本输入弹窗（替代 prompt：TWA/WebView 环境不支持 prompt()） ---------- */
-function askText({ title = '输入', value = '', maxlen = 20, placeholder = '' } = {}) {
+/* ---------- 通用文本输入弹窗（替代 prompt：TWA/WebView 环境不支持 prompt()） ----------
+   alt：可选的附加动作按钮文字（如「重置」）；点击后以 '__alt__' 结局返回，由调用方执行对应动作 */
+function askText({ title = '输入', value = '', maxlen = 20, placeholder = '', alt = null } = {}) {
   return new Promise((resolve) => {
     const m = $('#askTextModal');
     if (!m) { resolve(null); return; }
@@ -2079,17 +2105,24 @@ function askText({ title = '输入', value = '', maxlen = 20, placeholder = '' }
     inp.value = value || '';
     inp.setAttribute('maxlength', String(maxlen));
     inp.placeholder = placeholder;
+    const altBtn = $('#askTextAlt');
+    if (altBtn) {
+      altBtn.hidden = !alt;
+      altBtn.textContent = alt || '';
+    }
     m.hidden = false;
     setTimeout(() => { try { inp.focus(); inp.select(); } catch (_) {} }, 60);
     const done = (val) => {
       m.hidden = true;
       $('#askTextOk').onclick = null; $('#askTextCancel').onclick = null;
       $('#askTextClose').onclick = null; m.onclick = null; inp.onkeydown = null;
+      if (altBtn) altBtn.onclick = null;
       resolve(val);
     };
     $('#askTextOk').onclick = () => done(inp.value.trim());
     $('#askTextCancel').onclick = () => done(null);
     $('#askTextClose').onclick = () => done(null);
+    if (altBtn) altBtn.onclick = () => done('__alt__');
     m.onclick = (e) => { if (e.target === m) done(null); };
     inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); done(inp.value.trim()); } };
   });
@@ -2724,7 +2757,7 @@ function openTxnFromAi(draft) {
   txnDraft.date = /^\d{4}-\d{2}-\d{2}$/.test(draft.date || '') ? draft.date : todayStrLocal();
   if (draft.time) txnDraft.time = draft.time;
   $('#txnAmount').value = String(draft.amount);
-  $('#txnNote').value = String(draft.note || '').slice(0, 30);
+  $('#txnNote').value = String(draft.note || '').slice(0, 100);
   const radio = $('#txnForm').querySelector(`[name=flow][value="${flow}"]`);
   if (radio) radio.checked = true;
   // AI 分类/二级不在分类树时临时补芯片（保存后如需常驻可去分类管理添加），

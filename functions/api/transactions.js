@@ -38,7 +38,7 @@ export function normalizeTxnBody(body) {
     toAccount,
     contactId: Number(body.contact_id) || null,
     item: String(body.item || '').trim().slice(0, 40) || null,
-    note: String(body.note || '').trim() || null,
+    note: String(body.note || '').trim().slice(0, 100) || null,
   };
 }
 
