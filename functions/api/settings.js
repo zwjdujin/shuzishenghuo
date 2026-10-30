@@ -2,7 +2,7 @@ import { json } from '../_lib.js';
 
 // 允许在「个人中心」中修改的设置项
 // theme / font / mode 为「外观」，存服务端是为了多端一致（电脑上选好，手机打开即同款）
-const ALLOWED = ['brand_name', 'brand_avatar', 'brand_tagline', 'theme', 'font', 'mode', 'ledger_budget', 'rel_list_fields'];
+const ALLOWED = ['brand_name', 'brand_avatar', 'brand_tagline', 'theme', 'font', 'mode', 'ledger_budget', 'rel_list_fields', 'dossier_order'];
 const DEFAULTS = {
   brand_name: '数字生活',
   brand_avatar: '数',
@@ -12,6 +12,7 @@ const DEFAULTS = {
   mode: 'auto',
   ledger_budget: '',
   rel_list_fields: 'gender,phone',
+  dossier_order: 'basic,social,methods,relatives,work,edu,pets,finance,body,files',
 };
 
 // GET /api/settings —— 读取当前设置

@@ -14,6 +14,7 @@ const PF = {
   editTags: [],          // 编辑弹窗：已选标签
   editGroups: [],        // 编辑弹窗：已选群组
   editingId: null,       // 编辑弹窗：null=新建
+  dossierOrder: [],      // v0.5.32 档案页模块顺序（人际关系相关设置里拖动配置）
 };
 
 function pfEl(id) { return document.getElementById(id); }
@@ -222,6 +223,7 @@ async function pfOpenProfile(id) {
     PF.data = await res.json();
     pfRenderAll();
     markSynced();
+    pfLoadDossierOrder().then(() => { pfApplyOrder(); pfRenderIndex(); });   // 设置可能中途改过，回填一次
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) {
       const el = pfEl('pfHero');
@@ -273,12 +275,12 @@ function pfSyncEditMode() {
       : '<svg class="btn-ico-long"><use href="#i-edit"/></svg><span class="btn-long">编辑基本信息</span><span class="btn-short">编辑</span>';
   }
   // 查看模式隐藏空分区；编辑模式全部展开
+  // v0.5.32：异步模块（财务往来/个人信息/附件）的数据到达晚于本函数，
+  // 它们的显隐由各自渲染完成时自管（pfRenderFinance/pfRenderBody/pfRenderFiles 尾部），
+  // 这里只处理同步渲染的模块，避免「先隐藏、后无再同步」的时序竞态。
   const b = PF.data || {};
   const methods = b.methods || {};
   const methodsAny = METHOD_META.some(([k]) => (methods[k] || []).length);
-  const sizes = (PF.bodyData && PF.bodyData.sizes) || {};
-  const bodyAny = !!(PF.bodyData && ((PF.bodyData.heights || []).length || (PF.bodyData.weights || []).length || Object.values(sizes).some(Boolean)));
-  const filesAny = (PF.filesData || []).length;
   const hideIfEmpty = !PF.editMode;
   const visibility = {
     pfBasicPanel: true,
@@ -288,14 +290,75 @@ function pfSyncEditMode() {
     pfWorkPanel: !hideIfEmpty || !!(b.work && (b.work.company || b.work.position)),
     pfEduPanel: !hideIfEmpty || (b.edus || []).length > 0,
     pfPetsPanel: !hideIfEmpty || (b.pets || []).length > 0,
-    pfFinancePanel: true,
-    pfBodyPanel: !hideIfEmpty || bodyAny,
-    pfFilesPanel: !hideIfEmpty || filesAny,
   };
   Object.entries(visibility).forEach(([id, show]) => {
     const el = pfEl(id);
     if (el) el.hidden = hideIfEmpty && !show;
   });
+  pfApplyOrder();    // v0.5.32：按设置排序并写标题序号
+  pfRenderIndex();   // v0.5.32：目录只列当前可见（有资料）的模块
+}
+
+// ===== v0.5.32 档案卷宗：模块目录 / 排序 =====
+const PF_MODULES = [
+  ['basic', '基础身份'], ['social', '社会关系'], ['methods', '联系方式'], ['relatives', '家庭关系'],
+  ['work', '职业信息'], ['edu', '教育与成长'], ['pets', '宠物'], ['finance', '财务往来'],
+  ['body', '个人信息'], ['files', '附件'],
+];
+const pfModLabel = (k) => (PF_MODULES.find((m) => m[0] === k) || [k, k])[1];
+
+async function pfLoadDossierOrder() {
+  try {
+    const res = await api('/api/settings');
+    const csv = res.ok ? ((await res.json()).settings.dossier_order || '') : '';
+    PF.dossierOrder = csv.split(',').map((x) => x.trim()).filter((x) => PF_MODULES.some((m) => m[0] === x));
+  } catch (_) { /* 拉不到就用默认顺序 */ }
+}
+
+/** 按「人际关系相关设置」的顺序排列模块，并把序号缀到标题右侧（名称 - 01） */
+function pfApplyOrder() {
+  const main = pfEl('pfMain');
+  if (!main) return;
+  const order = PF.dossierOrder.slice();
+  PF_MODULES.forEach(([k]) => { if (!order.includes(k)) order.push(k); });   // 未配置/新增模块兜底追加
+  let seq = 0;
+  order.forEach((k) => {
+    const el = main.querySelector(`.panel[data-mod="${k}"]`);
+    if (!el) return;
+    main.appendChild(el);
+    const h = el.querySelector('.panel-head h2');
+    if (el.hidden) {   // 查看模式下无资料的模块：只排序，不编号不进目录
+      delete el.dataset.seq;
+      if (h && h.dataset.base) h.textContent = h.dataset.base;
+      return;
+    }
+    seq += 1;
+    el.dataset.seq = String(seq).padStart(2, '0');
+    if (h && h.dataset.base) h.textContent = h.dataset.base + ' - ' + el.dataset.seq;
+  });
+}
+
+/** 档案目录：只列当前可见（查看模式下有资料）的模块；移动端吸顶横滑 */
+function pfRenderIndex() {
+  const idx = pfEl('pfIdx');
+  const main = pfEl('pfMain');
+  if (!idx || !main) return;
+  const panels = [...main.querySelectorAll('.panel[data-mod]')].filter((p) => !p.hidden);
+  idx.hidden = !panels.length;
+  if (!panels.length) return;
+  idx.innerHTML = '<div class="panel-head"><h3>档案目录</h3></div>'
+    + '<button class="idx-arrow l" aria-label="向左拖动">‹</button><button class="idx-arrow r" aria-label="向右拖动">›</button>'
+    + panels.map((p) => `<a data-pfidx="${p.id}">${pfEsc(pfModLabel(p.dataset.mod))}<span>${p.dataset.seq || ''}</span></a>`).join('');
+  idx.querySelectorAll('a[data-pfidx]').forEach((a) => {
+    a.addEventListener('click', () => {
+      const el = pfEl(a.dataset.pfidx);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  const prev = idx.querySelector('.idx-arrow.l');
+  const next = idx.querySelector('.idx-arrow.r');
+  if (prev) prev.onclick = () => idx.scrollBy({ left: -160, behavior: 'smooth' });
+  if (next) next.onclick = () => idx.scrollBy({ left: 160, behavior: 'smooth' });
 }
 
 // ===== v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） =====
@@ -341,10 +404,19 @@ async function pfRenderBody() {
   const sz = data.sizes || {};
   PF.bodyData = { heights, weights, sizes: sz }; // 供空面板判断
   const t = pfToday();
+  // BMI 自动计算：取最新身高（heights[0]）与最新体重（weights 末位）；任一缺失则不显示
+  let bmi = '';
+  if (heights.length && weights.length) {
+    const hCm = Number(heights[0].value);
+    const wKg = Number(weights[weights.length - 1].value);
+    if (hCm > 0 && wKg > 0) bmi = (wKg / Math.pow(hCm / 100, 2)).toFixed(1);
+  }
+  const bmiLine = bmi ? `<p class="ts-hint">BMI ${pfEsc(bmi)}（按最新身高体重自动计算）</p>` : '';
 
   if (!PF.editMode) {
     // 查看模式：身高表（无删除钮）+ 体重折线 + 尺码文字，无任何输入控件
     const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
+    if (pfEl('pfBodyPanel')) pfEl('pfBodyPanel').hidden = !PF.editMode && !hasAny;   // 查看模式：无资料隐藏
     if (!hasAny) { box.innerHTML = '<div class="empty-hint">暂无身高体重与尺码记录</div>'; return; }
     const sizeItems = [['衣裤', sz.clothing], ['鞋子', sz.shoe], ['戒指', sz.ring], ['手镯', sz.bracelet]].filter(([, v]) => v);
     box.innerHTML = `
@@ -360,6 +432,7 @@ async function pfRenderBody() {
         <div class="pf-hm-block">
           <b class="pm-block-title">体重趋势 <span class="muted">kg</span></b>
           ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">暂无体重记录</div>'}
+          ${bmiLine}
         </div>
       </div>
       ${sizeItems.length ? `
@@ -369,6 +442,7 @@ async function pfRenderBody() {
           ${sizeItems.map(([k, v]) => `<div class="pm-item"><span>${k}</span><b>${pfEsc(v)}</b></div>`).join('')}
         </div>
       </div>` : ''}`;
+    if (pfEl('pfBodyPanel')) pfEl('pfBodyPanel').hidden = false;   // 有资料：确保可见
     return;
   }
 
@@ -398,8 +472,9 @@ async function pfRenderBody() {
           <button type="button" class="dt-btn" data-dt="pfWDate" data-ph="今天"><svg><use href="#i-calendar"/></svg><span>今天</span></button>
           <button class="btn ghost" data-act="wadd">记录</button>
         </div>
-        ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">记录两次及以上体重，这里会画出趋势折线。</div>'}
-      </div>
+          ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">记录两次及以上体重，这里会画出趋势折线。</div>'}
+          ${bmiLine}
+        </div>
     </div>
     <div class="pf-sizes">
       <b class="pm-block-title">尺码 <span class="muted">买衣服鞋子前翻这里</span></b>
@@ -426,6 +501,7 @@ async function pfRenderBody() {
     });
   });
   box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
+  if (pfEl('pfBodyPanel')) pfEl('pfBodyPanel').hidden = false;   // 编辑模式展开
   pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性
 }
 
@@ -478,6 +554,7 @@ async function pfRenderFiles() {
       </div>
     </div>`;
   }).join('') : (PF.editMode ? '<div class="empty-hint">暂无附件。照片、视频、文档都可上传，存在你自己的对象存储里。</div>' : '<div class="empty-hint">暂无附件</div>');
+  if (pfEl('pfFilesPanel')) pfEl('pfFilesPanel').hidden = !PF.editMode && !fs.length;   // v0.5.32：无附件隐藏（自管显隐）
   pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性
 }
 
@@ -607,7 +684,11 @@ function pfRenderMethods() {
 // ===== 家庭关系 =====
 function pfRenderRelatives() {
   const d = PF.data;
-  pfEl('pfKinTitle').textContent = `「${d.base.name}」的家庭关系`;
+  const kinTitle = pfEl('pfKinTitle');
+  if (kinTitle) {
+    kinTitle.dataset.base = `「${d.base.name}」的家庭关系`;
+    kinTitle.textContent = kinTitle.dataset.base;   // 序号后缀由 pfApplyOrder 统一追加
+  }
   if (!PF.editMode) {
     // 查看模式：纯展示
     pfEl('pfRelatives').innerHTML = `
@@ -752,7 +833,9 @@ async function pfRenderFinance() {
   try {
     const res = await api('/api/transactions?contact_id=' + PF.pid);
     const data = await res.json();
+    PF.finData = data;   // v0.5.32：供空模块隐藏判断
     const list = data.list || [];
+    if (pfEl('pfFinancePanel')) pfEl('pfFinancePanel').hidden = !PF.editMode && !list.length;   // v0.5.32：无往来隐藏（自管显隐，须在空列表提前返回前）
     const s = data.summary || {};
     pfEl('pfFinSum').textContent = list.length
       ? `${s.count} 笔 · 收 ¥${Math.round(s.income).toLocaleString('zh-CN')} · 支 ¥${Math.round(s.expense).toLocaleString('zh-CN')}`
@@ -780,6 +863,7 @@ async function pfRenderFinance() {
       row.onclick = () => { if (window.openLedgerMonth) window.openLedgerMonth(t.date); };
       el.appendChild(row);
     });
+    if (pfEl('pfFinancePanel')) pfEl('pfFinancePanel').hidden = !PF.editMode && !list.length;   // v0.5.32：无往来隐藏（自管显隐）
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) el.innerHTML = '<div class="empty-hint">加载财务往来失败</div>';
   }
@@ -1087,6 +1171,22 @@ function pfBindEvents() {
   if (setAdd) setAdd.addEventListener('click', relsetAdd);
   const setName = pfEl('relsetName');
   if (setName) setName.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); relsetAdd(); } });
+  // v0.5.32：档案目录排序保存
+  const dossSave = pfEl('dossierOrderSave');
+  if (dossSave) dossSave.addEventListener('click', async () => {
+    const list = pfEl('dossierOrderList');
+    if (!list) return;
+    const order = [...list.querySelectorAll('.ls-row')].map((r) => r.dataset.mod).filter(Boolean).join(',');
+    const res = await api('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dossier_order: order }) });
+    if (res.ok) {
+      PF.dossierOrder = order.split(',').filter(Boolean);
+      pfApplyOrder();
+      pfRenderIndex();
+      toast('排序已保存，资料页即刻生效');
+      markSynced();
+    } else toast('保存失败');
+  });
   // 生日：统一月历（date 模式，可清除 = 不知道年龄；点标题年月可换年份）+ 农历按钮
   const bdayDtBtn = document.querySelector('[data-dt=bdayDate]');
   if (bdayDtBtn) {
@@ -1376,6 +1476,7 @@ async function renderRelSet() {
   if (!box) return;
   await pfLoadListFields();   // v0.5.31：列表显示字段勾选随设置页加载
   pfRenderListFields();
+  pfLoadDossierOrder().then(renderDossierOrder);   // v0.5.32：档案目录排序
   const isTag = relset.kind === 'rel_tag';
   pfEl('relsetKindTitle').textContent = isTag ? '人脉标签' : '人脉群组';
   $$('#view-relset [data-rsflow]').forEach((b) => b.classList.toggle('active', b.dataset.rsflow === relset.kind));
@@ -1500,6 +1601,72 @@ function bindRelsetDrag() {
   });
 }
 window.renderRelSet = renderRelSet;
+
+/* ---------- v0.5.32 档案目录排序（拖动 → 保存到 app_settings.dossier_order） ---------- */
+function renderDossierOrder() {
+  const box = pfEl('dossierOrderList');
+  if (!box) return;
+  const order = PF.dossierOrder.slice();
+  PF_MODULES.forEach(([k]) => { if (!order.includes(k)) order.push(k); });   // 兜底：新模块排最后
+  box.innerHTML = '';
+  order.forEach((k) => {
+    const row = document.createElement('div');
+    row.className = 'ls-row';
+    row.dataset.mod = k;
+    row.innerHTML = '<span class="ls-handle" title="拖动排序"><i></i><i></i><i></i></span>'
+      + '<span class="ls-name">' + pfEsc(pfModLabel(k)) + '</span>';
+    box.appendChild(row);
+  });
+  pfBindDossierDrag();
+}
+function pfBindDossierDrag() {
+  const scope = pfEl('dossierOrderList');
+  if (!scope || scope.dataset.dragBound) return;
+  scope.dataset.dragBound = '1';
+  scope.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('.ls-handle');
+    if (!handle) return;
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+    const row = handle.closest('.ls-row');
+    if (!row) return;
+    const rows = Array.from(scope.children).filter((el) => el.classList.contains('ls-row'));
+    const rect = row.getBoundingClientRect();
+    const holder = document.createElement('div');
+    holder.className = 'ls-holder';
+    holder.style.height = rect.height + 'px';
+    row.parentElement.insertBefore(holder, row);
+    Object.assign(row.style, {
+      position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+      width: rect.width + 'px', zIndex: 60, pointerEvents: 'none',
+    });
+    const grabDy = e.clientY - rect.top;
+    const moveTo = (y) => {
+      row.style.top = (y - grabDy) + 'px';
+      for (const r of rows) {
+        if (r === row) continue;
+        const rr = r.getBoundingClientRect();
+        if (y < rr.top + rr.height / 2) {
+          if (holder.nextElementSibling !== r) r.parentElement.insertBefore(holder, r);
+          return;
+        }
+      }
+      const last = rows[rows.length - 1];
+      if (last !== row && last.nextElementSibling !== holder) last.parentElement.insertBefore(holder, last.nextElementSibling);
+    };
+    moveTo(e.clientY);
+    const onMove = (ev) => moveTo(ev.clientY);
+    const onUp = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      holder.parentElement.insertBefore(row, holder);
+      holder.remove();
+      row.style.cssText = '';
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+  });
+}
 
 window.pfLoadList = pfLoadList;
 window.pfOpenProfile = pfOpenProfile;
