@@ -195,6 +195,7 @@ export async function deleteContactCascade(env, id) {
     env.DB.prepare('DELETE FROM rel_pets WHERE person_id=?').bind(id),
     env.DB.prepare('DELETE FROM body_records WHERE contact_id=?').bind(id),
     env.DB.prepare('DELETE FROM contact_files WHERE contact_id=?').bind(id),
+    env.DB.prepare('DELETE FROM contact_sections WHERE contact_id=?').bind(id),
     env.DB.prepare('DELETE FROM contacts WHERE id=?').bind(id),
   ]);
   // R2 里的附件对象一并清理（尽力而为；失败不影响联系人删除）

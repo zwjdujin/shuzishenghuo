@@ -26,6 +26,7 @@ export const TABLE_LABELS = {
   rel_pets: '人际关系 · 宠物',
   body_records: '人际关系 · 身高体重',
   contact_files: '人际关系 · 附件',
+  contact_sections: '人际关系 · 档案段落',
   vocab: '词库',
   push_subscriptions: '推送订阅',
 };

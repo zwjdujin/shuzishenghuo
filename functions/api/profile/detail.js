@@ -144,6 +144,13 @@ export async function onRequestGet(context) {
 
   const dict = async (kind) => (await env.DB.prepare('SELECT word FROM vocab WHERE kind=? ORDER BY hits DESC, word').bind(kind).all()).results.map((x) => x.word);
 
+  // v0.5.33 档案卷宗：自定义段落载荷（contact_sections，键 → data）
+  let sections = {};
+  try {
+    const sRows = (await env.DB.prepare('SELECT sec_key, data FROM contact_sections WHERE contact_id=?').bind(id).all()).results || [];
+    sRows.forEach((r) => { try { sections[r.sec_key] = JSON.parse(r.data) || {}; } catch (_) { sections[r.sec_key] = {}; } });
+  } catch (_) { /* 表未迁移忽略 */ }
+
   return json({
     base: {
       id: c.id,
@@ -176,6 +183,7 @@ export async function onRequestGet(context) {
       refId: r.ref_id || null, refName: r.ref_id ? (refNames[r.ref_id] || '') : '',
     })),
     pets: pets.map((p) => ({ id: p.id, species: p.species || '', name: p.name || '', memorialDate: p.memorial_date || '' })),
+    sections,
     meta: {
       genders: ['男', '女', '未知'],
       marriages: MARRIAGES,

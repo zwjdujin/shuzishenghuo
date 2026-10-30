@@ -253,16 +253,16 @@ function pfRenderAll() {
   if (!d) return;
   pfEl('pfName').textContent = d.base.name;
   pfRenderHero();
-  pfRenderBasic();
-  pfRenderSocial();
-  pfRenderMethods();
-  pfRenderRelatives();
-  pfRenderWork();
-  pfRenderEdu();
-  pfRenderPets();
-  pfRenderBody();    // v0.6.0：个人信息（尺码 + 身高表 + 体重折线）
-  pfRenderFiles();   // v0.6.0：附件（R2）
-  pfSyncEditMode();  // v0.5.19：查看/编辑模式的面板可见性与按钮态
+  pfRenderIdentity();   // 身份标识（原基础身份 + 社会关系折叠）
+  pfRenderBody();       // 体测与尺码（身高/体重/BMI/尺码 + 附加资料）
+  pfRenderMethods();    // 联络方式
+  pfRenderWork();       // 职务与授权
+  pfRenderEdu();        // 教育与能力
+  pfRenderHome();       // 居住与家庭（家庭关系 + 宠物）
+  pfRenderFinance();    // 财务往来（账本联动）
+  pfRenderFiles();      // 附件（R2）
+  pfRenderJsonSections();
+  pfSyncEditMode();     // 查看/编辑模式的面板可见性与按钮态 + 排序 + 目录
 }
 
 // ===== v0.5.19 查看/编辑模式 =====
@@ -281,15 +281,15 @@ function pfSyncEditMode() {
   const b = PF.data || {};
   const methods = b.methods || {};
   const methodsAny = METHOD_META.some(([k]) => (methods[k] || []).length);
+  const secData = (k) => (b.sections || {})[k] || {};
+  const hasCustom = (k) => pfSecHasData(pfSecDef(k), secData(k));
   const hideIfEmpty = !PF.editMode;
   const visibility = {
-    pfBasicPanel: true,
-    pfSocialPanel: !hideIfEmpty || !!(b.base && (b.base.marriage || b.base.referrer || b.base.note)),
-    pfMethodsPanel: !hideIfEmpty || methodsAny,
-    pfRelativesPanel: !hideIfEmpty || (b.relatives || []).length > 0,
-    pfWorkPanel: !hideIfEmpty || !!(b.work && (b.work.company || b.work.position)),
-    pfEduPanel: !hideIfEmpty || (b.edus || []).length > 0,
-    pfPetsPanel: !hideIfEmpty || (b.pets || []).length > 0,
+    pfPanel_identity: true,
+    pfPanel_methods: !hideIfEmpty || methodsAny || hasCustom('methods'),
+    pfPanel_clearance: !hideIfEmpty || !!(b.work && (b.work.company || b.work.position)) || hasCustom('clearance'),
+    pfPanel_edu: !hideIfEmpty || (b.edus || []).length > 0 || hasCustom('edu'),
+    pfPanel_home: !hideIfEmpty || (b.relatives || []).length > 0 || (b.pets || []).length > 0 || hasCustom('home'),
   };
   Object.entries(visibility).forEach(([id, show]) => {
     const el = pfEl(id);
@@ -299,19 +299,290 @@ function pfSyncEditMode() {
   pfRenderIndex();   // v0.5.32：目录只列当前可见（有资料）的模块
 }
 
-// ===== v0.5.32 档案卷宗：模块目录 / 排序 =====
-const PF_MODULES = [
-  ['basic', '基础身份'], ['social', '社会关系'], ['methods', '联系方式'], ['relatives', '家庭关系'],
-  ['work', '职业信息'], ['edu', '教育与成长'], ['pets', '宠物'], ['finance', '财务往来'],
-  ['body', '个人信息'], ['files', '附件'],
+// ===== v0.5.33 档案卷宗：段落模板（结构化模块 + JSON 自由段落 + 应用联动） =====
+// kind: struct=原结构化模块（原表直读，编辑走全局「编辑」/弹窗）| json=自由段落（contact_sections 载荷）
+//       app=应用联动（账本流水 / R2 附件）
+const PF_SECTIONS = [
+  { key: 'identity',  t: '身份标识', kind: 'struct' },
+  { key: 'body',      t: '体测与尺码', badge: '量体记录', kind: 'struct' },
+  { key: 'methods',   t: '联络方式', kind: 'struct' },
+  { key: 'clearance', t: '职务与授权', kind: 'struct' },
+  { key: 'edu',       t: '教育与能力', kind: 'struct' },
+  { key: 'vehicle',   t: '交通工具', kind: 'json', r: 1 },
+  { key: 'interest',  t: '兴趣爱好', kind: 'json', list: 1 },
+  { key: 'network',   t: '网络资产', kind: 'json', r: 1, tb: 1 },
+  { key: 'lifecycle', t: '生活数据', kind: 'json', r: 1 },
+  { key: 'food',      t: '饮食与偏好', kind: 'json', r: 1, list: 1 },
+  { key: 'health',    t: '健康档案', badge: '隐私档案', badgeClay: 1, kind: 'json', r: 1 },
+  { key: 'home',      t: '居住与家庭', kind: 'struct' },
+  { key: 'finview',   t: '财务概览', badge: '财务概览', badgeClay: 1, kind: 'json', r: 1 },
+  { key: 'finance',   t: '财务往来', kind: 'app' },
+  { key: 'docs',      t: '证件与证照', badge: '敏感信息', kind: 'json', r: 1 },
+  { key: 'background',t: '背景与语言', kind: 'json', r: 1 },
+  { key: 'emergency', t: '授权与应急', badge: '仅自己可见', badgeClay: 1, kind: 'json', r: 1 },
+  { key: 'devices',   t: '设备与凭据', kind: 'json', tb: 1 },
+  { key: 'travel',    t: '出行与目标', kind: 'json', r: 1, list: 1 },
+  { key: 'timeline',  t: '大事记', kind: 'json', tl: 1 },
+  { key: 'files',     t: '附件', kind: 'app' },
 ];
-const pfModLabel = (k) => (PF_MODULES.find((m) => m[0] === k) || [k, k])[1];
+const pfSecDef = (k) => PF_SECTIONS.find((s) => s.key === k) || { key: k, t: k, kind: 'json', r: 1 };
+
+/** 面板壳：一次性生成（boot 时），渲染函数只往里填内容 */
+function pfBuildPanels() {
+  const main = pfEl('pfMain');
+  if (!main || main.dataset.built) return;
+  main.dataset.built = '1';
+  const STRUCT_BODY = {
+    identity: '<div id="pfBasic"></div>',
+    body: '<div id="pfBody"></div>',
+    methods: '<div id="pfMethods"></div>',
+    clearance: '<div id="pfWork"></div>',
+    edu: '<div id="pfEdu"></div>',
+    home: '<div id="pfRelatives"></div><div id="pfPets"></div>',
+  };
+  main.innerHTML = PF_SECTIONS.map((s) => {
+    let headExtra = '';
+    let body = '';
+    if (s.key === 'finance') {
+      headExtra = '<span class="muted" id="pfFinSum"></span>';
+      body = '<p class="ts-hint">在「记一笔」时选择该联系人，账目会自动关联到这里。</p><div id="pfFinance" class="txn-stack"></div>';
+    } else if (s.key === 'files') {
+      headExtra = '<div class="cal-actions"><span class="muted" id="pfFilesHint"></span>'
+        + '<button class="btn ghost" id="pfFileBtn" type="button"><svg><use href="#i-upload"/></svg>上传附件</button>'
+        + '<input type="file" id="pfFileInput" multiple hidden></div>';
+      body = '<div id="pfFiles" class="pf-files"></div>';
+    } else if (s.kind === 'struct') {
+      body = STRUCT_BODY[s.key] || '';
+    } else {
+      body = '<div class="pf-sec-body" data-secbody="' + s.key + '"></div>';
+    }
+    const editBtn = s.kind === 'json'
+      ? '<button class="btn" data-sec-edit="' + s.key + '" style="padding:5px 11px;font-size:11.5px">编辑本段</button>' : '';
+    const badge = s.badge ? '<span class="badge' + (s.badgeClay ? ' clay' : '') + '">' + pfEsc(s.badge) + '</span>' : '';
+    const initHidden = (s.kind === 'json' || s.key === 'finance' || s.key === 'files') ? ' hidden' : '';
+    return '<article class="panel" id="pfPanel_' + s.key + '" data-mod="' + s.key + '"' + initHidden + '>'
+      + '<div class="panel-head"><div><h2 data-base="' + s.t + '">' + pfEsc(s.t) + '</h2></div><span class="sp"></span>'
+      + badge + headExtra + editBtn + '</div>' + body + '</article>';
+  }).join('');
+}
+
+/* ---- 段落载荷渲染（与确认的预览稿同一套渲染器，纯文本转义） ---- */
+function pfSecVrows(rows) {
+  let h = '';
+  (rows || []).forEach((r) => {
+    if (!String(r[1] || '').trim()) return;   // 空字段不渲染
+    h += '<div class="sec-vrow"><span class="k">' + pfEsc(r[0]) + '</span><span class="v">' + pfEsc(r[1]) + '</span></div>';
+  });
+  return h;
+}
+function pfSecList(list) {
+  let h = '<ul class="sec-list">';
+  (list || []).forEach((it) => {
+    if (!String(it[0] || '').trim()) return;
+    h += '<li><b>' + pfEsc(it[0]) + '</b><span class="n">' + pfEsc(it[1] || '') + '</span></li>';
+  });
+  return h + '</ul>';
+}
+function pfSecTb(tb) {
+  if (!tb || !tb.length) return '';
+  let t = '<div class="sec-tbwrap"><table><tr>';
+  (tb[0] || []).forEach((c) => { t += '<th>' + pfEsc(c) + '</th>'; });
+  t += '</tr>';
+  for (let m = 1; m < tb.length; m++) {
+    t += '<tr>';
+    (tb[m] || []).forEach((c) => { t += '<td>' + pfEsc(c) + '</td>'; });
+    t += '</tr>';
+  }
+  t += '</table></div>';
+  let c = '<div class="sec-tb-cards">';
+  for (let p = 1; p < tb.length; p++) {
+    for (let q = 0; q + 1 < (tb[p] || []).length; q += 2) {
+      c += '<div class="sec-tb-kv"><span>' + pfEsc(tb[p][q]) + '</span><b>' + pfEsc(tb[p][q + 1]) + '</b></div>';
+    }
+  }
+  return t + c + '</div>';
+}
+function pfSecBars(bars) {
+  let h = '';
+  (bars || []).forEach((b) => {
+    const pct = Math.max(0, Math.min(100, Number(b[1]) || 0));
+    h += '<div class="sec-bar"><div class="t"><span>' + pfEsc(b[0]) + '</span><span>' + pct + '%</span></div><div class="tr"><i style="width:' + pct + '%"></i></div></div>';
+  });
+  return h;
+}
+function pfSecChips(tags) {
+  let h = '<div class="sec-chips">';
+  (tags || []).forEach((t) => { if (String(t || '').trim()) h += '<span class="sec-chip">' + pfEsc(t) + '</span>'; });
+  return h + '</div>';
+}
+function pfSecTl(tl) { return pfSecList(tl); }
+function pfSecBodyHtml(def, d) {
+  let h = '';
+  if (def.r) h += pfSecVrows(d.r);
+  if (def.list) h += pfSecList(d.list);
+  if (def.tb) h += pfSecTb(d.tb);
+  if (def.tl) h += pfSecTl(d.tl);
+  return h;
+}
+function pfSecHasData(def, d) {
+  return !!pfSecBodyHtml(def, d || {}).replace(/\s|<[^>]*>/g, '').length;
+}
+/** 渲染单个 JSON 段落（含空段隐藏） */
+function pfRenderJsonSection(key) {
+  const def = pfSecDef(key);
+  if (def.kind !== 'json') return;
+  const el = document.querySelector('#pfMain .pf-sec-body[data-secbody="' + key + '"]');
+  const panel = pfEl('pfPanel_' + key);
+  if (!el || !panel) return;
+  const d = (PF.data && PF.data.sections) || {};
+  el.innerHTML = pfSecBodyHtml(def, d[key] || {});
+  panel.hidden = !PF.editMode && !pfSecHasData(def, d[key]);
+}
+function pfRenderJsonSections() {
+  PF_SECTIONS.filter((s) => s.kind === 'json').forEach((s) => pfRenderJsonSection(s.key));
+}
+
+/* ---- JSON 段落编辑器（侧滑，一次一段） ---- */
+let pfSecEdit = null;   // {key, pid, data, isStruct}
+function pfOpenSectionEditor(key, opts = {}) {
+  const def = pfSecDef(key);
+  const pid = Number(opts.pid || PF.pid);
+  if (!pid) return;
+  const src = ((PF.data && PF.data.sections) || {})[key] || {};
+  const data = JSON.parse(JSON.stringify(src));
+  (opts.appendRows || []).forEach((r) => {
+    if (def.list || def.tl) {
+      if (!data.list) data.list = [];
+      if (!data.list.some((x) => x[0] === r[0] && x[1] === r[1])) data.list.push(r);
+    } else {
+      if (!data.r) data.r = [];
+      if (!data.r.some((x) => x[0] === r[0] && x[1] === r[1])) data.r.push(r);
+    }
+  });
+  pfSecEdit = { key, pid, data, def };
+  const m = pfEl('secEditor');
+  pfEl('secEditTitle').textContent = '编辑 - ' + def.t;
+  const name = (PF.data && PF.data.base && PF.data.base.name) || '';
+  pfEl('secEditSub').textContent = (opts.pname || name) + ' · 档案段落';
+  pfEl('secEditHint').textContent = PF_SECTIONS.find((s) => s.key === key).kind === 'struct'
+    ? '这里编辑的是本段「附加资料」；姓名、电话、生日等基础资料请用「编辑基本信息」维护。'
+    : '一次只编辑一段，保存后仅本段刷新；留空的行保存时自动去除。';
+  pfSecBuildEditorBody(def, data);
+  openModal(m, { onEsc: () => pfCloseSectionEditor() });
+}
+function pfSecRow(inputs, extraHtml) {
+  const div = document.createElement('div');
+  div.className = 'secrow';
+  div.innerHTML = inputs.map((inp) => inp).join('') + (extraHtml || '');
+  return div;
+}
+function pfSecBuildEditorBody(def, data) {
+  const body = pfEl('secEditBody');
+  body.innerHTML = '';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'sec-add';
+  addBtn.type = 'button';
+  addBtn.textContent = '＋ 添加一行';
+  const mk = (cls, ph, val) => `<input type="text" class="${cls || ''}" placeholder="${pfEsc(ph || '')}" value="${pfEsc(val || '')}">`;
+  if (def.r) {
+    body.insertAdjacentHTML('beforeend', '<p class="sec-hint">键值行：左侧为资料名称（如 血型 / 过敏史），右侧为内容。</p>');
+    const wrap = document.createElement('div');
+    const rows = (data.r && data.r.length) ? data.r : [['', '']];
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])])));
+    wrap.appendChild(addBtn);
+    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', '名称'), mk('', '内容')]), addBtn);
+    body.appendChild(wrap);
+  } else if (def.list || def.tl) {
+    body.insertAdjacentHTML('beforeend', '<p class="sec-hint">两列行：左侧为条目名称' + (def.tl ? '（时间）' : '') + '，右侧为说明。</p>');
+    const wrap = document.createElement('div');
+    const rows = (data.list && data.list.length) ? data.list : [['', '']];
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])])));
+    wrap.appendChild(addBtn);
+    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', def.tl ? '时间' : '条目'), mk('', '说明')]), addBtn);
+    body.appendChild(wrap);
+  } else if (def.tb) {
+    body.insertAdjacentHTML('beforeend', '<p class="sec-hint">四列表格：每行两组「名称 + 数值」，手机端会自动转为卡片展示。</p>');
+    const wrap = document.createElement('div');
+    const rows = (data.tb && data.tb.length) ? data.tb : [['', '', '', '']];
+    rows.forEach((row) => wrap.appendChild(pfSecRow([mk('', '名称', row[0]), mk('', '数值', row[1]), mk('', '名称', row[2]), mk('', '数值', row[3])])));
+    wrap.appendChild(addBtn);
+    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')]), addBtn);
+    body.appendChild(wrap);
+  }
+}
+function pfCollectSectionData() {
+  const { def } = pfSecEdit;
+  const body = pfEl('secEditBody');
+  const val = (inp) => String(inp.value || '').trim();
+  const data = {};
+  if (def.r) {
+    data.r = [];
+    body.querySelectorAll('.secrow').forEach((row) => {
+      const ins = row.querySelectorAll('input[type=text]');
+      if (ins.length >= 2 && val(ins[0]) && val(ins[1])) data.r.push([val(ins[0]), val(ins[1])]);
+    });
+  } else if (def.list || def.tl) {
+    data.list = [];
+    body.querySelectorAll('.secrow').forEach((row) => {
+      const ins = row.querySelectorAll('input[type=text]');
+      if (ins.length >= 2 && val(ins[0])) data.list.push([val(ins[0]), val(ins[1])]);
+    });
+  } else if (def.tb) {
+    data.tb = [['部位', '数值', '部位', '数值']];
+    body.querySelectorAll('.secrow').forEach((row) => {
+      const ins = row.querySelectorAll('input[type=text]');
+      if (ins.length >= 4 && ins.slice(0, 4).some((x) => val(x))) {
+        data.tb.push([0, 1, 2, 3].map((k) => val(ins[k])));
+      }
+    });
+    if (data.tb.length === 1) delete data.tb;
+  }
+  return data;
+}
+function pfCloseSectionEditor() { closeModal(pfEl('secEditor')); pfSecEdit = null; }
+async function pfSaveSection() {
+  if (!pfSecEdit) return;
+  const { key, pid } = pfSecEdit;
+  const data = pfCollectSectionData();
+  const btn = pfEl('secEditSave');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: pid, key, data }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || '保存失败'); return; }
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections[key] = data;
+    pfCloseSectionEditor();
+    toast('本段已保存');
+    markSynced();
+    if (PF.pid === pid) {
+      if (pfSecDef(key).kind === 'json') { pfRenderJsonSection(key); pfApplyOrder(); pfRenderIndex(); }
+      else pfRenderAll();
+    }
+  } finally { if (btn) btn.disabled = false; }
+}
+
+/** v0.5.33 随手记 AI：把识别到的资料行合并进某联系人的某段（确认后保存） */
+window.pfOpenSectionAppend = function (pid, skey, rows, pname) {
+  const clean = (rows || []).filter((r) => Array.isArray(r) && String(r[0] || '').trim() && String(r[1] || '').trim())
+    .map((r) => [String(r[0]).slice(0, 20), String(r[1]).slice(0, 60)]);
+  if (!clean.length) return false;
+  let applied = false;
+  const apply = () => {   // 幂等：散列触发多次也只开一次
+    if (applied) return;
+    applied = true;
+    pfOpenSectionEditor(skey, { pid, appendRows: clean, pname });
+  };
+  if (PF.view === 'profile' && PF.pid === pid) apply();
+  else Promise.resolve(pfOpenProfile(pid)).then(() => setTimeout(apply, 300));
+  return true;
+};
 
 async function pfLoadDossierOrder() {
   try {
     const res = await api('/api/settings');
     const csv = res.ok ? ((await res.json()).settings.dossier_order || '') : '';
-    PF.dossierOrder = csv.split(',').map((x) => x.trim()).filter((x) => PF_MODULES.some((m) => m[0] === x));
+    PF.dossierOrder = csv.split(',').map((x) => x.trim()).filter((x) => PF_SECTIONS.some((m) => m.key === x));
   } catch (_) { /* 拉不到就用默认顺序 */ }
 }
 
@@ -320,7 +591,7 @@ function pfApplyOrder() {
   const main = pfEl('pfMain');
   if (!main) return;
   const order = PF.dossierOrder.slice();
-  PF_MODULES.forEach(([k]) => { if (!order.includes(k)) order.push(k); });   // 未配置/新增模块兜底追加
+  PF_SECTIONS.forEach((m) => { if (!order.includes(m.key)) order.push(m.key); });   // 未配置/新增模块兜底追加
   let seq = 0;
   order.forEach((k) => {
     const el = main.querySelector(`.panel[data-mod="${k}"]`);
@@ -348,7 +619,7 @@ function pfRenderIndex() {
   if (!panels.length) return;
   idx.innerHTML = '<div class="panel-head"><h3>档案目录</h3></div>'
     + '<button class="idx-arrow l" aria-label="向左拖动">‹</button><button class="idx-arrow r" aria-label="向右拖动">›</button>'
-    + panels.map((p) => `<a data-pfidx="${p.id}">${pfEsc(pfModLabel(p.dataset.mod))}<span>${p.dataset.seq || ''}</span></a>`).join('');
+    + panels.map((p) => `<a data-pfidx="${p.id}">${pfEsc(pfSecDef(p.dataset.mod).t)}<span>${p.dataset.seq || ''}</span></a>`).join('');
   idx.querySelectorAll('a[data-pfidx]').forEach((a) => {
     a.addEventListener('click', () => {
       const el = pfEl(a.dataset.pfidx);
@@ -416,7 +687,8 @@ async function pfRenderBody() {
   if (!PF.editMode) {
     // 查看模式：身高表（无删除钮）+ 体重折线 + 尺码文字，无任何输入控件
     const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
-    if (pfEl('pfBodyPanel')) pfEl('pfBodyPanel').hidden = !PF.editMode && !hasAny;   // 查看模式：无资料隐藏
+    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny;   // 查看模式：无资料隐藏
+    pfApplyOrder(); pfRenderIndex();
     if (!hasAny) { box.innerHTML = '<div class="empty-hint">暂无身高体重与尺码记录</div>'; return; }
     const sizeItems = [['衣裤', sz.clothing], ['鞋子', sz.shoe], ['戒指', sz.ring], ['手镯', sz.bracelet]].filter(([, v]) => v);
     box.innerHTML = `
@@ -442,7 +714,8 @@ async function pfRenderBody() {
           ${sizeItems.map(([k, v]) => `<div class="pm-item"><span>${k}</span><b>${pfEsc(v)}</b></div>`).join('')}
         </div>
       </div>` : ''}`;
-    if (pfEl('pfBodyPanel')) pfEl('pfBodyPanel').hidden = false;   // 有资料：确保可见
+    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;   // 有资料：确保可见
+    pfApplyOrder(); pfRenderIndex();
     return;
   }
 
@@ -501,8 +774,8 @@ async function pfRenderBody() {
     });
   });
   box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
-  if (pfEl('pfBodyPanel')) pfEl('pfBodyPanel').hidden = false;   // 编辑模式展开
-  pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性
+  if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;   // 编辑模式展开
+  pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性（含目录刷新）
 }
 
 // ===== v0.6.0：附件（照片 / 视频 / 文档，R2 桶 rjgx/姓名+手机号/） =====
@@ -554,7 +827,7 @@ async function pfRenderFiles() {
       </div>
     </div>`;
   }).join('') : (PF.editMode ? '<div class="empty-hint">暂无附件。照片、视频、文档都可上传，存在你自己的对象存储里。</div>' : '<div class="empty-hint">暂无附件</div>');
-  if (pfEl('pfFilesPanel')) pfEl('pfFilesPanel').hidden = !PF.editMode && !fs.length;   // v0.5.32：无附件隐藏（自管显隐）
+  if (pfEl('pfPanel_files')) pfEl('pfPanel_files').hidden = !PF.editMode && !fs.length;   // v0.5.32：无附件隐藏（自管显隐）
   pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性
 }
 
@@ -585,7 +858,7 @@ function pfRenderHero() {
     ${bd.length ? `<div class="note info" style="margin-top:10px">${bd.map(pfEsc).join(' · ')}</div>` : ''}`;
 }
 
-function pfRenderBasic() {
+function pfRenderIdentity() {
   const b = PF.data.base;
   const nameRows = [
     ['姓名', b.firstName], ['昵称', b.nickname],
@@ -594,44 +867,41 @@ function pfRenderBasic() {
   const bdLine = b.birthdayType
     ? `${b.birthText}${b.lunarText ? `（${b.lunarText}）` : ''}${b.birthdayRemind ? ' · 年度提醒已开启' : ' · 未开提醒'}`
     : '不知道具体年龄';
-  pfEl('pfBasic').innerHTML = `
-    <div class="pm-grid">
-      ${nameRows.map(([k, v]) => `<div class="pm-item"><span>${k}</span><b>${pfEsc(v)}</b></div>`).join('')}
-      <div class="pm-item"><span>性别</span><b>${pfEsc(b.gender || '—')}</b></div>
-      <div class="pm-item"><span>生日</span><b>${pfEsc(bdLine)}</b></div>
-    </div>
-    ${PF.editMode ? '<div class="form-actions"><button class="btn ghost" type="button" data-act="edit-basic">编辑基本信息</button></div>' : ''}`;
-}
-
-function pfRenderSocial() {
-  const b = PF.data.base;
+  // v0.5.33：原「社会关系」折叠进身份标识（婚姻/引荐人/备注）
+  const socialRows = [
+    ['婚姻状况', b.marriage], ['引荐人', b.referrer ? b.referrer.name : ''], ['备注', b.note],
+  ].filter(([, v]) => v);
+  const grid = (rows) => '<div class="pm-grid">' + rows.map(([k, v]) => `<div class="pm-item"><span>${pfEsc(k)}</span><b>${pfEsc(v || '—')}</b></div>`).join('') + '</div>';
   if (!PF.editMode) {
-    // 查看模式：纯展示，无选择框
-    pfEl('pfSocial').innerHTML = `
-      <div class="pm-grid">
-        <div class="pm-item"><span>婚姻状况</span><b>${pfEsc(b.marriage || '—')}</b></div>
-        <div class="pm-item"><span>引荐人</span><b>${b.referrer ? pfEsc(b.referrer.name) : '—'}</b></div>
-        <div class="pm-item"><span>备注</span><b>${pfEsc(b.note || '—')}</b></div>
-      </div>`;
+    pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + (socialRows.length ? grid(socialRows) : '');
     return;
   }
-  pfEl('pfSocial').innerHTML = `
-    <label class="field"><span>婚姻状况</span>
+  pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + `
+    <label class="field" style="margin-top:10px"><span>婚姻状况</span>
       <select id="pfMarriageSel">
         <option value="">未填写</option>
         ${(PF.data.meta.marriages || []).map((m) => `<option value="${pfEsc(m)}"${m === b.marriage ? ' selected' : ''}>${pfEsc(m)}</option>`).join('')}
       </select>
     </label>
-    <div class="pm-grid">
-      <div class="pm-item"><span>引荐人</span><b>${b.referrer ? pfEsc(b.referrer.name) : '—'}</b></div>
-      <div class="pm-item"><span>备注</span><b>${pfEsc(b.note || '—')}</b></div>
+    <label class="field"><span>备注</span><input id="pfNoteInp" value="${pfEsc(b.note || '')}" maxlength="200" placeholder="关于 TA 的长期备注"></label>
+    <div class="form-actions">
+      <button class="btn ghost" type="button" data-act="edit-basic">编辑基本信息</button>
+      <button class="btn primary" type="button" data-act="save-social">保存婚姻与备注</button>
     </div>`;
   const sel = pfEl('pfMarriageSel');
-  sel.addEventListener('change', async () => {
+  const note = pfEl('pfNoteInp');
+  const save = pfEl('pfBasic').querySelector('[data-act=save-social]');
+  if (save) save.addEventListener('click', async () => {
     const res = await api('/api/profile/detail', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: PF.pid, marriage: sel.value }) });
-    if (res.ok) { toast('已保存'); pfOpenProfile(PF.pid); }
+      body: JSON.stringify({ id: PF.pid, marriage: sel.value, note: note.value.trim() }) });
+    if (res.ok) { toast('已保存'); PF.data.base.marriage = sel.value; PF.data.base.note = note.value.trim(); pfRenderIdentity(); pfSyncEditMode(); markSynced(); }
+    else toast('保存失败');
   });
+}
+
+function pfRenderHome() {
+  pfRenderRelatives();
+  pfRenderPets();
 }
 
 // ===== 联系方式 =====
@@ -684,11 +954,6 @@ function pfRenderMethods() {
 // ===== 家庭关系 =====
 function pfRenderRelatives() {
   const d = PF.data;
-  const kinTitle = pfEl('pfKinTitle');
-  if (kinTitle) {
-    kinTitle.dataset.base = `「${d.base.name}」的家庭关系`;
-    kinTitle.textContent = kinTitle.dataset.base;   // 序号后缀由 pfApplyOrder 统一追加
-  }
   if (!PF.editMode) {
     // 查看模式：纯展示
     pfEl('pfRelatives').innerHTML = `
@@ -835,7 +1100,8 @@ async function pfRenderFinance() {
     const data = await res.json();
     PF.finData = data;   // v0.5.32：供空模块隐藏判断
     const list = data.list || [];
-    if (pfEl('pfFinancePanel')) pfEl('pfFinancePanel').hidden = !PF.editMode && !list.length;   // v0.5.32：无往来隐藏（自管显隐，须在空列表提前返回前）
+    if (pfEl('pfPanel_finance')) pfEl('pfPanel_finance').hidden = !PF.editMode && !list.length;   // v0.5.33：无往来隐藏（自管显隐，须在空列表提前返回前）
+    pfApplyOrder(); pfRenderIndex();
     const s = data.summary || {};
     pfEl('pfFinSum').textContent = list.length
       ? `${s.count} 笔 · 收 ¥${Math.round(s.income).toLocaleString('zh-CN')} · 支 ¥${Math.round(s.expense).toLocaleString('zh-CN')}`
@@ -863,7 +1129,6 @@ async function pfRenderFinance() {
       row.onclick = () => { if (window.openLedgerMonth) window.openLedgerMonth(t.date); };
       el.appendChild(row);
     });
-    if (pfEl('pfFinancePanel')) pfEl('pfFinancePanel').hidden = !PF.editMode && !list.length;   // v0.5.32：无往来隐藏（自管显隐）
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) el.innerHTML = '<div class="empty-hint">加载财务往来失败</div>';
   }
@@ -1147,6 +1412,21 @@ async function pfDeletePerson() {
 
 // ===== 模块事件委托 =====
 function pfBindEvents() {
+  pfBuildPanels();   // v0.5.33：先生成面板壳，绑定才找得到容器
+  // 段落编辑器（v0.5.33）
+  const secOverlay = pfEl('secEditor');
+  if (secOverlay) {
+    pfEl('secEditClose').addEventListener('click', pfCloseSectionEditor);
+    pfEl('secEditCancel').addEventListener('click', pfCloseSectionEditor);
+    pfEl('secEditSave').addEventListener('click', pfSaveSection);
+    secOverlay.addEventListener('click', (e) => { if (e.target === secOverlay) pfCloseSectionEditor(); });
+  }
+  document.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-sec-edit]');
+    if (ed && window.PF && PF.pid) { pfOpenSectionEditor(ed.dataset.secEdit); return; }
+    const eb = e.target.closest('[data-act=edit-basic]');
+    if (eb) pfLoadNames().then(() => pfOpenEditModal());
+  });
   // 名字标签行（一次性绑定）
   pfBindNameChips();
   // 筛选按钮：默认只显示联系人列表 + 搜索框，点按才展开筛选条件
@@ -1232,12 +1512,6 @@ function pfBindEvents() {
   const edit = pfEl('pfEditBtn'); if (edit) edit.addEventListener('click', () => {
     PF.editMode = !PF.editMode;
     pfRenderAll();
-  });
-  // 编辑模式下「编辑基本信息」打开弹窗（查看模式该按钮不渲染）
-  const basicPanel = pfEl('pfBasicPanel');
-  if (basicPanel) basicPanel.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-act=edit-basic]');
-    if (btn) pfLoadNames().then(() => pfOpenEditModal());
   });
 
   // 编辑弹窗
@@ -1607,14 +1881,14 @@ function renderDossierOrder() {
   const box = pfEl('dossierOrderList');
   if (!box) return;
   const order = PF.dossierOrder.slice();
-  PF_MODULES.forEach(([k]) => { if (!order.includes(k)) order.push(k); });   // 兜底：新模块排最后
+  PF_SECTIONS.forEach((m) => { if (!order.includes(m.key)) order.push(m.key); });   // 兜底：新模块排最后
   box.innerHTML = '';
   order.forEach((k) => {
     const row = document.createElement('div');
     row.className = 'ls-row';
     row.dataset.mod = k;
     row.innerHTML = '<span class="ls-handle" title="拖动排序"><i></i><i></i><i></i></span>'
-      + '<span class="ls-name">' + pfEsc(pfModLabel(k)) + '</span>';
+      + '<span class="ls-name">' + pfEsc(pfSecDef(k).t) + '</span>';
     box.appendChild(row);
   });
   pfBindDossierDrag();

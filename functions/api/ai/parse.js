@@ -44,6 +44,7 @@ export async function onRequestPost(context) {
     'date（YYYY-MM-DD，相对日期按今天=' + today + '推算）、time（HH:MM 或空）、contact（联系人名，仅当明确提到且在名单中）、' +
     'title（todo 用）、detail（todo 用：用户仅描述了事情与时间时 false；还描述了分类/清单/地点/人物/优先级/备注等额外细节时 true）、note、confidence（0-1）。' +
     'relation 额外字段：rname（姓名）、phone、wechat、qq、company（公司）、position（职位）。' +
+    '当用户描述某位联系人的个人资料（如血型、慢性病、长期用药、证件号码、车牌、保险、爱好、忌口、尺码、住址、设备、目标等）时输出 module=profile：pname（联系人姓名，仅可从名单中选）、skey（身份标识用 identity、联络方式用 contact、职务与授权用 clearance、交通工具用 vehicle、兴趣爱好用 interest、网络资产用 network、生活数据用 lifecycle、饮食与偏好用 food、健康档案用 health、居住与家庭用 home、财务概览用 finview、证件与证照用 docs、背景与语言用 background、授权与应急用 emergency、设备与凭据用 devices、出行与目标用 travel、大事记用 timeline）、rows（[[键,值],…] 数组，最多 10 对，每段一句话里能提取的全部资料）。' +
     'medicine 额外字段：mname（药品名）、spec（规格）、form（剂型如 片剂/胶囊剂）、dosage（用法用量）、expiry（有效期 YYYY-MM-DD 或空）。' +
     '规则：一句话里有几笔金额就输出几条 transaction，每条只含一笔金额；' +
     'category 及其二级分类必须从这个清单里选：' + catDesc + '。' +
@@ -110,9 +111,19 @@ function extractDrafts(raw) {
   for (const item of list) {
     if (!item || typeof item !== 'object') continue;
     let module = String(item.module || 'memo');
-    if (!['transaction', 'todo', 'relation', 'medicine', 'memo'].includes(module)) module = 'memo';
+    if (!['transaction', 'todo', 'relation', 'medicine', 'profile', 'memo'].includes(module)) module = 'memo';
     if (module === 'transaction' && !(Number(item.amount) > 0)) module = 'memo';
     if ((module === 'relation' || module === 'medicine') && !String(item.rname || item.mname || item.name || '').trim()) module = 'memo';
+    if (module === 'profile') {
+      // v0.5.33 个人资料追加：需联系人名 + 合法段落键 + 至少一对 [键,值]，否则降级 memo
+      const SKEYS = ['identity', 'contact', 'clearance', 'vehicle', 'interest', 'network', 'lifecycle',
+        'food', 'health', 'home', 'finview', 'docs', 'background', 'emergency', 'devices', 'travel', 'timeline'];
+      const rows = Array.isArray(item.rows) ? item.rows
+        .filter((r) => Array.isArray(r) && String(r[0] || '').trim() && String(r[1] || '').trim())
+        .slice(0, 10).map((r) => [String(r[0]).trim().slice(0, 20), String(r[1]).trim().slice(0, 60)]) : [];
+      if (!String(item.pname || '').trim() || !SKEYS.includes(item.skey) || !rows.length) module = 'memo';
+      else item.rows = rows;
+    }
     out.push({ ...item, module });
   }
   return out.length ? out.slice(0, 10) : null;

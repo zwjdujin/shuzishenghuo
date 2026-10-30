@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/0ad297fb/css/style.css">
+  <link rel="stylesheet" href="./assets/5c64fe57/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -602,56 +602,7 @@
           <div id="pfHero"></div>
           <div class="dossier-grid">
             <aside class="panel dossier-idx" id="pfIdx" hidden></aside>
-            <div id="pfMain">
-              <article class="panel" id="pfBasicPanel" data-mod="basic">
-                <div class="panel-head"><div><h2 data-base="基础身份">基础身份</h2></div></div>
-                <div id="pfBasic"></div>
-              </article>
-              <article class="panel" id="pfSocialPanel" data-mod="social">
-                <div class="panel-head"><div><h2 data-base="社会关系">社会关系</h2></div></div>
-                <div id="pfSocial"></div>
-              </article>
-              <article class="panel" id="pfMethodsPanel" data-mod="methods">
-                <div class="panel-head"><div><h2 data-base="联系方式">联系方式</h2></div></div>
-                <div id="pfMethods"></div>
-              </article>
-              <article class="panel" id="pfRelativesPanel" data-mod="relatives">
-                <div class="panel-head"><div><h2 id="pfKinTitle" data-base="家庭关系">家庭关系</h2></div></div>
-                <div id="pfRelatives"></div>
-              </article>
-              <article class="panel" id="pfWorkPanel" data-mod="work">
-                <div class="panel-head"><div><h2 data-base="职业信息">职业信息</h2></div></div>
-                <div id="pfWork"></div>
-              </article>
-              <article class="panel" id="pfEduPanel" data-mod="edu">
-                <div class="panel-head"><div><h2 data-base="教育与成长">教育与成长</h2></div></div>
-                <div id="pfEdu"></div>
-              </article>
-              <article class="panel" id="pfPetsPanel" data-mod="pets">
-                <div class="panel-head"><div><h2 data-base="宠物">宠物</h2></div></div>
-                <div id="pfPets"></div>
-              </article>
-              <article class="panel" id="pfFinancePanel" data-mod="finance">
-                <div class="panel-head"><div><h2 data-base="财务往来">财务往来</h2></div>
-                  <span class="muted" id="pfFinSum"></span></div>
-                <p class="ts-hint">在「记一笔」时选择该联系人，账目会自动关联到这里。</p>
-                <div id="pfFinance" class="txn-stack"></div>
-              </article>
-              <!-- 个人信息（尺码单值 + 身高表格 + 体重折线图 + BMI 自动计算） -->
-              <article class="panel" id="pfBodyPanel" data-mod="body">
-                <div class="panel-head"><div><h2 data-base="个人信息">个人信息</h2></div></div>
-                <div id="pfBody"></div>
-              </article>
-              <!-- 附件（照片/视频/文档，存 R2 桶 rjgx/姓名+手机号/ 目录） -->
-              <article class="panel" id="pfFilesPanel" data-mod="files">
-                <div class="panel-head"><div><h2 data-base="附件">附件</h2></div>
-                  <div class="cal-actions">
-                    <span class="muted" id="pfFilesHint"></span>
-                    <button class="btn ghost" id="pfFileBtn" type="button"><svg><use href="#i-upload"/></svg>上传附件</button>
-                    <input type="file" id="pfFileInput" multiple hidden>
-                  </div></div>
-                <div id="pfFiles" class="pf-files"></div>
-              </article>
+            <div id="pfMain"><!-- v0.5.33 档案卷宗：面板由 profile.js 按段落模板动态生成 -->
             </div>
           </div>
         </div>
@@ -1167,6 +1118,20 @@
     </div>
   </div>
 
+  <!-- v0.5.33 档案卷宗：单段编辑器（侧滑，一次只编辑一段） -->
+  <div class="modal-overlay sec-overlay" id="secEditor" hidden>
+    <div class="secwin">
+      <div class="secwin-head"><b id="secEditTitle">编辑段落</b><span id="secEditSub"></span>
+        <button class="icon-btn" id="secEditClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button></div>
+      <div class="secwin-body" id="secEditBody"></div>
+      <div class="secwin-foot">
+        <small id="secEditHint"></small>
+        <button class="btn ghost" id="secEditCancel" type="button">取消</button>
+        <button class="btn primary" id="secEditSave" type="button">保存本段</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 通用文本输入弹窗（替代 prompt：TWA/WebView 不支持 prompt()） -->
   <div class="modal-overlay picker-overlay" id="askTextModal" hidden>
     <div class="modal-card">
@@ -1434,8 +1399,8 @@
   </div>
 
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
-  <script src="./assets/55e3d62a/js/profile.js"></script>
+  <script src="./assets/42d05e63/js/profile.js"></script>
   <script src="./assets/d5aa57e2/js/medicine.js"></script>
-  <script src="./assets/49ab88b3/js/app.js"></script>
+  <script src="./assets/1972d151/js/app.js"></script>
 </body>
 </html>

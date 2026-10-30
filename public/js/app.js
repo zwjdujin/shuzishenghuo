@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.32
-const VERSION = '0.5.32';
+// 数字生活 · 前端逻辑 v0.5.33
+const VERSION = '0.5.33';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '人际关系档案卷宗改版：目录导航+模块排序设置+BMI自动计算；设置页新增档案目录拖动排序';
+const __BUILD_ID__ = '人际关系档案卷宗完整版：19段自由段落+单段编辑器+随手记写入资料；修复移动端月历农历不显示';
 const __BUILD_TIME__ = '2026-10-30';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -2777,6 +2777,25 @@ async function drainAiQueue() {
         aiSaveHook = () => drainAiQueue(); openTodoFromAi(next); return;                                             // 失败回退弹窗
       }
       if (next.module === 'relation') { aiSaveHook = () => drainAiQueue(); openContactFromAi(next); return; }        // 联系人：保存后继续
+      if (next.module === 'profile') {
+        // v0.5.33 随手记 AI：识别到某联系人的个人资料 → 打开该段编辑器预填，人工确认追加
+        const pname = String(next.pname || '').trim();
+        let names = (window.PF && PF.allNames && PF.allNames.length) ? PF.allNames : null;
+        if (!names) {
+          try {
+            const res = await api('/api/contacts');
+            names = ((await res.json()).contacts || []).map((c) => ({ id: c.id, name: c.name }));
+            if (window.PF) PF.allNames = names;
+          } catch (_) { names = []; }
+        }
+        const hit = names.find((x) => x.name === pname);
+        if (!hit) { toast('未找到联系人「' + pname + '」，已存为备忘'); }
+        else {
+          aiSaveHook = () => drainAiQueue();
+          if (window.pfOpenSectionAppend) window.pfOpenSectionAppend(hit.id, String(next.skey || 'identity'), next.rows || [], pname);
+          return;
+        }
+      }
       // memo：直接保存
       const res = await api('/api/memos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: String(next.note || '').slice(0, 500) }) });
       if (res.ok) { toast('备忘已保存'); await refreshP3Memos(); }

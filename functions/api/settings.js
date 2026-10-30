@@ -12,7 +12,7 @@ const DEFAULTS = {
   mode: 'auto',
   ledger_budget: '',
   rel_list_fields: 'gender,phone',
-  dossier_order: 'basic,social,methods,relatives,work,edu,pets,finance,body,files',
+  dossier_order: 'identity,body,methods,clearance,edu,vehicle,interest,network,lifecycle,food,health,home,finview,finance,docs,background,emergency,devices,travel,timeline,files',
 };
 
 // GET /api/settings —— 读取当前设置
