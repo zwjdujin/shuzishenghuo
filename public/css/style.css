@@ -442,7 +442,7 @@ h1,h2,h3,h4,.growth-head h2,.panel-head h2,.modal-head b,.modal-head h3,
 .tc-lab{font-size:11px;color:var(--muted);white-space:nowrap}
 .tc-col.cur .tc-lab{color:var(--plum);font-weight:700}
 
-.ledger-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:22px}
+.ledger-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px}
 
 /* 甜甜圈：⚠️ 必须显式给尺寸，全局 `svg{width:20px;height:20px}`（图标用）会盖掉
    SVG 自身的 width/height 表现属性，导致环图缩成 20×20 的小点。 */
@@ -1688,3 +1688,26 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .ml-item small{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .ml-item.ml-static{cursor:default;color:var(--muted);font-size:12.5px}
 .ml-item.ml-static.ml-fail{color:var(--terra)}
+
+/* --- v0.5.29 待办清单 --- */
+.ck-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.ck-wrap > *{min-width:0}
+.ck-card{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 14px;min-width:0}
+.ck-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ck-head b.ck-name{font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ck-head .muted{font-size:11.5px;flex:0 0 auto}
+.ck-ops{margin-left:auto;display:flex;gap:2px}
+.ck-items{display:flex;flex-direction:column}
+.ck-item{display:flex;align-items:center;gap:10px;padding:7px 2px;border-top:1px dashed var(--line);min-width:0}
+.ck-item:first-child{border-top:0}
+.ck-item .ck-text{flex:1;min-width:0;font-size:13.5px;overflow-wrap:anywhere}
+.ck-item.done .ck-text{color:var(--muted);text-decoration:line-through}
+.ck-check{width:22px;height:22px;flex:0 0 auto;border:1.5px solid var(--line);border-radius:7px;background:var(--card);color:transparent;display:grid;place-items:center;cursor:pointer;padding:0;transition:.15s}
+.ck-check svg{width:13px;height:13px}
+.ck-check:hover{border-color:var(--sage)}
+.ck-item.done .ck-check{background:var(--sage);border-color:var(--sage);color:#fff}
+.ck-add{display:flex;gap:8px;margin-top:10px}
+.ck-add .inp{flex:1 1 auto;min-width:0}
+@media (max-width:640px){
+  .ck-wrap{grid-template-columns:minmax(0,1fr);gap:12px}
+}

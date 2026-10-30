@@ -42,12 +42,31 @@ export function normalizeTxnBody(body) {
   };
 }
 
+// 账户（预置 + 实际用过的，含转账转入账户）
+export async function listAccounts(env) {
+  const accounts = [...ACCOUNTS];
+  try {
+    const aRows = (
+      await env.DB.prepare(
+        "SELECT DISTINCT account a FROM transactions WHERE account IS NOT NULL AND account <> '' " +
+        'UNION SELECT DISTINCT to_account FROM transactions WHERE to_account IS NOT NULL AND to_account <> \'\''
+      ).all()
+    ).results || [];
+    aRows.forEach((r) => { if (r.a && !accounts.includes(r.a)) accounts.push(r.a); });
+  } catch (_) { /* 忽略 */ }
+  return accounts;
+}
+
 // GET /api/transactions?month=YYYY-MM[&contact_id=123]
 // 返回：当月明细 + 收支汇总 + 支出/收入分类占比 + 近 6 个月趋势 + 账户 + 预算 + @人名反查 + 分类树
 // 传 contact_id 时：返回该联系人名下全部流水（人际关系 · 财务往来用）
+// 传 meta=accounts 时：只返回账户清单（随手记弹记一笔前的轻量预取）
 export async function onRequestGet(context) {
   const { env, request } = context;
   const url = new URL(request.url);
+  if (url.searchParams.get('meta') === 'accounts') {
+    return json({ accounts: await listAccounts(env) });
+  }
   const contactId = Number(url.searchParams.get('contact_id')) || null;
   const month = url.searchParams.get('month') || todayStr().slice(0, 7);
 
@@ -143,16 +162,7 @@ export async function onRequestGet(context) {
   }
 
   // ---- 账户（预置 + 实际用过的，含转账转入账户）----
-  const accounts = [...ACCOUNTS];
-  try {
-    const aRows = (
-      await env.DB.prepare(
-        "SELECT DISTINCT account a FROM transactions WHERE account IS NOT NULL AND account <> '' " +
-        'UNION SELECT DISTINCT to_account FROM transactions WHERE to_account IS NOT NULL AND to_account <> \'\''
-      ).all()
-    ).results || [];
-    aRows.forEach((r) => { if (r.a && !accounts.includes(r.a)) accounts.push(r.a); });
-  } catch (_) { /* 忽略 */ }
+  const accounts = await listAccounts(env);
 
   // ---- 「@人名」反查 + 关联联系人（两种都跳转人际关系档案）----
   const payees = {};

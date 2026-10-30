@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.5.28
-const VERSION = '0.5.28';
+// 数字生活 · 前端逻辑 v0.5.29
+const VERSION = '0.5.29';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '药典检索自动判定外用药/处方药：外用药按剂型确定（乳膏软膏栓贴等），处方药注射剂恒判 Rx、其余由默认 AI 按药典类别判断（未配 AI 留空人工决定），检索预填时同步勾选';
-const __BUILD_TIME__ = '2026-10-26';
+const __BUILD_ID__ = '随手记记账弹窗对齐账本（账户可选/时间到时分）；账本明细前置、预算与近6月后置；总额度保存修复；新增待办清单';
+const __BUILD_TIME__ = '2026-10-30';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -1851,6 +1851,127 @@ async function removeTodo(id, title) {
   } catch { /* 401 已处理 */ }
 }
 
+// ===== 待办清单（v0.5.29：自定义清单 + 物品/事项勾选；未备齐的排前面） =====
+let ckData = [];
+async function renderChecklists() {
+  const box = $('#ckListBox');
+  if (!box) return;
+  try {
+    const res = await api('/api/checklists');
+    ckData = (await res.json()).groups || [];
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+    box.innerHTML = '<div class="empty-hint">加载清单失败</div>';
+    return;
+  }
+  const cnt = $('#ckCount');
+  const pending = ckData.reduce((s, g) => s + g.items.filter((i) => !i.done).length, 0);
+  if (cnt) cnt.textContent = ckData.length ? `${ckData.length} 份清单 · 待备齐 ${pending} 项` : '';
+  if (!ckData.length) {
+    box.innerHTML = '<div class="empty-hint">还没有清单，点右上角「新建清单」开始（如：徒步出行装备清单）。</div>';
+    return;
+  }
+  box.innerHTML = ckData.map((g) => {
+    const doneN = g.items.filter((i) => i.done).length;
+    return `
+    <div class="ck-card" data-gid="${g.id}">
+      <div class="ck-head">
+        <b class="ck-name">${escHtml(g.name)}</b>
+        <span class="muted">${doneN}/${g.items.length}</span>
+        <span class="ck-ops">
+          <button class="icon-btn" data-ck-grename="${g.id}" title="重命名清单" aria-label="重命名清单"><svg><use href="#i-edit"/></svg></button>
+          <button class="icon-btn del" data-ck-gdel="${g.id}" title="删除清单" aria-label="删除清单"><svg><use href="#i-x"/></svg></button>
+        </span>
+      </div>
+      <div class="ck-items">
+        ${g.items.map((i) => `
+        <div class="ck-item${i.done ? ' done' : ''}">
+          <button class="ck-check" data-ck-toggle="${i.id}" data-done="${i.done ? 1 : 0}" title="${i.done ? '取消勾选' : '标记备齐'}" aria-label="${i.done ? '取消勾选' : '标记备齐'}"><svg><use href="#i-check"/></svg></button>
+          <span class="ck-text">${escHtml(i.content)}</span>
+          <button class="icon-btn del" data-ck-idel="${i.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
+        </div>`).join('') || '<div class="empty-hint">还没有条目，在下面添加。</div>'}
+      </div>
+      <div class="ck-add">
+        <input class="inp" maxlength="60" placeholder="添加物品或事项，回车确认">
+        <button class="btn ghost" data-ck-iadd="${g.id}" type="button">添加</button>
+      </div>
+    </div>`;
+  }).join('');
+  markSynced();
+}
+
+async function ckCall(path, opts) {
+  const res = await api(path, opts).catch(() => null);
+  if (!res || !res.ok) { toast('操作失败，请重试'); return false; }
+  markSynced();
+  return true;
+}
+
+function bindChecklists() {
+  const box = $('#ckListBox');
+  if (!box || box.dataset.ckBound) return;
+  box.dataset.ckBound = '1';
+  box.addEventListener('click', async (e) => {
+    const toggle = e.target.closest('[data-ck-toggle]');
+    if (toggle) {
+      const done = toggle.dataset.done === '1';
+      if (await ckCall('/api/checklists/items', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(toggle.dataset.ckToggle), done: !done }) })) await renderChecklists();
+      return;
+    }
+    const idel = e.target.closest('[data-ck-idel]');
+    if (idel) {
+      const card = idel.closest('.ck-card');
+      const item = ckData.find((g) => String(g.id) === card.dataset.gid)?.items.find((i) => String(i.id) === idel.dataset.ckIdel);
+      if (!(await confirmModal(`删除「${item ? item.content : '这条'}」？`))) return;
+      if (await ckCall(`/api/checklists/items?id=${idel.dataset.ckIdel}`, { method: 'DELETE' })) await renderChecklists();
+      return;
+    }
+    const iadd = e.target.closest('[data-ck-iadd]');
+    if (iadd) {
+      const inp = iadd.closest('.ck-add').querySelector('input');
+      const content = (inp.value || '').trim();
+      if (!content) { toast('请填写内容'); return; }
+      if (await ckCall('/api/checklists/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: Number(iadd.dataset.ckIadd), content }) })) {
+        await renderChecklists();
+        const next = box.querySelector(`.ck-card[data-gid="${iadd.dataset.ckIadd}"] .ck-add input`);
+        if (next) next.focus();
+      }
+      return;
+    }
+    const grename = e.target.closest('[data-ck-grename]');
+    if (grename) {
+      const g = ckData.find((x) => String(x.id) === grename.dataset.ckGrename);
+      const name = await askText({ title: '重命名清单', value: g ? g.name : '', maxlen: 30, placeholder: '清单名称' });
+      if (name === null || !name.trim()) return;
+      if (await ckCall('/api/checklists', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(grename.dataset.ckGrename), name: name.trim() }) })) await renderChecklists();
+      return;
+    }
+    const gdel = e.target.closest('[data-ck-gdel]');
+    if (gdel) {
+      const g = ckData.find((x) => String(x.id) === gdel.dataset.ckGdel);
+      if (!(await confirmModal(`删除清单「${g ? g.name : ''}」？清单下的条目会一并删除。`))) return;
+      if (await ckCall(`/api/checklists?id=${gdel.dataset.ckGdel}`, { method: 'DELETE' })) await renderChecklists();
+    }
+  });
+  box.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const inp = e.target.closest('.ck-add input');
+    if (!inp) return;
+    e.preventDefault();
+    inp.closest('.ck-add').querySelector('[data-ck-iadd]').click();
+  });
+}
+bind('#ckNewBtn', 'click', async () => {
+  const name = await askText({ title: '新建清单', value: '', maxlen: 30, placeholder: '如：徒步出行装备清单' });
+  if (name === null || !name.trim()) return;
+  if (await ckCall('/api/checklists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim() }) })) {
+    await renderChecklists();
+    const first = $('#ckListBox .ck-card:last-child .ck-add input');
+    if (first) first.focus();
+  }
+});
+bindChecklists();
+
 // ===== 通知与提醒 =====
 // A 打开即提醒：本地通知汇总今日/逾期待办
 // B Web Push：订阅 + 后台到点推送
@@ -1928,7 +2049,8 @@ function setSystemAlarm(t) {
 // ===== 我的账本（v0.5.0：支出/收入/转账 + 两级自定义分类 + 时间/账户/联系人/物品） =====
 let ledgerState = { month: todayStrLocal().slice(0, 7), donutMode: 'expense', flow: 'all', cat: '', q: '' };
 let ledgerData = {
-  catStats: [], incomeCatStats: [], list: [], trend: [], accounts: ['默认账户'],
+  catStats: [], incomeCatStats: [], list: [], trend: [],
+  accounts: ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'],
   payees: {}, linked: {}, budget: 0, summary: {}, social: { out: 0, in: 0, count: 0 },
 };
 // 分类树：{ expense: [{name, children:[name]}], income: [...] }（来自 txn_categories，空表回退默认）
@@ -2063,8 +2185,8 @@ function renderBudget() {
   }
   // 幂等绑定（renderBudget 会被反复调用，必须用 onclick 赋值而非 addEventListener）
   const setBtn = $('#lbSetBtn');
-  if (setBtn) setBtn.onclick = () => {
-    const v = promptBudgetTotal(b);
+  if (setBtn) setBtn.onclick = async () => {
+    const v = await promptBudgetTotal(b);   // askText 是 Promise，必须 await，否则拿到的是 Promise 对象永远保存失败
     if (v !== null) saveLedgerBudget(v);
   };
 
@@ -2618,11 +2740,7 @@ function openTxnFromAi(draft) {
   catTree[flow] = tree;
   syncFlowUI();
   renderCatChips();
-  // 时间/账户按钮显示同步
-  const tv = $('#txnTimeVal');
-  if (tv) tv.textContent = txnDraft.date === todayStrLocal() ? '今天' : `${Number(txnDraft.date.slice(5, 7))}-${txnDraft.date.slice(8, 10)}`;
-  const av = $('#txnAcctVal');
-  if (av) av.textContent = txnDraft.account;
+  syncMetaBtns();   // 时间（含时分）/账户/联系人/物品按钮显示一并同步
   syncTxnHint();
   if (window.innerWidth > 860) setTimeout(() => { const a = $('#txnAmount'); if (a) a.focus(); }, 40);
 }
@@ -3006,6 +3124,17 @@ function tpShiftMonth(delta) {
   tpRenderCal();
 }
 
+// 随手记直接弹「记一笔」时账本页可能从未加载过，账户清单先轻量预取一次（meta=accounts 只回账户）
+let accountsLoaded = false;
+async function ensureAccountOptions() {
+  if (accountsLoaded) return;
+  try {
+    const res = await api('/api/transactions?meta=accounts');
+    const d = await res.json();
+    if (d.accounts && d.accounts.length) { ledgerData.accounts = d.accounts; accountsLoaded = true; }
+  } catch (_) { /* 失败时仍可用预置账户列表 */ }
+}
+
 /* ---------- 账户选择（转账模式下选转出/转入两组） ---------- */
 function renderAcctPick() {
   const body = $('#acctPickBody');
@@ -3332,7 +3461,7 @@ function switchView(name, opts = {}) {
     switchProfileTab(opts.keepTab ? currentProfileTab : 'site');
   }
   if (name === 'calendar') loadCalEvents();
-  if (name === 'todos') renderTodos();
+  if (name === 'todos') { renderTodos(); renderChecklists(); }
   if (name === 'ledger') renderLedger();
   if (name === 'ledgerset') renderLedgerSet();
   if (name === 'medicine' && window.medRenderMedicine) window.medRenderMedicine();
@@ -4793,7 +4922,12 @@ bind('#txnTimeBtn', 'click', () => {
     onDone: ({ date, time }) => { txnDraft.date = date; txnDraft.time = time; syncMetaBtns(); },
   });
 });
-bind('#txnAcctBtn', 'click', () => { if (txnDraft) { renderAcctPick(); $('#acctPickModal').hidden = false; } });
+bind('#txnAcctBtn', 'click', async () => {
+  if (!txnDraft) return;
+  await ensureAccountOptions();
+  renderAcctPick();
+  $('#acctPickModal').hidden = false;
+});
 bind('#txnContactBtn', 'click', openContactPicker);
 bind('#txnItemBtn', 'click', () => {
   if (!txnDraft) return;
