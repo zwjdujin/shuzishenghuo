@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.30
-const VERSION = '0.5.30';
+// 数字生活 · 前端逻辑 v0.5.31
+const VERSION = '0.5.31';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '待办清单默认收缩点名称展开；重命名弹窗新增重置（一键全部未完成）；记一笔备注放宽到100字';
+const __BUILD_ID__ = '人际关系：下线联系提醒；列表仿记一笔联系人样式；设置页改名人际关系相关设置并支持列表显示字段勾选';
 const __BUILD_TIME__ = '2026-10-30';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -645,7 +645,7 @@ function renderHome(d) {
   renderTodayTasks(d.todayTasks || []);
   renderPendingHabits(d.pendingHabits || []);
   renderGlance(d);
-  renderP3(d.p3 || {});   // v0.6.0：随手记 / 那年今天 / 保持联系 / 今日服药
+  renderP3(d.p3 || {});   // v0.6.0：随手记 / 那年今天 / 今日服药（v0.5.31 起移除保持联系）
 }
 
 /* ================= v0.6.0 · P3 首页卡片 ================= */
@@ -797,23 +797,6 @@ function renderP3(p3) {
       otd.hidden = false;
       renderOnThisDay();
     } else otd.hidden = true;
-  }
-  // 保持联系
-  const tc = $('#p3Touch');
-  if (tc) {
-    const list = p3.touchDue || [];
-    tc.hidden = !list.length;
-    if (list.length) {
-      $('#touchList').innerHTML = list.map((t) => `
-        <button class="touch-row" data-pf-id="${t.id}">
-          <span class="contact-avatar">${escHtml((t.name || '?')[0])}</span>
-          <b></b><small>超 ${t.days} 天 · 每 ${t.cadence} 天一次</small>
-        </button>`).join('');
-      $('#touchList').querySelectorAll('.touch-row').forEach((el, i) => { el.querySelector('b').textContent = list[i].name; });
-      $('#touchList').querySelectorAll('.touch-row').forEach((el) => {
-        el.onclick = () => { location.hash = '#/relations/' + el.dataset.pfId; };
-      });
-    }
   }
   // 今日服药（在药箱模块渲染详情，首页只列条目）
   const mc = $('#p3MedToday');

@@ -81,6 +81,7 @@ async function pfLoadList() {
   const qs = new URLSearchParams();
   Object.keys(f).forEach((k) => { if (f[k]) qs.set(k, f[k]); });
   try {
+    await pfLoadListFields();   // 列表行小字字段随设置走
     const res = await api('/api/profile/list?' + qs.toString());
     const d = await res.json();
     PF.list = d.list || [];
@@ -106,6 +107,40 @@ async function pfLoadNames() {
     const d = await res.json();
     PF.allNames = (d.list || []).map((p) => ({ id: p.id, name: p.name }));
   } catch (_) { /* 忽略 */ }
+}
+
+// ===== v0.5.31 列表显示字段（人际关系相关设置） =====
+async function pfLoadListFields() {
+  try {
+    const res = await api('/api/settings');
+    const csv = res.ok ? ((await res.json()).settings.rel_list_fields || '') : '';
+    const arr = csv.split(',').map((x) => x.trim()).filter((x) => REL_FIELD_META.some(([k]) => k === x));
+    PF.listFields = arr.length ? arr : ['gender', 'phone'];
+  } catch (_) { /* 拉不到就用默认 */ }
+}
+
+function pfRenderListFields() {
+  const box = pfEl('relFieldChips');
+  if (!box) return;
+  box.innerHTML = REL_FIELD_META.map(([k, label]) =>
+    `<button type="button" class="tf-chip${PF.listFields.includes(k) ? ' on' : ''}" data-rf="${k}">${label}</button>`
+  ).join('');
+  box.querySelectorAll('[data-rf]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const set = new Set(PF.listFields);
+      if (set.has(b.dataset.rf)) set.delete(b.dataset.rf); else set.add(b.dataset.rf);
+      const fields = REL_FIELD_META.map(([k]) => k).filter((k) => set.has(k));
+      const res = await api('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rel_list_fields: fields.join(',') }) });
+      if (res.ok) {
+        PF.listFields = fields;
+        pfRenderListFields();
+        toast('已保存，列表即时生效');
+        markSynced();
+        if (PF.view === 'list') pfRenderList();
+      } else toast('保存失败');
+    });
+  });
 }
 
 function pfChipRow(boxId, items, key) {
@@ -137,53 +172,37 @@ function pfRenderList() {
     box.innerHTML = '<div class="empty-hint">没有符合条件的联系人，点右上角「添加联系人」开始</div>';
     return;
   }
+  // v0.5.31：列表行样式与「记一笔 → 选择联系人」一致（头像 + 名字 + 字段小字行），A-Z 分组保留
   box.innerHTML = pfGroupByLetter(PF.list).map((g) => `
     <div class="az-group">
       <div class="az-letter">${pfEsc(g.letter)}<span>${g.rows.length}</span></div>
       ${g.rows.map((p) => `
-        <div class="rel-row${p.isDeceased ? ' deceased' : ''}" data-pf-id="${p.id}" role="button" tabindex="0">
-          <span class="contact-avatar">${pfEsc((p.name || '?')[0])}</span>
-          <div class="rel-row-main">
+        <div class="cp-row rel-cp-row${p.isDeceased ? ' deceased' : ''}" data-pf-id="${p.id}" role="button" tabindex="0">
+          <span class="cp-av">${pfEsc((p.name || '?')[0])}</span>
+          <div class="cp-main">
             <b>${pfEsc(p.name)}${p.isDeceased ? ' <span class="contact-badge">已逝</span>' : ''}</b>
-            <small>${[p.nickname && '昵称 ' + p.nickname, p.englishName, p.alias].filter(Boolean).map(pfEsc).join(' · ') || '&nbsp;'}</small>
-          </div>
-          <div class="rel-row-right">
-            ${p.gender ? `<span class="contact-badge">${pfEsc(p.gender)}</span>` : ''}
-            ${p.phone ? `<span class="contact-phone">${pfEsc(p.phone)}</span>` : ''}
-            ${pfTouchCtl(p)}
+            <small>${pfListSubtitle(p)}</small>
           </div>
         </div>`).join('')}
     </div>`).join('');
-  // 节奏下拉回填当前值 + 超期高亮
-  const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
-  box.querySelectorAll('.rel-touch').forEach((ctl) => {
-    const id = Number(ctl.dataset.pfTouch);
-    const p = PF.list.find((x) => x.id === id);
-    if (!p) return;
-    const sel = ctl.querySelector('select');
-    sel.value = String(p.touchCadence || 0);
-    if (p.touchCadence > 0) {
-      const days = p.lastTouched ? Math.round((Date.parse(today) - Date.parse(p.lastTouched)) / 86400000) : 365;
-      if (days >= p.touchCadence) ctl.classList.add('due');
-    }
-  });
 }
 
-/** v0.5.17 保持联系控件（随行展示；点击不冒泡进档案） */
-function pfTouchCtl(p) {
-  if (p.isDeceased) return '';
-  return `
-    <div class="rel-touch" data-pf-touch="${p.id}">
-      <select class="rel-touch-sel" data-pf-cadence="${p.id}" title="联系节奏：超过该天数未联系会提醒你" aria-label="联系节奏">
-        <option value="0">不提醒</option>
-        <option value="3">3天</option>
-        <option value="7">7天</option>
-        <option value="14">14天</option>
-        <option value="30">30天</option>
-        <option value="90">90天</option>
-      </select>
-      <button type="button" class="rel-touch-now" data-pf-now="${p.id}" title="记录今天联系过，计时重新开始">✓今天联系过</button>
-    </div>`;
+/** 列表小字行：按「人际关系相关设置」勾选的字段拼接，· 隔离（姓名固定在标题行，不在这里） */
+const REL_FIELD_META = [
+  ['gender', '性别'], ['phone', '电话'], ['group', '人脉群组'], ['marriage', '婚姻状况'],
+  ['company', '公司/组织'], ['position', '职位'], ['school', '学校'],
+];
+function pfListSubtitle(p) {
+  const f = (PF.listFields && PF.listFields.length) ? PF.listFields : ['gender', 'phone'];
+  const parts = [];
+  if (f.includes('gender') && p.gender) parts.push(p.gender);
+  if (f.includes('phone') && p.phone) parts.push(p.phone);
+  if (f.includes('group') && (p.groups || []).length) parts.push(p.groups.join('、'));
+  if (f.includes('marriage') && p.marriage) parts.push(p.marriage);
+  if (f.includes('company') && p.company) parts.push(p.company);
+  if (f.includes('position') && p.position) parts.push(p.position);
+  if (f.includes('school') && p.school) parts.push(p.school);
+  return parts.map(pfEsc).join(' · ') || '&nbsp;';
 }
 
 // ===== 档案视图 =====
@@ -1101,39 +1120,8 @@ function pfBindEvents() {
   }
   const listBox = pfEl('relList');
   if (listBox) listBox.addEventListener('click', (e) => {
-    // v0.5.17：行内「今天联系过」先于打开档案处理
-    const now = e.target.closest('[data-pf-now]');
-    if (now) {
-      const id = Number(now.dataset.pfNow);
-      api('/api/profile/touch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, touched: true }) })
-        .then(async (res) => {
-          if (res.ok) {
-            const p = PF.list.find((x) => x.id === id);
-            if (p) { p.lastTouched = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10); }
-            now.closest('.rel-touch').classList.remove('due');
-            toast(`已记录：今天联系过`);
-            markSynced();
-          } else toast('记录失败');
-        });
-      return;
-    }
-    // 控件区（节奏下拉）内点击不打开档案
-    if (e.target.closest('.rel-touch')) return;
     const row = e.target.closest('[data-pf-id]');
     if (row) pfOpenProfile(Number(row.dataset.pfId));
-  });
-  if (listBox) listBox.addEventListener('change', async (e) => {
-    const sel = e.target.closest('[data-pf-cadence]');
-    if (!sel) return;
-    const id = Number(sel.dataset.pfCadence);
-    const res = await api('/api/profile/touch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, cadence: Number(sel.value) }) });
-    if (res.ok) {
-      const p = PF.list.find((x) => x.id === id);
-      if (p) p.touchCadence = Number(sel.value);
-      sel.closest('.rel-touch').classList.toggle('due', false);
-      toast(Number(sel.value) ? '已设置联系节奏' : '已关闭提醒');
-      markSynced();
-    } else toast('设置失败');
   });
   const addBtn = pfEl('relAddBtn');
   if (addBtn) addBtn.addEventListener('click', () => { pfLoadNames().then(() => pfOpenEditModal()); });
@@ -1386,6 +1374,8 @@ let relset = { kind: 'rel_tag', words: [] };
 async function renderRelSet() {
   const box = pfEl('relsetList');
   if (!box) return;
+  await pfLoadListFields();   // v0.5.31：列表显示字段勾选随设置页加载
+  pfRenderListFields();
   const isTag = relset.kind === 'rel_tag';
   pfEl('relsetKindTitle').textContent = isTag ? '人脉标签' : '人脉群组';
   $$('#view-relset [data-rsflow]').forEach((b) => b.classList.toggle('active', b.dataset.rsflow === relset.kind));

@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/f7ad2ea8/css/style.css">
+  <link rel="stylesheet" href="./assets/74b2c7c4/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -193,12 +193,6 @@
               <button class="icon-btn" id="otdRefresh" title="换一条看看" aria-label="换一条"><svg><use href="#i-sun"/></svg></button>
             </div>
             <div class="otd-body" id="otdBody"></div>
-          </article>
-          <article class="panel p3-card" id="p3Touch" hidden>
-            <div class="panel-head">
-              <div><p class="eyebrow">保持联系</p><h2>该问候一下啦</h2></div>
-            </div>
-            <div class="touch-list" id="touchList"></div>
           </article>
 
           <!-- ===== v0.6.0 P3：今日服药（有计划才显示） ===== -->
@@ -398,12 +392,17 @@
         </article>
       </section>
 
-      <!-- 人脉词库设置（v0.5.2：人脉标签/群组 增删改+拖动排序） -->
-      <section class="view" id="view-relset" data-title="人脉词库设置">
+      <!-- 人际关系相关设置（v0.5.31：列表显示字段 + 标签/群组词库） -->
+      <section class="view" id="view-relset" data-title="人际关系设置">
         <div class="growth-head">
-          <div><p class="eyebrow">人脉词库</p><h2>标签与群组管理</h2></div>
+          <div><p class="eyebrow">人际关系</p><h2>人际关系相关设置</h2></div>
           <button class="btn ghost" id="relsetBack" type="button">← 返回列表</button>
         </div>
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">列表显示字段</p><h2>全部联系人每行展示哪些信息</h2></div></div>
+          <p class="ts-hint">每行一位联系人：头像 + 姓名固定显示，<b>性别、电话</b>默认开启；其余按需勾选，新增字段显示在电话右侧并用 <b>·</b> 隔离，样式与「记一笔 → 选择联系人」一致。点击字段即保存，列表即时生效。</p>
+          <div class="tf-chips" id="relFieldChips"></div>
+        </article>
         <article class="panel">
           <div class="panel-head">
             <div><p class="eyebrow">词库</p><h2 id="relsetKindTitle">人脉标签</h2></div>
@@ -566,7 +565,7 @@
           <div class="growth-head">
             <div><p class="eyebrow">人际关系</p><h2>值得记住的人</h2></div>
             <div class="cal-actions">
-              <button class="icon-btn" id="relSetBtn" type="button" title="人脉词库设置" aria-label="人脉词库设置"><svg><use href="#i-gear"/></svg></button>
+              <button class="icon-btn" id="relSetBtn" type="button" title="人际关系设置" aria-label="人际关系设置"><svg><use href="#i-gear"/></svg></button>
               <button class="btn primary" id="relAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加联系人</button>
             </div>
           </div>
@@ -1426,8 +1425,8 @@
   </div>
 
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
-  <script src="./assets/cf5890c2/js/profile.js"></script>
+  <script src="./assets/3ff6f745/js/profile.js"></script>
   <script src="./assets/d5aa57e2/js/medicine.js"></script>
-  <script src="./assets/9fa0a0b6/js/app.js"></script>
+  <script src="./assets/1cfac99f/js/app.js"></script>
 </body>
 </html>

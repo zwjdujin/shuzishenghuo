@@ -2,7 +2,7 @@
 // Cron 每分钟触发，分两类任务：
 //   分钟级（精确到 hh:mm）：待办提醒、服药提醒
 //   日检级（每天一次，app_settings.last_daily_run 幂等标记）：
-//     生日提醒（未来 1/3/7 天）、keep-in-touch 超期联系人、药品临期/低库存
+//     生日提醒（未来 1/3/7 天）、药品临期/低库存（v0.5.31 起移除 keep-in-touch）
 // 推送 payload 的 url 使用 hash 路由，点通知直达对应页面。
 import webpush from 'web-push';
 
@@ -98,7 +98,7 @@ export default {
   },
 };
 
-// ===== 日检任务：生日 / keep-in-touch / 药品库存与临期 =====
+// ===== 日检任务：生日 / 药品库存与临期 =====
 async function dailyJobs(env, today, dowCN, pushes) {
   const addDays = (base, n) => {
     const d = new Date(Date.parse(base + 'T00:00:00Z') + n * 86400000);
@@ -144,29 +144,6 @@ async function dailyJobs(env, today, dowCN, pushes) {
       });
     }
   } catch (e) { console.error('birthday scan', e && e.message); }
-
-  // keep-in-touch：超期未联系
-  try {
-    const rows = (await env.DB.prepare(
-      'SELECT name, touch_cadence c, last_touched FROM contacts WHERE touch_cadence > 0 AND is_deceased = 0'
-    ).all()).results || [];
-    const todayMs = Date.parse(today);
-    const due = rows
-      .map((r) => ({
-        name: r.name,
-        over: r.last_touched ? Math.round((todayMs - Date.parse(r.last_touched)) / 86400000) - r.c : 365 - r.c,
-      }))
-      .filter((r) => r.over >= 0)
-      .sort((a, b) => b.over - a.over)
-      .slice(0, 8);
-    if (due.length) {
-      pushes.push({
-        title: `💬 该联系一下啦 · ${due.length} 位`,
-        body: due.map((r) => `${r.name}（超 ${r.over} 天）`).join('、'),
-        tag: 'szsh-touch', url: './#/relations',
-      });
-    }
-  } catch (e) { console.error('touch scan', e && e.message); }
 
   // 药品：低库存 + 30 天内临期
   try {

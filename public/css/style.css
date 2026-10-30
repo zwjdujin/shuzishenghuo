@@ -695,9 +695,8 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .check-line input{width:16px;height:16px;accent-color:var(--plum)}
 
 /* ===== 人际关系（v0.3.0 起的公共元素；列表/档案结构样式见 v0.4.0 段） ===== */
-.contact-avatar{width:40px;height:40px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff}
+/* v0.5.31：contact-avatar/contact-phone 随旧列表样式移除，头像用 cp-av */
 .contact-badge{padding:1px 7px;border-radius:999px;background:var(--sage-soft);color:var(--sage);font-weight:600}
-.contact-phone{font-size:12px;color:var(--muted);white-space:nowrap}
 
 /* ===== 人际关系（v0.3.1） ===== */
 /* 列表视图与档案视图内部模块间距统一（面板之间固定 22px） */
@@ -714,8 +713,10 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 .rel-search .inp:focus{outline:none;border-color:var(--plum);box-shadow:0 0 0 3px var(--plum-soft)}
 .rel-search .btn{flex:0 0 auto}
 
-/* 列表显示方式：详细模式补充信息 */
-.rel-row-right{display:flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:wrap;justify-content:flex-end}
+/* 列表显示方式：v0.5.31 起列表行复用「记一笔 → 选择联系人」的 cp-row 样式 */
+.az-wrap .cp-row{margin-bottom:7px}
+.rel-cp-row.deceased{opacity:.62}
+.rel-cp-row .cp-main b .contact-badge{margin-left:4px}
 
 /* 档案头部 */
 .pf-hero{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--plum);color:#fff;border-radius:var(--radius);padding:22px;margin-bottom:20px}
@@ -1032,13 +1033,6 @@ html[data-mode="night"] .toast{background:var(--surface);color:var(--ink);border
 .az-group{margin-bottom:6px}
 .az-letter{display:flex;align-items:baseline;gap:8px;font-weight:700;font-size:13px;color:var(--plum,#952E3A);padding:12px 4px 6px;letter-spacing:.05em}
 .az-letter span{font-size:11px;font-weight:600;color:var(--muted);background:var(--plum-soft,#f3e8ee);border-radius:8px;padding:1px 8px}
-.rel-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);padding:11px 6px;cursor:pointer;font:inherit;color:inherit}
-.rel-row:hover{background:var(--plum-soft,#f3e8ee)}
-.rel-row.deceased{opacity:.62}
-.rel-row-main{min-width:0;flex:1}
-.rel-row-main b{display:block;font-size:14.5px}
-.rel-row-main small{color:var(--muted);font-size:11.5px}
-.rel-row-right{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 .rel-link{color:var(--plum,#952E3A);font-weight:600;cursor:pointer;text-decoration:underline dotted}
 .pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:8px 0}
 .pm-item{background:var(--card,#fff);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0}
@@ -1309,9 +1303,6 @@ html[data-mode="night"] .txn-flow-seg .seg-item:has(input:checked){color:#fff!im
 /* ================= v0.5.5：hash 路由配套 / 启动骨架 / 通用确认弹窗 ================= */
 /* 人际关系列表行：窄屏允许右侧徽标换行（替代已删除的 v0.3.0 窄屏规则） */
 @media (max-width:640px){
-  .rel-row{flex-wrap:wrap;row-gap:6px}
-  .rel-row-main{flex:1 1 calc(100% - 52px)}
-  .rel-row-right{flex:1 1 100%;justify-content:flex-start;padding-left:52px}
 }
 
 /* 启动骨架：boot() 判定登录态期间占位（替代「先闪登录页」） */
@@ -1363,12 +1354,6 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .otd-kind{align-self:flex-start;font-size:10.5px;font-weight:700;color:var(--plum);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
 
 /* --- 保持联系 --- */
-.touch-list{display:flex;flex-direction:column;gap:8px}
-.touch-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;text-align:left;font:inherit;color:inherit}
-.touch-row:hover{border-color:var(--plum)}
-.touch-row .contact-avatar{width:34px;height:34px;font-size:13px}
-.touch-row b{font-size:13.5px}
-.touch-row small{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
 
 /* --- 今日服药（首页卡 + 药箱卡共用行样式） --- */
 .medtoday-list{display:flex;flex-direction:column;gap:8px}
@@ -1616,18 +1601,8 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .btn-ico-long{display:none}
 }
 /* 联系人列表行内：节奏下拉 + 今天联系过（紧凑） */
-.rel-touch{display:inline-flex;align-items:center;gap:5px;min-width:0}
-.rel-touch-sel{height:30px;padding:0 4px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:11.5px;max-width:74px}
-.rel-touch.due .rel-touch-sel{border-color:var(--terra);color:var(--terra);background:var(--sand-soft, #f7ecd8)}
-.rel-touch-now{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:11px;padding:6px 8px;cursor:pointer;white-space:nowrap;font:inherit;font-size:11px}
-.rel-touch-now:hover{border-color:var(--sage);color:var(--sage)}
 /* 行由 button 改为 div（行内要放交互控件），补齐按钮外观与键盘可达性 */
-.rel-row{font:inherit;color:inherit;text-align:left}
-.rel-row:focus-visible{outline:2px solid var(--plum);outline-offset:2px}
 @media (max-width:640px){
-  .rel-touch{flex-direction:column;align-items:stretch;gap:4px}
-  .rel-touch-sel{max-width:100%}
-  .rel-touch-now{padding:4px 6px}
 }
 
 /* --- v0.5.19 档案页查看/编辑模式 --- */

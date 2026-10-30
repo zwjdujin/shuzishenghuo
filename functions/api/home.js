@@ -194,23 +194,6 @@ export async function onRequestGet(context) {
       .map((r) => ({ id: r.id, content: r.content, date: r.memo_date }));
   } catch (_) { /* 表未迁移忽略 */ }
 
-  // keep-in-touch：按节奏超期未联系的联系人（前 5）
-  let touchDue = [];
-  try {
-    const tRows = (await db.prepare(
-      'SELECT id, name, touch_cadence c, last_touched FROM contacts WHERE touch_cadence > 0 AND is_deceased = 0'
-    ).all()).results || [];
-    const todayMs = Date.parse(today);
-    touchDue = tRows
-      .map((r) => {
-        const days = r.last_touched ? Math.round((todayMs - Date.parse(r.last_touched)) / 86400000) : 365;
-        return { id: r.id, name: r.name, cadence: r.cadence ?? r.c, days };
-      })
-      .filter((r) => r.days >= r.cadence)
-      .sort((a, b) => b.days - a.days)
-      .slice(0, 5);
-  } catch (_) { /* 忽略 */ }
-
   // 今日服药计划（到期未处理的）
   let medToday = [];
   try {
@@ -243,7 +226,7 @@ export async function onRequestGet(context) {
   } catch (_) { /* 忽略 */ }
 
   return json({
-    version: '0.5.30',
+    version: '0.5.31',
     brand,
     appearance,
     today,
@@ -252,6 +235,6 @@ export async function onRequestGet(context) {
     stats,
     todayTasks,
     pendingHabits,
-    p3: { memos, touchDue, medToday, onthisday },
+    p3: { memos, medToday, onthisday },
   });
 }
