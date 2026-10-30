@@ -61,7 +61,7 @@ shuzishenghuo/
 ├── wrangler.toml           # D1 / R2 / 绑定配置
 ├── DEPLOY.md               # 零基础部署指南（推荐从这里开始）
 ├── PUSH_SETUP.md           # 推送提醒配置
-└── TWA_BUILD.md            # 打包成安卓 APP
+└── APP_BUILD.md             # 打包成安卓 APP（WebView 壳）
 ```
 
 ---
@@ -110,7 +110,7 @@ wrangler d1 migrations apply shuzishenghuo --remote
 
 ## 安卓 APP（PWA / TWA）
 
-用手机浏览器打开站点 → 菜单 →「添加到主屏幕」，即可全屏使用；也可打包成 TWA 安装包（APK）侧载，见 [`TWA_BUILD.md`](./TWA_BUILD.md)。推送提醒配置见 [`PUSH_SETUP.md`](./PUSH_SETUP.md)。
+用手机浏览器打开站点 → 菜单 →「添加到主屏幕」，即可全屏使用；也可安装安卓 APP（首次打开填自己的站点地址），见 [`APP_BUILD.md`](./APP_BUILD.md)。推送提醒配置见 [`PUSH_SETUP.md`](./PUSH_SETUP.md)。
 
 ---
 

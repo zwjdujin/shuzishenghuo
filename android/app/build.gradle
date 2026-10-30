@@ -39,5 +39,6 @@ android {
 }
 
 dependencies {
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    // FileProvider（拍照上传临时文件）所需
+    implementation 'androidx.core:core:1.13.1'
 }

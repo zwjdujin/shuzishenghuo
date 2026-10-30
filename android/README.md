@@ -1,8 +1,7 @@
-# 数字生活 · 安卓 APP（TWA 壳）
+# 数字生活 · 安卓壳工程
 
-本目录是「数字生活」的安卓壳工程（Trusted Web Activity）：不做任何原生业务，
-直接全屏加载线上站点 `https://szsh.110011.best/`，登录态、数据、功能与网站完全一致。
-总体方案见根目录 `TWA_BUILD.md`。
+WebView 壳：APK 不内置站点地址，首次打开由用户填写自己部署的站点地址和管理员账号，
+自动登录后全屏加载站点。总体方案见根目录 `APP_BUILD.md`。
 
 ## 结构
 
@@ -13,16 +12,20 @@ android/
 │   ├── build.gradle            # 版本号在这里（与根 package.json 同步）
 │   ├── release.keystore        # 侧载签名密钥（密码见下）
 │   └── src/main/
-│       ├── AndroidManifest.xml # LauncherActivity + DEFAULT_URL + 图标/颜色
-│       └── res/                # 图标与配色（与 PWA manifest 保持一致）
+│       ├── AndroidManifest.xml # MainActivity（LAUNCHER 入口）+ FileProvider
+│       ├── java/com/shuzishenghuo/twa/MainActivity.java   # 全部壳逻辑
+│       └── res/                # 配置页布局(activity_config→view_config)/主界面/图标/配色
 └── README.md
 ```
 
-- 入口是 `androidbrowserhelper` 库的 `LauncherActivity`，由 Chrome 以 TWA 全屏打开网站
-  （无地址栏的前提：线上 `.well-known/assetlinks.json` 里的签名指纹与本工程 keystore 一致）。
-- 包名 `com.shuzishenghuo.twa`，与 `public/.well-known/assetlinks.json` 对应。
-- 签名密钥 `app/release.keystore`（alias `szsh`，密码 `84aa47b05fd23d9acd00`）随仓库保存，
-  换密码请同步改 `app/build.gradle`。个人侧载用途，介意可自行重新生成并更新 assetlinks。
+## MainActivity.java 要点
+
+- 配置存 SharedPreferences（`base_url` / `user` / `pass`，明文本机保存）。
+- 自动登录：后台线程 POST `{base}/api/auth/login`（JSON `{user,pass}`），
+  成功后把 `Set-Cookie`（`sz_session=…`）灌入 `CookieManager` 再加载站点。
+- 文件选择：`onShowFileChooser` → 系统选择器 + 拍照/录像（FileProvider 临时文件，`res/xml/file_paths.xml`）。
+- URL 分流：同域名在壳内；其他 http(s) 交给系统浏览器；`intent://`/`tel:`/`mailto:` 交给系统。
+- 下载走 `DownloadManager`；JS alert/confirm 用原生弹窗；返回键优先网页后退。
 
 ## 版本号约定
 
@@ -42,9 +45,7 @@ gradle assembleRelease
 # 产物：app/build/outputs/apk/release/app-release.apk（已签名，可直接安装）
 ```
 
-没有本机工具链时，任何装好 Android SDK 的 CI/机器拉取本仓库执行上面两步即可。
-
 ## 安装到手机
 
 把 `app-release.apk` 传到手机直接安装（需允许「未知来源/侧载」）。
-首次打开若显示地址栏，说明线上 assetlinks 的指纹还没更新或未重新部署。
+首次打开填写站点地址（https://…）与账号即可；之后点右上角半透明「设置」可修改。

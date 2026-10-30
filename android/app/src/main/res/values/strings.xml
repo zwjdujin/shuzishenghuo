@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">数字生活</string>
+    <string name="btn_settings">设置</string>
+    <string name="btn_retry">重试</string>
+    <string name="btn_edit">修改配置</string>
+    <string name="btn_save">保存并进入</string>
+    <string name="config_intro">填写你自己部署的「数字生活」站点地址（https://…）和管理员账号。APK 不内置任何服务器，账号数据只保存在本机。</string>
+    <string name="hint_url">站点地址，如 https://szsh.example.com</string>
+    <string name="hint_user">用户名（留空则不自动登录）</string>
+    <string name="hint_pass">密码（留空则不自动登录）</string>
+    <string name="config_note">用户名和密码仅用于本机自动登录（调用站点的登录接口），请与站点管理员账号一致。之后可随时点右上角「设置」修改。</string>
 </resources>
