@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 public/manifest.webmanifest 的 theme_color / background_color 保持一致 -->
+    <color name="theme_color">#4d3045</color>
+    <color name="background_color">#f5f0e8</color>
+</resources>

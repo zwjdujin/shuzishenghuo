@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.shuzishenghuo.twa'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.shuzishenghuo.twa"
+        minSdk 23
+        targetSdk 35
+        // 与 package.json 保持一致，发版时同步更新（versionCode = 去掉点的三段数字）
+        versionCode 530
+        versionName "0.5.30"
+    }
+
+    signingConfigs {
+        release {
+            // 侧载自用签名密钥，随仓库保存以便可复现构建（见 android/README.md）
+            storeFile file('release.keystore')
+            storePassword '84aa47b05fd23d9acd00'
+            keyAlias 'szsh'
+            keyPassword '84aa47b05fd23d9acd00'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}
