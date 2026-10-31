@@ -297,6 +297,7 @@ function pfSyncEditMode() {
     const el = pfEl(id);
     if (el) el.hidden = hideIfEmpty && !show;
   });
+  document.body.classList.toggle('edit', PF.editMode);   // v0.5.35：编辑模式下每段显示「编辑本段」
   pfApplyOrder();    // v0.5.32：按设置排序并写标题序号
   pfRenderIndex();   // v0.5.32：目录只列当前可见（有资料）的模块
 }
@@ -305,18 +306,18 @@ function pfSyncEditMode() {
 // kind: struct=原结构化模块（原表直读，编辑走全局「编辑」/弹窗）| json=自由段落（contact_sections 载荷）
 //       app=应用联动（账本流水 / R2 附件）
 const PF_SECTIONS = [
-  { key: 'identity',  t: '身份标识', kind: 'struct' },
-  { key: 'body',      t: '体测与尺码', badge: '量体记录', kind: 'struct' },
-  { key: 'methods',   t: '联络方式', kind: 'struct' },
-  { key: 'clearance', t: '职务与授权', kind: 'struct' },
-  { key: 'edu',       t: '教育与能力', kind: 'struct' },
+  { key: 'identity',  t: '身份标识', kind: 'struct', editor: 'identity' },
+  { key: 'body',      t: '体测与尺码', badge: '量体记录', kind: 'struct', editor: 'body' },
+  { key: 'methods',   t: '联络方式', kind: 'struct', editor: 'methods' },
+  { key: 'clearance', t: '职务与授权', kind: 'struct', editor: 'clearance' },
+  { key: 'edu',       t: '教育与能力', kind: 'struct', editor: 'edu' },
   { key: 'vehicle',   t: '交通工具', badge: '可附车照', kind: 'json', cards: 1, r: 1 },
   { key: 'interest',  t: '兴趣爱好', kind: 'json', list: 1 },
   { key: 'network',   t: '网络资产', kind: 'json', r: 1, tb: 1 },
   { key: 'lifecycle', t: '生活数据', kind: 'json', r: 1 },
   { key: 'food',      t: '饮食与偏好', kind: 'json', r: 1, list: 1 },
   { key: 'health',    t: '健康档案', badge: '隐私档案', badgeClay: 1, kind: 'json', r: 1 },
-  { key: 'home',      t: '居住与家庭', kind: 'struct', r: 1, list: 1, link: 1 },
+  { key: 'home',      t: '居住与家庭', kind: 'struct', r: 1, list: 1, link: 1, editor: 'home' },
   { key: 'finview',   t: '财务概览', badge: '财务概览', badgeClay: 1, kind: 'json', r: 1 },
   { key: 'finance',   t: '财务往来', kind: 'app' },
   { key: 'docs',      t: '证件与证照', badge: '敏感信息', kind: 'json', r: 1 },
@@ -358,8 +359,9 @@ function pfBuildPanels() {
     } else {
       body = '<div class="pf-sec-body" data-secbody="' + s.key + '"></div>';
     }
-    const editBtn = s.kind === 'json'
-      ? '<button class="btn" data-sec-edit="' + s.key + '" style="padding:5px 11px;font-size:11.5px">编辑本段</button>' : '';
+    const editBtn = s.kind === 'app'
+      ? ''
+      : '<button class="btn sec-edit" data-sec-edit="' + s.key + '" style="padding:5px 11px;font-size:11.5px">编辑本段</button>';
     const badge = s.badge ? '<span class="badge' + (s.badgeClay ? ' clay' : '') + '">' + pfEsc(s.badge) + '</span>' : '';
     const initHidden = (s.kind === 'json' || s.key === 'finance' || s.key === 'files') ? ' hidden' : '';
     return '<article class="panel" id="pfPanel_' + s.key + '" data-mod="' + s.key + '"' + initHidden + '>'
@@ -480,29 +482,33 @@ let pfSecEdit = null;   // {key, pid, data, isStruct}
 async function pfOpenSectionEditor(key, opts = {}) {
   const def = pfSecDef(key);
   const pid = Number(opts.pid || PF.pid);
-  if (!pid) return;
-  if (def.cards && !PF.filesData) await pfEnsureFiles();   // 照片选择需要附件清单
-  const src = ((PF.data && PF.data.sections) || {})[key] || {};
-  const data = JSON.parse(JSON.stringify(src));
-  (opts.appendRows || []).forEach((r) => {
-    if (def.list || def.tl) {
-      if (!data.list) data.list = [];
-      if (!data.list.some((x) => x[0] === r[0] && x[1] === r[1])) data.list.push(r);
-    } else {
-      if (!data.r) data.r = [];
-      if (!data.r.some((x) => x[0] === r[0] && x[1] === r[1])) data.r.push(r);
-    }
-  });
-  pfSecEdit = { key, pid, data, def };
-  const m = pfEl('secEditor');
-  pfEl('secEditTitle').textContent = '编辑 - ' + def.t;
-  const name = (PF.data && PF.data.base && PF.data.base.name) || '';
-  pfEl('secEditSub').textContent = (opts.pname || name) + ' · 档案段落';
-  pfEl('secEditHint').textContent = PF_SECTIONS.find((s) => s.key === key).kind === 'struct'
-    ? '这里编辑的是本段「附加资料」；姓名、电话、生日等基础资料请用「编辑基本信息」维护。'
-    : '一次只编辑一段，保存后仅本段刷新；留空的行保存时自动去除。';
-  pfSecBuildEditorBody(def, data);
-  openModal(m, { onEsc: () => pfCloseSectionEditor() });
+  if (!pid || def.kind === 'app') return;
+  pfSecEdit = { key, pid, def, editor: def.editor || 'json' };
+  pfSeHead(key, opts.pname);
+  if (def.editor === 'identity') pfEditIdentity();
+  else if (def.editor === 'body') pfEditBody();
+  else if (def.editor === 'methods') pfEditMethods();
+  else if (def.editor === 'clearance') pfEditClearance();
+  else if (def.editor === 'edu') pfEditEdu();
+  else if (def.editor === 'home') pfEditHome();
+  else {
+    if (def.cards && !PF.filesData) await pfEnsureFiles();
+    const src = ((PF.data && PF.data.sections) || {})[key] || {};
+    pfSecEdit.data = JSON.parse(JSON.stringify(src));
+    (opts.appendRows || []).forEach((r) => {
+      if (def.list || def.tl) {
+        if (!pfSecEdit.data.list) pfSecEdit.data.list = [];
+        if (!pfSecEdit.data.list.some((x) => x[0] === r[0] && x[1] === r[1])) pfSecEdit.data.list.push(r);
+      } else {
+        if (!pfSecEdit.data.r) pfSecEdit.data.r = [];
+        if (!pfSecEdit.data.r.some((x) => x[0] === r[0] && x[1] === r[1])) pfSecEdit.data.r.push(r);
+      }
+    });
+    const wrap = pfSecBuildEditorBody(def, pfSecEdit.data);
+    pfEl('secEditBody').innerHTML = '';
+    pfEl('secEditBody').appendChild(wrap);
+  }
+  openModal(pfEl('secEditor'), { onEsc: () => pfCloseSectionEditor() });
 }
 function pfSecRow(inputs, extraHtml) {
   const div = document.createElement('div');
@@ -511,8 +517,8 @@ function pfSecRow(inputs, extraHtml) {
   return div;
 }
 function pfSecBuildEditorBody(def, data) {
-  const body = pfEl('secEditBody');
-  body.innerHTML = '';
+  const body = document.createElement('div');
+  body.className = 'sec-custom';
   const addBtn = document.createElement('button');
   addBtn.className = 'sec-add';
   addBtn.type = 'button';
@@ -557,6 +563,7 @@ function pfSecBuildEditorBody(def, data) {
     addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')]), addBtn);
     body.appendChild(wrap);
   }
+  return body;
 }
 function pfCollectSectionData() {
   const { def } = pfSecEdit;
@@ -601,6 +608,304 @@ function pfCollectSectionData() {
   }
   return data;
 }
+
+async function pfRefreshDetail() {
+  if (!PF.pid) return;
+  try {
+    const res = await api('/api/profile/detail?id=' + PF.pid);
+    PF.data = await res.json();
+  } catch (_) { return; }
+  pfRenderAll();
+}
+
+/* ===== v0.5.35 各段侧滑编辑器（保存写回原数据表） ===== */
+function pfSeHead(key, pname) {
+  pfEl('secEditTitle').textContent = '编辑 - ' + pfSecDef(key).t;
+  pfEl('secEditSub').textContent = (pname || ((PF.data && PF.data.base && PF.data.base.name) || '')) + ' · 档案段落';
+  pfEl('secEditHint').textContent = '一次只编辑一段，保存后仅本段刷新；留空的行自动忽略。';
+}
+function pfSeRow(html) { const d = document.createElement('div'); d.className = 'secrow'; d.innerHTML = html; return d; }
+function pfSeInput(label, val, cls) { return '<input type="text" class="' + (cls || '') + '" placeholder="' + pfEsc(label) + '" value="' + pfEsc(val || '') + '">'; }
+
+function pfEditIdentity() {
+  const b = PF.data.base;
+  const body = pfEl('secEditBody');
+  body.innerHTML = '<p class="sec-hint">姓名/生日/标签/群组/引荐人等完整资料请用下方「完整资料」按钮维护。</p>';
+  [['姓名', 'firstName'], ['昵称', 'nickname'], ['曾用名', 'formerName'], ['英文名', 'englishName'], ['别名', 'alias']].forEach(([label, f]) => {
+    body.appendChild(pfSeRow('<input type="text" class="sk" data-f="' + f + '" placeholder="' + pfEsc(label) + '" value="' + pfEsc(b[f] || '') + '">'));
+  });
+  const g = pfSeRow('<select data-f="gender"><option value="">未知</option><option>男</option><option>女</option></select>');
+  g.querySelector('select').value = ['男', '女'].includes(b.gender) ? b.gender : '';
+  body.appendChild(g);
+  let bdayDate = b.birthdayType === 'full' ? b.birthYear + '-' + String(b.birthMonth).padStart(2, '0') + '-' + String(b.birthDay).padStart(2, '0') : '';
+  if (b.birthdayType === 'monthday') bdayDate = new Date().getFullYear() + '-' + String(b.birthMonth).padStart(2, '0') + '-' + String(b.birthDay).padStart(2, '0');
+  const bd = pfSeRow('<span class="sk" style="align-self:center;font-size:12px;color:var(--muted)">生日</span>'
+    + '<button type="button" class="btn ghost" data-se="bday" style="flex:1;text-align:left">' + pfEsc(b.birthdayType ? b.birthText : '点击选择生日') + '</button>'
+    + '<label><input type="checkbox" data-se="lunar"' + (b.birthdayCalendar === 'lunar' ? ' checked' : '') + '>农历</label>');
+  body.appendChild(bd);
+  body.appendChild(pfSeRow('<input type="text" class="sk" data-f="marriage" placeholder="婚姻状况" value="' + pfEsc(b.marriage || '') + '">'));
+  body.appendChild(pfSeRow('<input type="text" data-f="note" placeholder="备注" value="' + pfEsc(b.note || '') + '">'));
+  const more = pfSeRow('<button type="button" class="btn ghost" data-se="full" style="flex:1">完整资料（生日提醒 / 标签 / 群组 / 引荐人 / 已逝）</button>');
+  body.appendChild(more);
+  const bdBtn = bd.querySelector('[data-se=bday]');
+  const lunarChk = bd.querySelector('[data-se=lunar]');
+  let bdayLunar = b.birthdayCalendar === 'lunar';
+  const syncBday = () => { bdBtn.textContent = bdayDate || '点击选择生日'; };
+  syncBday();
+  bdBtn.addEventListener('click', () => {
+    openSitePicker({ mode: 'date', date: bdayDate, allowClear: true, title: '选择生日',
+      onDone: ({ date }) => { bdayDate = date || ''; syncBday(); } });
+  });
+  lunarChk.addEventListener('change', () => { bdayLunar = lunarChk.checked; });
+  more.querySelector('[data-se=full]').addEventListener('click', () => { pfCloseSectionEditor(); pfLoadNames().then(() => pfOpenEditModal()); });
+  pfSecEdit.save = async () => {
+    const get = (f) => { const el = pfEl('secEditBody').querySelector('[data-f="' + f + '"]'); return el ? el.value.trim() : ''; };
+    const payload = { id: PF.pid,
+      firstName: get('firstName'), nickname: get('nickname'), formerName: get('formerName'),
+      englishName: get('englishName'), alias: get('alias'),
+      gender: pfEl('secEditBody').querySelector('[data-f=gender]').value || '未知',
+      marriage: get('marriage'), note: get('note') };
+    if (bdayDate) {
+      const parts = bdayDate.split('-').map(Number);
+      if (bdayLunar) {
+        const lf = window.lunarFull ? lunarFull(new Date(parts[0], parts[1] - 1, parts[2])) : null;
+        if (!lf) { toast('生日超出农历换算范围'); return false; }
+        payload.birthdayType = 'full'; payload.birthdayCalendar = 'lunar';
+        payload.birthYear = lf.year; payload.birthMonth = lf.month; payload.birthDay = lf.day;
+      } else {
+        payload.birthdayType = 'full'; payload.birthdayCalendar = 'solar';
+        payload.birthYear = parts[0]; payload.birthMonth = parts[1]; payload.birthDay = parts[2];
+      }
+    } else {
+      payload.birthdayType = ''; payload.birthdayCalendar = 'solar';
+      payload.birthYear = null; payload.birthMonth = null; payload.birthDay = null;
+    }
+    const res = await api('/api/profile/detail', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) { const d2 = await res.json().catch(() => ({})); toast(d2.error || '保存失败'); return false; }
+    toast('身份标识已保存'); markSynced();
+    await pfRefreshDetail();
+    return true;
+  };
+}
+
+function pfEditBody() {
+  const bd = PF.bodyData || { heights: [], weights: [], sizes: {} };
+  const latestH = bd.heights.length ? bd.heights[0].value : '';
+  const latestW = bd.weights.length ? bd.weights[bd.weights.length - 1].value : '';
+  const sz = bd.sizes || {};
+  const body = pfEl('secEditBody');
+  body.innerHTML = '<p class="sec-hint">身高/体重保存后按今天新增一条测量记录（同日覆盖），BMI 自动重算；尺码随档保存。</p>';
+  body.appendChild(pfSeRow(pfSeInput('身高（cm）', latestH)));
+  body.appendChild(pfSeRow(pfSeInput('体重（kg）', latestW)));
+  body.appendChild(pfSeRow(pfSeInput('衣裤尺码', sz.clothing, 'sk')));
+  body.appendChild(pfSeRow(pfSeInput('鞋子尺码', sz.shoe, 'sk')));
+  body.appendChild(pfSeRow(pfSeInput('戒指尺码', sz.ring, 'sk')));
+  body.appendChild(pfSeRow(pfSeInput('手镯尺码', sz.bracelet, 'sk')));
+  pfSecEdit.save = async () => {
+    const get = (i) => { const el = pfEl('secEditBody').querySelectorAll('.secrow input[type=text]')[i]; return el ? el.value.trim() : ''; };
+    const hV = get(0), wV = get(1);
+    const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    if (hV && Number(hV) > 0 && String(latestH) !== hV) {
+      const r1 = await api('/api/profile/body', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, kind: 'height', value: Number(hV), date: today }) });
+      if (!r1.ok) { toast('身高保存失败'); return false; }
+    }
+    if (wV && Number(wV) > 0 && String(latestW) !== wV) {
+      const r2 = await api('/api/profile/body', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, kind: 'weight', value: Number(wV), date: today }) });
+      if (!r2.ok) { toast('体重保存失败'); return false; }
+    }
+    const sizes = { clothing: get(2), shoe: get(3), ring: get(4), bracelet: get(5) };
+    const r3 = await api('/api/profile/body', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: PF.pid, sizes }) });
+    if (!r3.ok) { toast('尺码保存失败'); return false; }
+    // 附加键值行（contact_sections.body）
+    const custom = {};
+    const rows = [];
+    pfEl('secEditBody').querySelectorAll('.sec-card, .sec-add').forEach(() => {});
+    pfEl('secEditBody').querySelectorAll('.secrow').forEach((row, idx) => {
+      if (idx < 6) return;   // 前 6 行是身高/体重/尺码
+      const ins = row.querySelectorAll('input[type=text]');
+      if (ins.length >= 2 && ins[0].value.trim() && ins[1].value.trim()) rows.push([ins[0].value.trim(), ins[1].value.trim()]);
+    });
+    if (rows.length) custom.r = rows;
+    await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: PF.pid, key: 'body', data: custom }) });
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections.body = custom;
+    toast('体测与尺码已保存'); markSynced();
+    await pfRefreshDetail();
+    return true;
+  };
+}
+
+function pfEditMethods() {
+  const body = pfEl('secEditBody');
+  body.innerHTML = '<p class="sec-hint">每行 = 类型 + 内容 + 备注；保存时按此表整体重建联系方式（电话会同步为主号码）。</p>';
+  const KINDS = METHOD_META.map(([k, t]) => [k, t]);
+  const kindSel = (sel) => '<select data-f="kind">' + KINDS.map(([k, t]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
+  const rowsEl = document.createElement('div');
+  const addRow = (kind, value, label) => rowsEl.appendChild(pfSeRow(kindSel(kind) + pfSeInput('内容', value) + pfSeInput('备注', label, 'sk')));
+  METHOD_META.forEach(([kind]) => (PF.data.methods || {})[kind] && PF.data.methods[kind].forEach((x) => addRow(kind, x.value, x.label)));
+  if (!rowsEl.children.length) addRow('phones', '', '');
+  const addBtn = document.createElement('button');
+  addBtn.className = 'sec-add';
+  addBtn.type = 'button';
+  addBtn.textContent = '＋ 添加一行';
+  addBtn.onclick = () => addRow('phones', '', '');
+  body.appendChild(rowsEl);
+  body.appendChild(addBtn);
+  pfSecEdit.save = async () => {
+    const want = [];
+    rowsEl.querySelectorAll('.secrow').forEach((row) => {
+      const kind = row.querySelector('select').value;
+      const ins = row.querySelectorAll('input[type=text]');
+      const value = ins[0] ? ins[0].value.trim() : '';
+      const label = ins[1] ? ins[1].value.trim() : '';
+      if (value) want.push({ kind, value, label });
+    });
+    for (const kind of Object.keys(PF.data.methods || {})) {
+      for (const x of PF.data.methods[kind]) {
+        await api('/api/profile/contacts?id=' + x.id, { method: 'DELETE' });
+      }
+    }
+    for (const w of want) {
+      const r = await api('/api/profile/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, kind: w.kind, value: w.value, label: w.label }) });
+      if (!r.ok) { toast('联系方式保存失败'); return false; }
+    }
+    toast('联络方式已保存'); markSynced();
+    await pfRefreshDetail();
+    return true;
+  };
+}
+
+function pfEditClearance() {
+  const w = PF.data.work || {};
+  const body = pfEl('secEditBody');
+  body.innerHTML = '<p class="sec-hint">公司/职位保存到职业信息表；下方键值行保存为本段附加资料（部门/职级/汇报对象等）。</p>';
+  body.appendChild(pfSeRow(pfSeInput('公司/组织', w.company, 'sk')));
+  body.appendChild(pfSeRow(pfSeInput('职位', w.position, 'sk')));
+  const custom = pfSecBuildEditorBody(pfSecDef('clearance'), (PF.data.sections || {}).clearance || {});
+  body.appendChild(custom);
+  pfSecEdit.save = async () => {
+    const ins = body.querySelectorAll('.secrow input[type=text]');
+    const company = ins[0] ? ins[0].value.trim() : '';
+    const position = ins[1] ? ins[1].value.trim() : '';
+    const r1 = await api('/api/profile/work', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, company, position }) });
+    if (!r1.ok) { toast('职业信息保存失败'); return false; }
+    const custom2 = pfCollectSectionData();
+    const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: PF.pid, key: 'clearance', data: custom2 }) });
+    if (!r2.ok) { toast('附加资料保存失败'); return false; }
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections.clearance = custom2;
+    toast('职务与授权已保存'); markSynced();
+    await pfRefreshDetail();
+    return true;
+  };
+}
+
+function pfEditEdu() {
+  const body = pfEl('secEditBody');
+  body.innerHTML = '<p class="sec-hint">每行 = 学校 / 专业 / 学位 / 入学 / 毕业 / 重要经历；保存时按此表整体重建教育经历。</p>';
+  const degrees = ['高中', '大专', '本科', '硕士', '博士'];
+  const degreeSel = (sel) => '<select data-f="degree">' + degrees.map((o) => '<option' + (o === sel ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+  const rowsEl = document.createElement('div');
+  const addRow = (e) => rowsEl.appendChild(pfSeRow(
+    pfSeInput('学校', e.school) + pfSeInput('专业', e.major) + degreeSel(e.degree) + pfSeInput('入学', e.start, 'sk') + pfSeInput('毕业', e.end, 'sk') + pfSeInput('经历', e.story)));
+  (PF.data.edus || []).forEach(addRow);
+  if (!(PF.data.edus || []).length) addRow({ school: '', major: '', degree: '本科', start: '', end: '', story: '' });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'sec-add';
+  addBtn.type = 'button';
+  addBtn.textContent = '＋ 添加一行';
+  addBtn.onclick = () => addRow({ school: '', major: '', degree: '本科', start: '', end: '', story: '' });
+  body.appendChild(rowsEl);
+  body.appendChild(addBtn);
+  const customWrap = pfSecBuildEditorBody(pfSecDef('edu'), (PF.data.sections || {}).edu || {});
+  body.appendChild(customWrap);
+  pfSecEdit.save = async () => {
+    for (const e of (PF.data.edus || [])) {
+      await api('/api/profile/edu?id=' + e.id, { method: 'DELETE' });
+    }
+    const rows = [...rowsEl.querySelectorAll('.secrow')];
+    for (const row of rows) {
+      const ins = row.querySelectorAll('input[type=text], select');
+      const school = ins[0] ? ins[0].value.trim() : '';
+      if (!school) continue;
+      const r = await api('/api/profile/edu', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, school, major: ins[1] ? ins[1].value.trim() : '', degree: ins[2] ? ins[2].value.trim() : '', start: ins[3] ? ins[3].value.trim() : '', end: ins[4] ? ins[4].value.trim() : '', story: ins[5] ? ins[5].value.trim() : '' }) });
+      if (!r.ok) { toast('教育经历保存失败'); return false; }
+    }
+    const custom2 = pfCollectSectionData();
+    const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: PF.pid, key: 'edu', data: custom2 }) });
+    if (!r2.ok) { toast('附加资料保存失败'); return false; }
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections.edu = custom2;
+    toast('教育与能力已保存'); markSynced();
+    await pfRefreshDetail();
+    return true;
+  };
+}
+
+function pfEditHome() {
+  const d = PF.data;
+  const body = pfEl('secEditBody');
+  body.innerHTML = '<p class="sec-hint">家庭成员：称谓 + 姓名（姓名命中联系人会自动建立跳转）；宠物：种类 + 名字 + 纪念日。保存时按此表整体重建。</p>';
+  body.insertAdjacentHTML('beforeend', '<div class="sec-grp">家庭成员</div>');
+  const relEl = document.createElement('div');
+  const addRel = (kin, name) => relEl.appendChild(pfSeRow(pfSeInput('称谓', kin, 'sk') + pfSeInput('姓名', name)));
+  (d.relatives || []).forEach((r) => addRel(r.kin, r.name));
+  if (!(d.relatives || []).length) addRel('', '');
+  body.appendChild(relEl);
+  body.insertAdjacentHTML('beforeend', '<div class="sec-grp">宠物</div>');
+  const petEl = document.createElement('div');
+  const addPet = (p) => petEl.appendChild(pfSeRow(pfSeInput('种类', p.species, 'sk') + pfSeInput('名字', p.name) + pfSeInput('纪念日', p.memorialDate)));
+  (d.pets || []).forEach(addPet);
+  if (!(d.pets || []).length) addPet({ species: '', name: '', memorialDate: '' });
+  body.appendChild(petEl);
+  const customWrap = pfSecBuildEditorBody(pfSecDef('home'), (PF.data.sections || {}).home || {});
+  body.appendChild(customWrap);
+  pfSecEdit.save = async () => {
+    for (const r of (d.relatives || [])) await api('/api/profile/relatives?id=' + r.id, { method: 'DELETE' });
+    for (const p of (d.pets || [])) await api('/api/profile/pets?id=' + p.id, { method: 'DELETE' });
+    const relRows = [...relEl.querySelectorAll('.secrow')];
+    for (const row of relRows) {
+      const ins = row.querySelectorAll('input[type=text]');
+      const kin = ins[0] ? ins[0].value.trim() : '';
+      const name = ins[1] ? ins[1].value.trim() : '';
+      if (!kin || !name) continue;
+      const hit = (PF.allNames || []).find((x) => x.name === name && x.id !== PF.pid);
+      const r = await api('/api/profile/relatives', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, kin, name, ref_id: hit ? hit.id : null }) });
+      if (!r.ok) { toast('家庭成员保存失败'); return false; }
+    }
+    const petRows = [...petEl.querySelectorAll('.secrow')];
+    for (const row of petRows) {
+      const ins = row.querySelectorAll('input[type=text]');
+      const species = ins[0] ? ins[0].value.trim() : '';
+      const name = ins[1] ? ins[1].value.trim() : '';
+      const memorial = ins[2] ? ins[2].value.trim() : '';
+      if (!species || !name) continue;
+      const r = await api('/api/profile/pets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: PF.pid, species, name, memorial_date: memorial || null }) });
+      if (!r.ok) { toast('宠物保存失败'); return false; }
+    }
+    const custom2 = pfCollectSectionData();
+    const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: PF.pid, key: 'home', data: custom2 }) });
+    if (!r2.ok) { toast('附加资料保存失败'); return false; }
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections.home = custom2;
+    toast('居住与家庭已保存'); markSynced();
+    await pfRefreshDetail();
+    return true;
+  };
+}
+
 function pfCloseSectionEditor() { closeModal(pfEl('secEditor')); pfSecEdit = null; }
 /** 车辆卡片编辑块：名称 + 附件照片下拉 + 键值属性行 */
 function pfSecCardBlock(c) {
@@ -643,24 +948,29 @@ async function pfEnsureFiles() {
 }
 async function pfSaveSection() {
   if (!pfSecEdit) return;
-  const { key, pid } = pfSecEdit;
-  const data = pfCollectSectionData();
   const btn = pfEl('secEditSave');
   if (btn) btn.disabled = true;
   try {
+    if (pfSecEdit.save) {
+      const okSave = await pfSecEdit.save();
+      if (okSave !== false) pfCloseSectionEditor();
+      return;
+    }
+    const key = pfSecEdit.key;
+    const data = pfCollectSectionData();
     const res = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: pid, key, data }) });
+      body: JSON.stringify({ contact_id: pfSecEdit.pid, key, data }) });
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || '保存失败'); return; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections[key] = data;
     pfCloseSectionEditor();
     toast('本段已保存');
     markSynced();
-    if (PF.pid === pid) {
-      if (pfSecDef(key).kind === 'json') { pfRenderJsonSection(key); pfApplyOrder(); pfRenderIndex(); }
-      else pfRenderAll();
-    }
-  } finally { if (btn) btn.disabled = false; }
+    pfRenderJsonSection(key);
+    pfApplyOrder(); pfRenderIndex();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /** v0.5.33 随手记 AI：把识别到的资料行合并进某联系人的某段（确认后保存） */
@@ -789,115 +1099,28 @@ async function pfRenderBody() {
   const heights = (data.records || []).filter((r) => r.kind === 'height').reverse(); // 新记录在前
   const weights = (data.records || []).filter((r) => r.kind === 'weight');
   const sz = data.sizes || {};
-  PF.bodyData = { heights, weights, sizes: sz }; // 供空面板判断
-  const t = pfToday();
-  // BMI 自动计算：取最新身高（heights[0]）与最新体重（weights 末位）；任一缺失则不显示
+  PF.bodyData = { heights, weights, sizes: sz };
   let bmi = '';
   if (heights.length && weights.length) {
     const hCm = Number(heights[0].value);
     const wKg = Number(weights[weights.length - 1].value);
     if (hCm > 0 && wKg > 0) bmi = (wKg / Math.pow(hCm / 100, 2)).toFixed(1);
   }
-  const bmiLine = bmi ? `<p class="ts-hint">BMI ${pfEsc(bmi)}（按最新身高体重自动计算）</p>` : '';
-
-  if (!PF.editMode) {
-    // 查看模式：身高表（无删除钮）+ 体重折线 + 尺码文字，无任何输入控件
-    const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
-    const hasCustomBody = pfSecHasData(pfSecDef('body'), (PF.data.sections || {}).body);
-    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny && !hasCustomBody;
-    pfApplyOrder(); pfRenderIndex();
-    if (!hasAny) {
-      box.innerHTML = '<div class="empty-hint">暂无身高体重与尺码记录</div>';
-      if (hasCustomBody) box.insertAdjacentHTML('beforeend', pfSecCustomHtml('body'));
-      return;
-    }
-    const sizeItems = [['衣裤', sz.clothing], ['鞋子', sz.shoe], ['戒指', sz.ring], ['手镯', sz.bracelet]].filter(([, v]) => v);
-    box.innerHTML = `
-      <div class="pf-hm">
-        <div class="pf-hm-block">
-          <b class="pm-block-title">身高记录 <span class="muted">cm</span></b>
-          ${heights.length ? `
-          <div class="pf-hm-table">
-            <div class="pf-hm-tr pf-hm-th"><span>日期</span><span>身高</span></div>
-            ${heights.map((r) => `<div class="pf-hm-tr"><span>${pfEsc(r.date)}</span><b>${r.value} cm</b></div>`).join('')}
-          </div>` : '<div class="empty-hint">暂无身高记录</div>'}
-        </div>
-        <div class="pf-hm-block">
-          <b class="pm-block-title">体重趋势 <span class="muted">kg</span></b>
-          ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">暂无体重记录</div>'}
-          ${bmiLine}
-        </div>
-      </div>
-      ${sizeItems.length ? `
-      <div class="pf-sizes">
-        <b class="pm-block-title">尺码</b>
-        <div class="pm-grid">
-          ${sizeItems.map(([k, v]) => `<div class="pm-item"><span>${k}</span><b>${pfEsc(v)}</b></div>`).join('')}
-        </div>
-      </div>` : ''}`;
-    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;   // 有资料：确保可见
-    pfApplyOrder(); pfRenderIndex();
-    return;
-  }
-
-  box.innerHTML = `
-    <div class="pf-hm">
-      <div class="pf-hm-block">
-        <b class="pm-block-title">身高记录 <span class="muted">cm</span></b>
-        <div class="pf-hm-add">
-          <input class="inp" id="pfHVal" type="number" inputmode="decimal" step="0.1" min="30" max="260" placeholder="如 175">
-          <input type="hidden" id="pfHDateInput" value="${t}">
-          <button type="button" class="dt-btn" data-dt="pfHDate" data-ph="今天"><svg><use href="#i-calendar"/></svg><span>今天</span></button>
-          <button class="btn ghost" data-act="hadd">记录</button>
-        </div>
-        ${heights.length ? `
-        <div class="pf-hm-table">
-          <div class="pf-hm-tr pf-hm-th"><span>日期</span><span>身高</span><span></span></div>
-          ${heights.map((r) => `
-          <div class="pf-hm-tr"><span>${pfEsc(r.date)}</span><b>${r.value} cm</b>
-            <button class="icon-btn" data-act="hdel" data-id="${r.id}" title="删除"><svg><use href="#i-x"/></svg></button></div>`).join('')}
-        </div>` : '<div class="empty-hint">还没有身高记录；22 岁前可随成长多次记录，之后基本定型。</div>'}
-      </div>
-      <div class="pf-hm-block">
-        <b class="pm-block-title">体重趋势 <span class="muted">kg</span></b>
-        <div class="pf-hm-add">
-          <input class="inp" id="pfWVal" type="number" inputmode="decimal" step="0.1" min="1" max="500" placeholder="如 62.5">
-          <input type="hidden" id="pfWDateInput" value="${t}">
-          <button type="button" class="dt-btn" data-dt="pfWDate" data-ph="今天"><svg><use href="#i-calendar"/></svg><span>今天</span></button>
-          <button class="btn ghost" data-act="wadd">记录</button>
-        </div>
-          ${weights.length ? pfWeightSvg(weights) : '<div class="empty-hint">记录两次及以上体重，这里会画出趋势折线。</div>'}
-          ${bmiLine}
-        </div>
-    </div>
-    <div class="pf-sizes">
-      <b class="pm-block-title">尺码 <span class="muted">买衣服鞋子前翻这里</span></b>
-      <div class="pf-size-grid">
-        <label>衣裤<input class="inp" id="szClothing" value="${pfEsc(sz.clothing || '')}" placeholder="如 XL / 175/96A" maxlength="20"></label>
-        <label>鞋子<input class="inp" id="szShoe" value="${pfEsc(sz.shoe || '')}" placeholder="如 42" maxlength="20"></label>
-        <label>戒指<input class="inp" id="szRing" value="${pfEsc(sz.ring || '')}" placeholder="如 17 号" maxlength="20"></label>
-        <label>手镯<input class="inp" id="szBracelet" value="${pfEsc(sz.bracelet || '')}" placeholder="如 58mm" maxlength="20"></label>
-      </div>
-      <button class="btn ghost" data-act="szsave">保存尺码</button>
-    </div>`;
-  // 日期按钮接全站统一选择器（补录用）。attachSitePicker 只收选择器字符串，
-  // 这里按钮是动态渲染的元素，直接挂 openSitePicker（与 attachSitePicker 内部等价）。
-  ['pfHDate', 'pfWDate'].forEach((k) => {
-    const btn = box.querySelector(`.dt-btn[data-dt="${k}"]`);
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      const inp = document.getElementById(k + 'Input');
-      if (!inp) return;
-      openSitePicker({
-        mode: 'date', date: inp.value || '', title: '记录日期',
-        onDone: ({ date }) => { inp.value = date || ''; window.syncDtBtns(); },
-      });
-    });
-  });
-  box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
-  box.insertAdjacentHTML('beforeend', pfSecCustomHtml('body'));
-  if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;   // 编辑模式展开
-  pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性（含目录刷新）
+  const rows = [];
+  if (heights.length) rows.push(['身高', heights[0].value + ' cm']);
+  if (weights.length) rows.push(['体重', weights[weights.length - 1].value + ' kg']);
+  if (bmi) rows.push(['BMI', bmi + '（自动计算）']);
+  const lastDate = heights.length ? heights[0].date : (weights.length ? weights[0].date : '');
+  if (lastDate) rows.push(['最近测量', lastDate]);
+  [['衣裤尺码', sz.clothing], ['鞋子尺码', sz.shoe], ['戒指尺码', sz.ring], ['手镯尺码', sz.bracelet]].forEach(([k, v]) => { if (v) rows.push([k, v]); });
+  let h = pfSecVrows({ r: 1 }, rows);
+  const hist = heights.map((r) => ['身高 ' + r.value + ' cm', r.date]).concat(weights.map((r) => ['体重 ' + r.value + ' kg', r.date]));
+  if (hist.length > 1) h += '<div class="subhead">测量历史</div>' + pfSecList({ list: 1 }, hist);
+  h += pfSecCustomHtml('body');
+  box.innerHTML = h;
+  const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
+  if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny && !pfSecHasData(pfSecDef('body'), (PF.data.sections || {}).body);
+  pfApplyOrder(); pfRenderIndex();
 }
 
 // ===== v0.6.0：附件（照片 / 视频 / 文档，R2 桶 rjgx/姓名+手机号/） =====
@@ -989,44 +1212,12 @@ function pfSecCustomHtml(key) {
 }
 function pfRenderIdentity() {
   const b = PF.data.base;
-  const nameRows = [
-    ['姓名', b.firstName], ['昵称', b.nickname],
-    ['曾用名', b.formerName], ['英文名', b.englishName], ['别名', b.alias],
-  ].filter(([, v]) => v);
-  const bdLine = b.birthdayType
-    ? `${b.birthText}${b.lunarText ? `（${b.lunarText}）` : ''}${b.birthdayRemind ? ' · 年度提醒已开启' : ' · 未开提醒'}`
-    : '不知道具体年龄';
-  // v0.5.33：原「社会关系」折叠进身份标识（婚姻/引荐人/备注）
-  const socialRows = [
+  const rows = [
+    ['姓名', b.firstName], ['昵称', b.nickname], ['曾用名', b.formerName], ['英文名', b.englishName], ['别名', b.alias],
+    ['性别', b.gender], ['出生日期', b.birthdayType ? (b.birthText + (b.lunarText ? '（' + b.lunarText + '）' : '')) : ''],
     ['婚姻状况', b.marriage], ['引荐人', b.referrer ? b.referrer.name : ''], ['备注', b.note],
-  ].filter(([, v]) => v);
-  const grid = (rows) => '<div class="pm-grid">' + rows.map(([k, v]) => `<div class="pm-item"><span>${pfEsc(k)}</span><b>${pfEsc(v || '—')}</b></div>`).join('') + '</div>';
-  if (!PF.editMode) {
-    pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + (socialRows.length ? grid(socialRows) : '') + pfSecCustomHtml('identity');
-    return;
-  }
-  pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + `
-    <label class="field" style="margin-top:10px"><span>婚姻状况</span>
-      <select id="pfMarriageSel">
-        <option value="">未填写</option>
-        ${(PF.data.meta.marriages || []).map((m) => `<option value="${pfEsc(m)}"${m === b.marriage ? ' selected' : ''}>${pfEsc(m)}</option>`).join('')}
-      </select>
-    </label>
-    <label class="field"><span>备注</span><input id="pfNoteInp" value="${pfEsc(b.note || '')}" maxlength="200" placeholder="关于 TA 的长期备注"></label>
-    <div class="form-actions">
-      <button class="btn ghost" type="button" data-act="edit-basic">编辑基本信息</button>
-      <button class="btn primary" type="button" data-act="save-social">保存婚姻与备注</button>
-    </div>`;
-  const sel = pfEl('pfMarriageSel');
-  const note = pfEl('pfNoteInp');
-  const save = pfEl('pfBasic').querySelector('[data-act=save-social]');
-  if (save) save.addEventListener('click', async () => {
-    const res = await api('/api/profile/detail', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: PF.pid, marriage: sel.value, note: note.value.trim() }) });
-    if (res.ok) { toast('已保存'); PF.data.base.marriage = sel.value; PF.data.base.note = note.value.trim(); pfRenderIdentity(); pfSyncEditMode(); markSynced(); }
-    else toast('保存失败');
-  });
-  pfEl('pfBasic').insertAdjacentHTML('beforeend', pfSecCustomHtml('identity'));
+  ];
+  pfEl('pfBasic').innerHTML = pfSecVrows({ r: 1 }, rows) + pfSecCustomHtml('identity');
 }
 
 function pfRenderHome() {
@@ -1045,182 +1236,46 @@ const METHOD_META = [
 ];
 const METHOD_ICON = Object.fromEntries(METHOD_META.map(([k, , , , ico]) => [k, ico]));
 function pfRenderMethods() {
-  const m = PF.data.methods;
-  if (!PF.editMode) {
-    // 查看模式：图标 + 内容纯展示
-    const blocks = METHOD_META.map(([kind, title]) => ({ kind, title, items: m[kind] || [] })).filter((x) => x.items.length);
-    pfEl('pfMethods').innerHTML = blocks.length ? blocks.map(({ kind, title, items }) => `
-      <div class="pm-block" data-kind="${kind}">
-        <b class="pm-block-title">${title}</b>
-        ${items.map((x) => `
-          <div class="pf-vrow">
-            <span class="pf-vico">${METHOD_ICON[kind]}</span>
-            <b>${pfEsc(x.value)}</b>
-            ${x.label ? `<span class="contact-badge">${pfEsc(x.label)}</span>` : ''}
-          </div>`).join('')}
-      </div>`).join('') : '<div class="empty-hint">暂无联系方式</div>';
-    return;
-  }
-  pfEl('pfMethods').innerHTML = METHOD_META.map(([kind, title, ph, labels]) => `
-    <div class="pm-block" data-kind="${kind}">
-      <b class="pm-block-title">${title}</b>
-      ${(m[kind] || []).map((x) => `
-        <div class="pm-row" data-id="${x.id}">
-          <b>${pfEsc(x.value)}</b>
-          ${x.label ? `<span class="contact-badge">${pfEsc(x.label)}</span>` : ''}
-          <span class="pm-ops">
-            <button class="icon-btn" data-act="medit" data-id="${x.id}" title="编辑"><svg><use href="#i-edit"/></svg></button>
-            <button class="icon-btn" data-act="mdel" data-id="${x.id}" title="删除"><svg><use href="#i-x"/></svg></button>
-          </span>
-        </div>`).join('') || '<div class="empty-hint">暂无</div>'}
-      <div class="pm-add" data-kind="${kind}">
-        <input class="inp" data-k="value" placeholder="${ph}" maxlength="100">
-        <input class="inp" data-k="label" list="labelList_${kind}" placeholder="备注" maxlength="20">
-        <datalist id="labelList_${kind}">${labels.map((l) => `<option value="${l}">`).join('')}</datalist>
-        <button class="btn ghost" data-act="madd" data-kind="${kind}">添加</button>
-      </div>
-    </div>`).join('');
-  pfEl('pfMethods').insertAdjacentHTML('beforeend', pfSecCustomHtml('methods'));
+  const m = PF.data.methods || {};
+  const rows = [];
+  METHOD_META.forEach(([kind, title]) => {
+    (m[kind] || []).forEach((x) => rows.push([title + (x.label ? ' · ' + x.label : ''), x.value]));
+  });
+  pfEl('pfMethods').innerHTML = pfSecVrows({ r: 1 }, rows) + pfSecCustomHtml('methods');
 }
 
 // ===== 家庭关系 =====
 function pfRenderRelatives() {
   const d = PF.data;
-  if (!PF.editMode) {
-    // 查看模式：纯展示
-    pfEl('pfRelatives').innerHTML = `
-      ${(d.relatives || []).map((r) => `
-        <div class="pm-row" data-id="${r.id}">
-          <b>${r.refId ? `<a class="rel-link" data-act="ropen" data-id="${r.refId}">${pfEsc(r.name)} 🔗</a>` : pfEsc(r.name)}</b>
-          <span class="contact-badge">是${pfEsc(d.base.name)}的${pfEsc(r.kin)}</span>
-        </div>`).join('') || '<div class="empty-hint">暂无家庭关系</div>'}`;
-    return;
-  }
-  const kinOpts = d.meta.kins || [];
-  const nameOpts = PF.allNames.filter((x) => x.id !== PF.pid);
-  pfEl('pfRelatives').innerHTML = `
-    ${(d.relatives || []).map((r) => `
-      <div class="pm-row" data-id="${r.id}">
-        <b>${r.refId ? `<a class="rel-link" data-act="ropen" data-id="${r.refId}">${pfEsc(r.name)} 🔗</a>` : pfEsc(r.name)}</b>
-        <span class="contact-badge">是${pfEsc(d.base.name)}的${pfEsc(r.kin)}</span>
-        <span class="pm-ops">
-          <button class="icon-btn" data-act="rdel" data-id="${r.id}" title="删除"><svg><use href="#i-x"/></svg></button>
-        </span>
-      </div>`).join('') || '<div class="empty-hint">暂无家庭关系，在下方添加</div>'}
-    <form class="pm-add" id="relAddForm">
-      <span class="pm-add-label">___ 是「${pfEsc(d.base.name)}」的</span>
-      <input class="inp" data-k="kin" list="kinList" placeholder="关系：母亲 / 父亲…" maxlength="20" required>
-      <datalist id="kinList">${kinOpts.map((k) => `<option value="${pfEsc(k)}">`).join('')}</datalist>
-      <input class="inp" data-k="name" list="relNameList" placeholder="对方姓名（可搜索联系人）" maxlength="30" required>
-      <datalist id="relNameList">${nameOpts.map((x) => `<option value="${pfEsc(x.name)}">`).join('')}</datalist>
-      <button class="btn ghost" type="submit">添加</button>
-    </form>
-    ${PF.editMode ? '<p class="field-hint">关系不在列表里？直接输入新称谓，保存后下次可直接选择。</p>' : ''}`;
+  pfEl('pfRelatives').innerHTML = pfSecList({ list: 1 }, (d.relatives || []).map((r) => [
+    r.refId ? '<a class="person" data-pf-link="' + r.refId + '">' + pfEsc(r.name) + '</a>' : pfEsc(r.name),
+    '是' + pfEsc(d.base.name) + '的' + pfEsc(r.kin),
+  ]));
 }
 
 // ===== 公司/组织与职位 =====
 function pfRenderWork() {
-  const w = PF.data.work;
-  const m = PF.data.meta;
-  if (!PF.editMode) {
-    // 查看模式：纯展示
-    pfEl('pfWork').innerHTML = (w.company || w.position) ? `
-      <div class="pm-grid">
-        ${w.company ? `<div class="pm-item"><span>公司/组织</span><b>${pfEsc(w.company)}</b></div>` : ''}
-        ${w.position ? `<div class="pm-item"><span>职位</span><b>${pfEsc(w.position)}</b></div>` : ''}
-      </div>` : '<div class="empty-hint">暂无职业信息</div>';
-    return;
-  }
-  pfEl('pfWork').innerHTML = `
-    <form class="pm-add" id="workForm">
-      <label class="field"><span>公司/组织</span>
-        <input class="inp" data-k="company" list="companyList" placeholder="如：阿里巴巴" maxlength="40" value="${pfEsc(w.company)}">
-        <datalist id="companyList">${(m.companies || []).map((c) => `<option value="${pfEsc(c)}">`).join('')}</datalist>
-      </label>
-      <label class="field"><span>职位</span>
-        <input class="inp" data-k="position" list="positionList" placeholder="如：后端工程师" maxlength="40" value="${pfEsc(w.position)}">
-        <datalist id="positionList">${(m.positions || []).map((c) => `<option value="${pfEsc(c)}">`).join('')}</datalist>
-      </label>
-      <button class="btn primary" type="submit">保存</button>
-    </form>
-    <p class="field-hint">公司与职位可多人共用：同一家公司的其他联系人可直接选择相同值。</p>`;
-  pfEl('pfWork').insertAdjacentHTML('beforeend', pfSecCustomHtml('clearance'));
+  const w = PF.data.work || {};
+  pfEl('pfWork').innerHTML = pfSecVrows({ r: 1 }, [['公司/组织', w.company], ['职位', w.position]]) + pfSecCustomHtml('clearance');
 }
 
 // ===== 教育与成长 =====
 function pfRenderEdu() {
   const list = PF.data.edus || [];
-  const degrees = PF.vocab.edu || ['高中', '大专', '本科', '硕士', '博士'];
-  if (!PF.editMode) {
-    // 查看模式：经历卡片
-    pfEl('pfEdu').innerHTML = (list || []).length ? (list || []).map((e) => `
-      <div class="rep-box">
-        <div class="rep-h"><b>${pfEsc(e.school || '学校未填')}</b>${e.degree ? `<span class="contact-badge">${pfEsc(e.degree)}</span>` : ''}</div>
-        <div class="pf-vmeta">${[e.major && '专业 ' + e.major, (e.start || e.end) && `${e.start || '?'} ~ ${e.end || '现在'}`].filter(Boolean).map(pfEsc).join(' · ') || '&nbsp;'}</div>
-        ${e.story ? `<div class="pf-vmeta">${pfEsc(e.story)}</div>` : ''}
-      </div>`).join('') : '<div class="empty-hint">暂无教育经历</div>';
-    return;
-  }
-  pfEl('pfEdu').innerHTML = `
-    ${(list || []).map((e, i) => `
-      <form class="rep-box" data-edu-id="${e.id}">
-        <div class="rep-h"><b>教育经历 ${i + 1}</b>
-          <button class="icon-btn" data-act="edel" data-id="${e.id}" title="删除"><svg><use href="#i-x"/></svg></button></div>
-        <div class="field-grid">
-          <label class="field"><span>学校</span><input data-k="school" value="${pfEsc(e.school)}"></label>
-          <label class="field"><span>专业</span><input data-k="major" value="${pfEsc(e.major)}"></label>
-          <label class="field"><span>学历</span>
-            <select data-k="degree">${degrees.concat(e.degree && !degrees.includes(e.degree) ? [e.degree] : [])
-              .map((o) => `<option value="${pfEsc(o)}"${o === e.degree ? ' selected' : ''}>${pfEsc(o)}</option>`).join('')}</select>
-          </label>
-          <label class="field"><span>入学年份</span><input data-k="start" value="${pfEsc(e.start)}"></label>
-          <label class="field"><span>毕业年份</span><input data-k="end" value="${pfEsc(e.end)}"></label>
-        </div>
-        <label class="field"><span>重要经历（交换 / 留学 / 培训）</span><input data-k="story" value="${pfEsc(e.story)}"></label>
-        <button class="btn ghost" type="submit">保存这段经历</button>
-      </form>`).join('') || ''}
-    <form class="rep-box" id="eduAddForm">
-      <div class="rep-h"><b>新增教育经历</b></div>
-      <div class="field-grid">
-        <label class="field"><span>学校</span><input data-k="school"></label>
-        <label class="field"><span>专业</span><input data-k="major"></label>
-        <label class="field"><span>学历</span><select data-k="degree">${degrees.map((o) => `<option value="${pfEsc(o)}">${pfEsc(o)}</option>`).join('')}</select></label>
-        <label class="field"><span>入学年份</span><input data-k="start"></label>
-        <label class="field"><span>毕业年份</span><input data-k="end"></label>
-      </div>
-      <label class="field"><span>重要经历（交换 / 留学 / 培训）</span><input data-k="story"></label>
-      <button class="btn" type="submit">+ 添加这段教育</button>
-    </form>`;
-  pfEl('pfEdu').insertAdjacentHTML('beforeend', pfSecCustomHtml('edu'));
+  const rows = list.map((e) => [
+    e.school + (e.degree ? ' · ' + e.degree : ''),
+    [e.major ? '专业 ' + e.major : '', (e.start || e.end) ? (e.start || '?') + ' ~ ' + (e.end || '现在') : '', e.story].filter(Boolean).join('｜'),
+  ]);
+  pfEl('pfEdu').innerHTML = pfSecList({ list: 1 }, rows) + pfSecCustomHtml('edu');
 }
 
 // ===== 宠物 =====
 function pfRenderPets() {
   const list = PF.data.pets || [];
-  if (!PF.editMode) {
-    // 查看模式：纯展示
-    pfEl('pfPets').innerHTML = (list || []).length ? (list || []).map((p) => `
-      <div class="pm-row" data-pet-id="${p.id}">
-        <b>🐾 ${pfEsc(p.species)} · ${pfEsc(p.name)}</b>
-        ${p.memorialDate ? `<span class="contact-badge">纪念日 ${pfEsc(p.memorialDate)}</span>` : ''}
-      </div>`).join('') : '<div class="empty-hint">暂无宠物记录</div>';
-    return;
-  }
-  pfEl('pfPets').innerHTML = `
-    ${(list || []).map((p) => `
-      <form class="pm-row" data-pet-id="${p.id}">
-        <b>🐾 ${pfEsc(p.species)} · ${pfEsc(p.name)}</b>
-        ${p.memorialDate ? `<span class="contact-badge">纪念日 ${pfEsc(p.memorialDate)}</span>` : ''}
-        <span class="pm-ops"><button class="icon-btn" type="button" data-act="pdel" data-id="${p.id}" title="删除"><svg><use href="#i-x"/></svg></button></span>
-      </form>`).join('') || '<div class="empty-hint">暂无宠物记录</div>'}
-    <form class="pm-add" id="petAddForm">
-      <input class="inp" data-k="species" list="speciesList" placeholder="种类：猫 / 狗 / 仓鼠…" maxlength="20" required>
-      <datalist id="speciesList">${(PF.data.meta.petSpecies || []).map((s) => `<option value="${pfEsc(s)}">`).join('')}</datalist>
-      <input class="inp" data-k="name" placeholder="名字" maxlength="20" required>
-      <input class="inp" data-k="memorial_date" type="date" aria-label="纪念日（选填）">
-      <button class="btn ghost" type="submit">添加</button>
-    </form>
-    ${PF.editMode ? '<p class="field-hint">纪念日选填，可用于纪念离开的毛孩子；种类输入一次后会自动成为备选。</p>' : ''}`;
+  pfEl('pfPets').innerHTML = pfSecList({ list: 1 }, list.map((p) => [
+    '🐾 ' + pfEsc(p.species) + ' · ' + pfEsc(p.name),
+    p.memorialDate ? '纪念日 ' + pfEsc(p.memorialDate) : '',
+  ]));
 }
 
 // ===== 财务往来（v0.5.0：账本流水按联系人自动关联） =====
@@ -1686,124 +1741,6 @@ function pfBindEvents() {
     inp.value = '';
   });
 
-  // —— 联系方式（事件委托）——
-  const mBox = pfEl('pfMethods');
-  if (mBox) {
-    mBox.addEventListener('click', async (e) => {
-      const btn = e.target.closest('[data-act]');
-      if (!btn) return;
-      const act = btn.dataset.act;
-      if (act === 'madd') {
-        const add = btn.closest('.pm-add');
-        const value = add.querySelector('[data-k=value]').value.trim();
-        const label = add.querySelector('[data-k=label]').value.trim();
-        if (!value) { toast('请填写内容'); return; }
-        const res = await api('/api/profile/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ person_id: PF.pid, kind: btn.dataset.kind, value, label }) });
-        const d = await res.json().catch(() => ({}));
-        if (res.ok) { toast('已添加'); pfOpenProfile(PF.pid); } else toast(d.error || '添加失败');
-      } else if (act === 'mdel') {
-        if (!(await confirmModal('确定删除这条联系方式？'))) return;
-        const res = await api(`/api/profile/contacts?id=${btn.dataset.id}`, { method: 'DELETE' });
-        if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
-      } else if (act === 'medit') {
-        const row = btn.closest('.pm-row');
-        const bEl = row.querySelector('b');
-        const old = bEl.textContent;
-        const badge = row.querySelector('.contact-badge');
-        row.innerHTML = `
-          <input class="inp" data-k="value" value="${pfEsc(old)}" maxlength="100">
-          <input class="inp" data-k="label" value="${pfEsc(badge ? badge.textContent : '')}" placeholder="备注" maxlength="20">
-          <span class="pm-ops">
-            <button class="btn ghost" data-act="msave" data-id="${btn.dataset.id}">保存</button>
-            <button class="btn ghost" data-act="mcancel">取消</button>
-          </span>`;
-      } else if (act === 'msave') {
-        const row = btn.closest('.pm-row');
-        const value = row.querySelector('[data-k=value]').value.trim();
-        const label = row.querySelector('[data-k=label]').value.trim();
-        if (!value) { toast('内容不能为空'); return; }
-        const res = await api('/api/profile/contacts', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: Number(btn.dataset.id), value, label }) });
-        if (res.ok) { toast('已保存'); pfOpenProfile(PF.pid); }
-      } else if (act === 'mcancel') {
-        pfOpenProfile(PF.pid);
-      }
-    });
-  }
-
-  // —— 家庭关系 ——
-  const rBox = pfEl('pfRelatives');
-  if (rBox) {
-    rBox.addEventListener('click', async (e) => {
-      const link = e.target.closest('[data-act=ropen]');
-      if (link) { pfOpenProfile(Number(link.dataset.id)); return; }
-      const btn = e.target.closest('[data-act]');
-      if (!btn) return;
-      if (btn.dataset.act === 'rdel') {
-        if (!(await confirmModal('确定删除这条家庭关系？'))) return;
-        const res = await api(`/api/profile/relatives?id=${btn.dataset.id}`, { method: 'DELETE' });
-        if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
-      } else if (btn.dataset.act === 'redit') {
-        toast('请删除后重新添加以修改关系');
-      }
-    });
-    rBox.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fm = e.target;
-      const kin = fm.querySelector('[data-k=kin]').value.trim();
-      const name = fm.querySelector('[data-k=name]').value.trim();
-      if (!kin || !name) { toast('请填写关系与对方姓名'); return; }
-      // 对方姓名若命中已有联系人则自动关联
-      const hit = PF.allNames.find((x) => x.name === name && x.id !== PF.pid);
-      const res = await api('/api/profile/relatives', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, kin, name, ref_id: hit ? hit.id : null }) });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) { toast('已添加家庭关系'); pfOpenProfile(PF.pid); } else toast(d.error || '添加失败');
-    });
-  }
-
-  // —— 公司/职位 ——
-  const wBox = pfEl('pfWork');
-  if (wBox) wBox.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fm = e.target;
-    const res = await api('/api/profile/work', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: PF.pid,
-        company: fm.querySelector('[data-k=company]').value.trim(),
-        position: fm.querySelector('[data-k=position]').value.trim() }) });
-    if (res.ok) { toast('已保存'); pfOpenProfile(PF.pid); }
-  });
-
-  // —— v0.6.0 个人信息：身高/体重记录 + 尺码（事件委托）——
-  const bodyBox = pfEl('pfBody');
-  if (bodyBox) bodyBox.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-act]');
-    if (!btn) return;
-    const act = btn.dataset.act;
-    if (act === 'hadd' || act === 'wadd') {
-      const kind = act === 'hadd' ? 'height' : 'weight';
-      const val = pfEl(act === 'hadd' ? 'pfHVal' : 'pfWVal');
-      const date = pfEl(act === 'hadd' ? 'pfHDateInput' : 'pfWDateInput');
-      const value = Number(val && val.value);
-      if (!Number.isFinite(value) || value <= 0) { toast(kind === 'height' ? '请输入身高（cm）' : '请输入体重（kg）'); return; }
-      const res = await api('/api/profile/body', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, kind, value, date: date ? date.value : '' }) });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) { toast('已记录'); pfRenderBody(); markSynced(); } else toast(d.error || '保存失败');
-    } else if (act === 'hdel') {
-      if (!(await confirmModal('删除这条身高记录？'))) return;
-      const res = await api(`/api/profile/body?rid=${btn.dataset.id}`, { method: 'DELETE' });
-      if (res.ok) { toast('已删除'); pfRenderBody(); }
-    } else if (act === 'szsave') {
-      const g = (id) => { const el = pfEl(id); return el ? el.value.trim() : ''; };
-      const res = await api('/api/profile/body', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: PF.pid, sizes: { clothing: g('szClothing'), shoe: g('szShoe'), ring: g('szRing'), bracelet: g('szBracelet') } }) });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) { toast('尺码已保存'); markSynced(); } else toast(d.error || '保存失败');
-    }
-  });
-
   // —— v0.6.0 附件：上传 + 删除 ——
   const fileBtn = pfEl('pfFileBtn');
   const fileInput = pfEl('pfFileInput');
@@ -1835,53 +1772,6 @@ function pfBindEvents() {
     if (res.ok) { toast('已删除'); pfRenderFiles(); }
   });
 
-  // —— 教育 ——
-  const eBox = pfEl('pfEdu');
-  if (eBox) {
-    eBox.addEventListener('click', async (e) => {
-      const btn = e.target.closest('[data-act=edel]');
-      if (!btn) return;
-      if (!(await confirmModal('确定删除这段教育经历？'))) return;
-      const res = await api(`/api/profile/edu?id=${btn.dataset.id}`, { method: 'DELETE' });
-      if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
-    });
-    eBox.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fm = e.target;
-      const g = (k) => { const el = fm.querySelector(`[data-k="${k}"]`); return el ? el.value.trim() : ''; };
-      const editId = fm.dataset.eduId;
-      const payload = { school: g('school'), major: g('major'), degree: g('degree'),
-        start: g('start'), end: g('end'), story: g('story') };
-      const res = editId
-        ? await api('/api/profile/edu', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: Number(editId), ...payload }) })
-        : await api('/api/profile/edu', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ person_id: PF.pid, ...payload }) });
-      if (res.ok) { toast('已保存'); pfOpenProfile(PF.pid); }
-    });
-  }
-
-  // —— 宠物 ——
-  const pBox = pfEl('pfPets');
-  if (pBox) {
-    pBox.addEventListener('click', async (e) => {
-      const btn = e.target.closest('[data-act=pdel]');
-      if (!btn) return;
-      if (!(await confirmModal('确定删除这条宠物记录？'))) return;
-      const res = await api(`/api/profile/pets?id=${btn.dataset.id}`, { method: 'DELETE' });
-      if (res.ok) { toast('已删除'); pfOpenProfile(PF.pid); }
-    });
-    pBox.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fm = e.target;
-      const g = (k) => { const el = fm.querySelector(`[data-k="${k}"]`); return el ? el.value.trim() : ''; };
-      const res = await api('/api/profile/pets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, species: g('species'), name: g('name'), memorial_date: g('memorial_date') }) });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) { toast('已添加'); pfOpenProfile(PF.pid); } else toast(d.error || '添加失败');
-    });
-  }
-}
 
 // 交给 app.js
 window.PF = PF;
@@ -2083,6 +1973,8 @@ function pfBindDossierDrag() {
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
   });
+}
+
 }
 
 window.pfLoadList = pfLoadList;
