@@ -33,6 +33,9 @@ export async function onRequestGet(context) {
     theme: settings.theme || '',
     font: settings.font || '',
     mode: settings.mode || '',
+    radius: settings.radius || '',
+    gap_y: settings.gap_y || '',
+    gap_x: settings.gap_x || '',
   };
 
   const cnt = async (sql, ...params) => {
@@ -226,7 +229,7 @@ export async function onRequestGet(context) {
   } catch (_) { /* 忽略 */ }
 
   return json({
-    version: '0.5.36',
+    version: '0.5.37',
     brand,
     appearance,
     today,

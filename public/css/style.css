@@ -27,6 +27,7 @@
   /* 语义底色（逾期 / 危险 / 提醒），夜间有对应暗色，勿再写死浅粉 */
   --danger-soft:#fdf3f1;--danger-line:#ecc9c4;--danger-tint:#fbe3e0;--warn-soft:#fff4e0;--warn-ink:#735730;
   --shadow:0 16px 40px rgba(63,48,36,.07);--radius:22px;--sidebar:248px;
+  --mod-gap-y:22px;--mod-gap-x:18px;
   --font-ui:-apple-system,BlinkMacSystemFont,"Inter","PingFang SC","Microsoft YaHei",sans-serif;
   --font-serif:"Songti SC",serif
 }
@@ -96,7 +97,8 @@ button{cursor:pointer}
 /* ===== 字体切换生效保障（v0.3.6） =====
    :root 上用 --f-ui / --f-serif；applyFont() 改写它们。
    用 !important 压过各处 `font:` 简写中的裸 serif 关键字与系统默认。 */
-html{font-family:var(--f-ui,var(--font-ui))!important}
+html{font-family:var(--f-ui,var(--font-ui))!important;color-scheme:light}
+html[data-mode="night"]{color-scheme:dark}
 body,button,input,select,textarea,label,span,div,p,b,strong,small,h1,h2,h3,h4,li,td,th{
   font-family:var(--f-ui,var(--font-ui))!important
 }
@@ -145,7 +147,7 @@ h1,h2,h3,h4,.growth-head h2,.panel-head h2,.modal-head b,.modal-head h3,
 .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
 .panel-head .eyebrow{color:#b7ad9f}
 .panel-head h2{margin:4px 0 0;font:700 18px/1.2 var(--font-serif)}
-.dashboard-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.dashboard-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--mod-gap-y) var(--mod-gap-x)}
 .span-2{grid-column:span 2}
 
 /* Hero */
@@ -232,7 +234,7 @@ h1,h2,h3,h4,.growth-head h2,.panel-head h2,.modal-head b,.modal-head h3,
 .muted{color:var(--muted);font-size:13px}
 
 /* ===== 视图通用间距（所有页面统一，新增页面自动生效） ===== */
-.view.active>*{margin-bottom:22px}
+.view.active>*{margin-bottom:var(--mod-gap-y)}
 .view.active>*:last-child{margin-bottom:0}
 /* 个人中心：入口为子菜单，页面直接显示子页内容 */
 #view-settings.active{display:block}
@@ -442,7 +444,7 @@ h1,h2,h3,h4,.growth-head h2,.panel-head h2,.modal-head b,.modal-head h3,
 .tc-lab{font-size:11px;color:var(--muted);white-space:nowrap}
 .tc-col.cur .tc-lab{color:var(--plum);font-weight:700}
 
-.ledger-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px}
+.ledger-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:var(--mod-gap-y) var(--mod-gap-x)}
 
 /* 甜甜圈：⚠️ 必须显式给尺寸，全局 `svg{width:20px;height:20px}`（图标用）会盖掉
    SVG 自身的 width/height 表现属性，导致环图缩成 20×20 的小点。 */
@@ -703,7 +705,7 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 #relListView>*,#relProfileView>*{margin-bottom:22px}
 #relListView>*:last-child,#relProfileView>*:last-child{margin-bottom:0}
 /* 档案页双列组：基础身份 | 社会关系 并排（此前缺 display:grid，两面板纵向紧贴无间隔） */
-#relProfileView .rel-two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
+#relProfileView .rel-two{display:grid;grid-template-columns:1fr 1fr;gap:var(--mod-gap-x);margin-bottom:var(--mod-gap-y)}
 #relProfileView .rel-two>.panel{margin-bottom:0}
 @media (max-width:860px){#relProfileView .rel-two{grid-template-columns:1fr}}
 .rel-search{display:flex;gap:9px;margin-bottom:12px}
@@ -1696,8 +1698,8 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .ck-head b.ck-name:hover{color:var(--plum)}
 
 /* --- v0.5.32 档案卷宗：资料页目录导航 + 模块排序 --- */
-.dossier-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start;margin-bottom:22px}
-#pfMain>.panel{margin-bottom:18px}
+.dossier-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:var(--mod-gap-x);align-items:start;margin-bottom:var(--mod-gap-y)}
+#pfMain>.panel{margin-bottom:var(--mod-gap-y)}
 #pfMain>.panel:last-child{margin-bottom:0}
 .dossier-idx{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;scrollbar-width:none;padding:14px 16px}
 .dossier-idx::-webkit-scrollbar{display:none}
@@ -1728,7 +1730,8 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .secwin-head span{font-size:11px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .secwin-body{flex:1;overflow-y:auto;padding:14px 18px}
 .secrow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
-.secrow input[type=text],.secrow input[type=number]{flex:1;min-width:0;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--font-ui)}
+.secrow input[type=text],.secrow input[type=number],.secrow select{flex:1;min-width:0;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--font-ui);appearance:none;-webkit-appearance:none}
+.secrow select{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236f575c'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:26px}
 .secrow input.sk{flex:0 0 104px}
 .secrow label{font-size:11px;color:var(--muted);white-space:nowrap;display:flex;gap:3px;align-items:center}
 .sec-add{font-size:12px;color:var(--plum);background:none;border:1px dashed var(--plum);border-radius:10px;padding:6px 10px;cursor:pointer;font-family:var(--font-ui)}

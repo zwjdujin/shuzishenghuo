@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.36
-const VERSION = '0.5.36';
+// 数字生活 · 前端逻辑 v0.5.37
+const VERSION = '0.5.37';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '人际关系资料页：修复模块间距/顶部头像引用附件照片/移动端档案目录吸顶失效';
+const __BUILD_ID__ = '主题风格新增版式设置（圆角度数/上下间隔/左右间隔滑杆，写回设置同步全设备）；修复移动端 sections 竞态报错；原生选框（下拉）跟随日夜主题';
 const __BUILD_TIME__ = '2026-10-31';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -300,8 +300,31 @@ function syncThemeColor() {
    服务端 app_settings 是权威源（电脑上选好配色，手机打开就是同一套）；
    localStorage 只作首屏缓存，避免每次刷新先闪一下默认色。 */
 /** 用云端返回的外观覆盖本机（静默应用，不回写服务端） */
+const LAYOUT_DEFAULTS = { radius: 22, gap_y: 22, gap_x: 18 };
+let layoutOpts = { ...LAYOUT_DEFAULTS };
+/** 圆角度数 / 模块间隔 → 全站 CSS 变量 */
+function pfApplyLayoutVars() {
+  const r = document.documentElement.style;
+  r.setProperty('--radius', layoutOpts.radius + 'px');
+  r.setProperty('--mod-gap-y', layoutOpts.gap_y + 'px');
+  r.setProperty('--mod-gap-x', layoutOpts.gap_x + 'px');
+  try {
+    localStorage.setItem('pf_layout', JSON.stringify(layoutOpts));
+  } catch (_) {}
+}
+function pfLoadLayoutLocal() {
+  try {
+    const v = JSON.parse(localStorage.getItem('pf_layout') || 'null');
+    if (v && Number(v.radius) >= 0) layoutOpts = { radius: Number(v.radius) || 22, gap_y: Number(v.gap_y) || 22, gap_x: Number(v.gap_x) || 18 };
+  } catch (_) {}
+  pfApplyLayoutVars();
+}
 function applyAppearanceFromServer(ap) {
   if (!ap) return;
+  ['radius', 'gap_y', 'gap_x'].forEach((k) => {
+    if (ap[k] !== undefined && ap[k] !== '' && Number(ap[k]) >= 0) layoutOpts[k] = Number(ap[k]);
+  });
+  pfApplyLayoutVars();
   if (ap.theme && THEMES[ap.theme]) applyTheme(ap.theme);
   if (ap.font && FONTS[ap.font]) applyFont(ap.font);
   if (ap.mode && ['light', 'night', 'auto'].includes(ap.mode)) {
@@ -437,6 +460,43 @@ function pickFont(name) {
   buildFontOpts();
   pushAppearance({ font: currentFont });
   toast('已切换字体：' + FONTS[currentFont].label);
+}
+
+/* 版式（圆角度数 / 模块间隔）滑杆 */
+const LAYOUT_SLIDERS = [
+  ['Radius', 'radius', '圆角度数', 0, 28],
+  ['GapY', 'gap_y', '上下间隔', 8, 40],
+  ['GapX', 'gap_x', '左右间隔', 8, 40],
+];
+function buildLayoutOpts() {
+  LAYOUT_SLIDERS.forEach(([suffix, key, label, min, max]) => {
+    const el = document.getElementById('opt' + suffix);
+    const val = document.getElementById('opt' + suffix + 'V');
+    if (!el || !val) return;
+    el.min = min; el.max = max;
+    el.value = layoutOpts[key];
+    val.textContent = layoutOpts[key] + 'px';
+    el.oninput = () => {
+      layoutOpts[key] = Number(el.value);
+      val.textContent = layoutOpts[key] + 'px';
+      pfApplyLayoutVars();
+    };
+    el.onchange = async () => {
+      await pushAppearance({ radius: layoutOpts.radius, gap_y: layoutOpts.gap_y, gap_x: layoutOpts.gap_x });
+      toast('版式已保存，全站生效');
+    };
+  });
+  const reset = document.getElementById('layoutReset');
+  if (reset && !reset.dataset.bound) {
+    reset.dataset.bound = '1';
+    reset.addEventListener('click', async () => {
+      layoutOpts = { ...LAYOUT_DEFAULTS };
+      pfApplyLayoutVars();
+      buildLayoutOpts();
+      await pushAppearance({ radius: layoutOpts.radius, gap_y: layoutOpts.gap_y, gap_x: layoutOpts.gap_x });
+      toast('已恢复默认版式');
+    });
+  }
 }
 
 // 霞鹜文楷的 webfont CSS 按需注入：只有用户选中该字体才拉取 jsDelivr
@@ -3495,6 +3555,7 @@ function switchView(name, opts = {}) {
   if (name === 'settings') {
     renderSettings();
     switchProfileTab(opts.keepTab ? currentProfileTab : 'site');
+    if ((opts.keepTab ? currentProfileTab : 'site') === 'style') buildLayoutOpts();
   }
   if (name === 'calendar') loadCalEvents();
   if (name === 'todos') { renderTodos(); renderChecklists(); }

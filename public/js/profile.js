@@ -787,7 +787,7 @@ function pfEditClearance() {
   body.innerHTML = '<p class="sec-hint">公司/职位保存到职业信息表；下方键值行保存为本段附加资料（部门/职级/汇报对象等）。</p>';
   body.appendChild(pfSeRow(pfSeInput('公司/组织', w.company, 'sk')));
   body.appendChild(pfSeRow(pfSeInput('职位', w.position, 'sk')));
-  const custom = pfSecBuildEditorBody(pfSecDef('clearance'), (PF.data.sections || {}).clearance || {});
+  const custom = pfSecBuildEditorBody(pfSecDef('clearance'), (PF.data?.sections || {}).clearance || {});
   body.appendChild(custom);
   pfSecEdit.save = async () => {
     const ins = body.querySelectorAll('.secrow input[type=text]');
@@ -825,7 +825,7 @@ function pfEditEdu() {
   addBtn.onclick = () => addRow({ school: '', major: '', degree: '本科', start: '', end: '', story: '' });
   body.appendChild(rowsEl);
   body.appendChild(addBtn);
-  const customWrap = pfSecBuildEditorBody(pfSecDef('edu'), (PF.data.sections || {}).edu || {});
+  const customWrap = pfSecBuildEditorBody(pfSecDef('edu'), (PF.data?.sections || {}).edu || {});
   body.appendChild(customWrap);
   pfSecEdit.save = async () => {
     for (const e of (PF.data.edus || [])) {
@@ -868,7 +868,7 @@ function pfEditHome() {
   (d.pets || []).forEach(addPet);
   if (!(d.pets || []).length) addPet({ species: '', name: '', memorialDate: '' });
   body.appendChild(petEl);
-  const customWrap = pfSecBuildEditorBody(pfSecDef('home'), (PF.data.sections || {}).home || {});
+  const customWrap = pfSecBuildEditorBody(pfSecDef('home'), (PF.data?.sections || {}).home || {});
   body.appendChild(customWrap);
   pfSecEdit.save = async () => {
     for (const r of (d.relatives || [])) await api('/api/profile/relatives?id=' + r.id, { method: 'DELETE' });
@@ -1120,7 +1120,8 @@ async function pfRenderBody() {
   h += pfSecCustomHtml('body');
   box.innerHTML = h;
   const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
-  if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny && !pfSecHasData(pfSecDef('body'), (PF.data.sections || {}).body);
+  const sectionsSnap = (PF.data || {}).sections || {};
+  if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny && !pfSecHasData(pfSecDef('body'), sectionsSnap.body);
   pfApplyOrder(); pfRenderIndex();
 }
 

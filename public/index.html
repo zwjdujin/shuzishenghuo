@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/ca84506e/css/style.css">
+  <link rel="stylesheet" href="./assets/a2475458/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -710,6 +710,19 @@
             <div class="panel-head"><div><p class="eyebrow">字形</p><h2>界面字体</h2></div></div>
             <div class="ts-fonts" id="fontOpts"></div>
             <p class="ts-hint">霞鹜文楷采用 OFL 开源协议，可免费商用；选定后立即在全站范围内生效。</p>
+          </article>
+
+          <!-- ④ 版式（v0.5.37：圆角度数 / 模块间隔） -->
+          <article class="panel" style="margin-top:22px">
+            <div class="panel-head"><div><p class="eyebrow">版式</p><h2>圆角度数与模块间隔</h2></div>
+              <button class="btn ghost" id="layoutReset" type="button">恢复默认</button></div>
+            <div class="ts-slider"><span class="ts-slider-k">圆角度数</span>
+              <input type="range" id="optRadius" min="0" max="28" step="1"><b class="ts-slider-v" id="optRadiusV">22px</b></div>
+            <div class="ts-slider"><span class="ts-slider-k">上下间隔</span>
+              <input type="range" id="optGapY" min="8" max="40" step="1"><b class="ts-slider-v" id="optGapYV">22px</b></div>
+            <div class="ts-slider"><span class="ts-slider-k">左右间隔</span>
+              <input type="range" id="optGapX" min="8" max="40" step="1"><b class="ts-slider-v" id="optGapXV">18px</b></div>
+            <p class="ts-hint">圆角度数控制所有模块四个角的弧度（0 = 直角）；上下 / 左右间隔控制各页模块之间的距离。设置立即生效并同步到所有设备。</p>
           </article>
         </div>
 
@@ -1400,8 +1413,8 @@
   </div>
 
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
-  <script src="./assets/7f954664/js/profile.js"></script>
+  <script src="./assets/6fabf57a/js/profile.js"></script>
   <script src="./assets/d5aa57e2/js/medicine.js"></script>
-  <script src="./assets/bf125138/js/app.js"></script>
+  <script src="./assets/3be76153/js/app.js"></script>
 </body>
 </html>
