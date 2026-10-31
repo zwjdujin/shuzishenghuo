@@ -720,7 +720,8 @@ html[data-mode="night"] .med-check .mc-done{color:var(--green)!important}
 
 /* 档案头部 */
 .pf-hero{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--plum);color:#fff;border-radius:var(--radius);padding:22px;margin-bottom:20px}
-.pf-hero-av{width:68px;height:68px;border-radius:20px;background:rgba(255,255,255,.18);display:grid;place-items:center;font:700 27px/1 serif;flex:0 0 auto}
+.pf-hero-av{width:68px;height:68px;border-radius:20px;background:rgba(255,255,255,.18);display:grid;place-items:center;font:700 27px/1 serif;flex:0 0 auto;overflow:hidden}
+.pf-hero-av img{width:100%;height:100%;object-fit:cover;display:block}
 .pf-hero h2{font:700 24px/1.2 var(--font-serif);margin:0 0 8px}
 .pf-hero h2 small{font-size:13px;opacity:.72;font-weight:400}
 .pf-hero-tags{display:flex;gap:6px;flex-wrap:wrap}
@@ -1696,6 +1697,8 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 
 /* --- v0.5.32 档案卷宗：资料页目录导航 + 模块排序 --- */
 .dossier-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start;margin-bottom:22px}
+#pfMain>.panel{margin-bottom:18px}
+#pfMain>.panel:last-child{margin-bottom:0}
 .dossier-idx{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;scrollbar-width:none;padding:14px 16px}
 .dossier-idx::-webkit-scrollbar{display:none}
 .dossier-idx .panel-head{margin-bottom:6px}
@@ -1709,8 +1712,8 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .idx-arrow.r{right:6px}
 #relProfileView .panel{scroll-margin-top:16px}
 @media (max-width:860px){
-  .dossier-grid{grid-template-columns:minmax(0,1fr);gap:12px}
-  .dossier-idx{position:sticky;top:0;z-index:25;display:flex;gap:6px;overflow-x:auto;padding:8px 34px;max-height:none}
+  .dossier-grid{display:block}
+  .dossier-idx{position:sticky;top:0;z-index:25;display:flex;gap:6px;overflow-x:auto;padding:8px 34px;max-height:none;margin-bottom:12px}
   .dossier-idx .panel-head{display:none}
   .dossier-idx a{flex:0 0 auto;border:1px solid var(--line);border-radius:999px;padding:4px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
   .idx-arrow{display:grid}

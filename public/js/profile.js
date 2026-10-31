@@ -220,9 +220,10 @@ async function pfOpenProfile(id) {
   pfRenderFinance();
   try {
     const namesP = pfLoadNames();   // 姓名自动链接需要名单，与详情并行
+    const filesP = pfEnsureFiles(); // 头像从附件图片引用
     const res = await api('/api/profile/detail?id=' + PF.pid);
     PF.data = await res.json();
-    await namesP;
+    await Promise.all([namesP, filesP]);
     pfRenderAll();
     markSynced();
     pfLoadDossierOrder().then(() => { pfApplyOrder(); pfRenderIndex(); });   // 设置可能中途改过，回填一次
@@ -1192,9 +1193,13 @@ function pfRenderHero() {
     if (b.birthdayRemind) bd.push('年度生日提醒已开启');
   }
   if (b.referrer) bd.push(`引荐人：${b.referrer.name}`);
+  const photo = (PF.filesData || []).find((f) => String(f.mime || '').startsWith('image/'));
+  const avInner = photo
+    ? '<img src="/api/profile/files?id=' + PF.pid + '&fid=' + photo.id + '" alt="' + pfEsc(b.name || '') + '">'
+    : pfEsc((b.name || '?')[0]);
   pfEl('pfHero').innerHTML = `
     <div class="pf-hero">
-      <span class="pf-hero-av">${pfEsc((b.name || '?')[0])}</span>
+      <span class="pf-hero-av">${avInner}</span>
       <div style="min-width:0">
         <h2>${pfEsc(b.name)}${b.alias && b.alias !== b.name ? ` <small>${pfEsc(b.alias)}</small>` : ''}</h2>
         <div class="pf-hero-tags">${bits.join('')}</div>
