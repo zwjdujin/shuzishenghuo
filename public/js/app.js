@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.5.33
-const VERSION = '0.5.33';
+// 数字生活 · 前端逻辑 v0.5.34
+const VERSION = '0.5.34';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '人际关系档案卷宗完整版：19段自由段落+单段编辑器+随手记写入资料；修复移动端月历农历不显示';
-const __BUILD_TIME__ = '2026-10-30';
+const __BUILD_ID__ = '人际关系：档案目录可隐藏、交通工具附件车照卡片、居住与家庭/授权与应急姓名自动超链接';
+const __BUILD_TIME__ = '2026-10-31';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -3208,6 +3208,7 @@ function renderAcctPick() {
 let contactCache = null;
 // profile.js 增删改联系人成功后调用，避免「记一笔→联系人」仍是旧名单
 window.invalidateContacts = function () { contactCache = null; };
+  if (window.PF) PF.allNames = [];   // v0.5.34：姓名链接名单同步失效
 async function openContactPicker() {
   const m = $('#contactPickModal');
   if (!m) return;

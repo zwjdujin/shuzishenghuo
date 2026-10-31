@@ -219,8 +219,10 @@ async function pfOpenProfile(id) {
   if (pfEl('pfFinance')) pfEl('pfFinance').innerHTML = '<div class="empty-hint">加载中…</div>';
   pfRenderFinance();
   try {
+    const namesP = pfLoadNames();   // 姓名自动链接需要名单，与详情并行
     const res = await api('/api/profile/detail?id=' + PF.pid);
     PF.data = await res.json();
+    await namesP;
     pfRenderAll();
     markSynced();
     pfLoadDossierOrder().then(() => { pfApplyOrder(); pfRenderIndex(); });   // 设置可能中途改过，回填一次
@@ -308,18 +310,18 @@ const PF_SECTIONS = [
   { key: 'methods',   t: '联络方式', kind: 'struct' },
   { key: 'clearance', t: '职务与授权', kind: 'struct' },
   { key: 'edu',       t: '教育与能力', kind: 'struct' },
-  { key: 'vehicle',   t: '交通工具', kind: 'json', r: 1 },
+  { key: 'vehicle',   t: '交通工具', badge: '可附车照', kind: 'json', cards: 1, r: 1 },
   { key: 'interest',  t: '兴趣爱好', kind: 'json', list: 1 },
   { key: 'network',   t: '网络资产', kind: 'json', r: 1, tb: 1 },
   { key: 'lifecycle', t: '生活数据', kind: 'json', r: 1 },
   { key: 'food',      t: '饮食与偏好', kind: 'json', r: 1, list: 1 },
   { key: 'health',    t: '健康档案', badge: '隐私档案', badgeClay: 1, kind: 'json', r: 1 },
-  { key: 'home',      t: '居住与家庭', kind: 'struct' },
+  { key: 'home',      t: '居住与家庭', kind: 'struct', r: 1, list: 1, link: 1 },
   { key: 'finview',   t: '财务概览', badge: '财务概览', badgeClay: 1, kind: 'json', r: 1 },
   { key: 'finance',   t: '财务往来', kind: 'app' },
   { key: 'docs',      t: '证件与证照', badge: '敏感信息', kind: 'json', r: 1 },
   { key: 'background',t: '背景与语言', kind: 'json', r: 1 },
-  { key: 'emergency', t: '授权与应急', badge: '仅自己可见', badgeClay: 1, kind: 'json', r: 1 },
+  { key: 'emergency', t: '授权与应急', badge: '仅自己可见', badgeClay: 1, kind: 'json', r: 1, link: 1 },
   { key: 'devices',   t: '设备与凭据', kind: 'json', tb: 1 },
   { key: 'travel',    t: '出行与目标', kind: 'json', r: 1, list: 1 },
   { key: 'timeline',  t: '大事记', kind: 'json', tl: 1 },
@@ -367,19 +369,35 @@ function pfBuildPanels() {
 }
 
 /* ---- 段落载荷渲染（与确认的预览稿同一套渲染器，纯文本转义） ---- */
-function pfSecVrows(rows) {
+/** 姓名自动超链接：文本里出现的联系人姓名（≥2 字、非自己）包成可点击链接，长名优先 */
+function pfLinkify(text) {
+  const out = pfEsc(String(text || ''));
+  const seen = new Set();
+  const names = (PF.allNames || []).filter((n) => n.id !== PF.pid && String(n.name || '').length >= 2 && !seen.has(n.name) && seen.add(n.name))
+    .sort((a, b) => b.name.length - a.name.length);
+  let res = out;
+  names.forEach((n) => {
+    const name = pfEsc(n.name);
+    if (res.includes(name)) res = res.split(name).join('<a class="person" data-pf-link="' + n.id + '">' + name + '</a>');
+  });
+  return res;
+}
+function pfSecVrows(def, rows) {
   let h = '';
   (rows || []).forEach((r) => {
     if (!String(r[1] || '').trim()) return;   // 空字段不渲染
-    h += '<div class="sec-vrow"><span class="k">' + pfEsc(r[0]) + '</span><span class="v">' + pfEsc(r[1]) + '</span></div>';
+    const vHtml = def.link ? pfLinkify(r[1]) : pfEsc(r[1]);
+    h += '<div class="sec-vrow"><span class="k">' + pfEsc(r[0]) + '</span><span class="v">' + vHtml + '</span></div>';
   });
   return h;
 }
-function pfSecList(list) {
+function pfSecList(def, list) {
   let h = '<ul class="sec-list">';
   (list || []).forEach((it) => {
     if (!String(it[0] || '').trim()) return;
-    h += '<li><b>' + pfEsc(it[0]) + '</b><span class="n">' + pfEsc(it[1] || '') + '</span></li>';
+    const bHtml = def.link ? pfLinkify(it[0]) : pfEsc(it[0]);
+    const nHtml = def.link ? pfLinkify(it[1] || '') : pfEsc(it[1] || '');
+    h += '<li><b>' + bHtml + '</b><span class="n">' + nHtml + '</span></li>';
   });
   return h + '</ul>';
 }
@@ -418,14 +436,29 @@ function pfSecChips(tags) {
 function pfSecTl(tl) { return pfSecList(tl); }
 function pfSecBodyHtml(def, d) {
   let h = '';
-  if (def.r) h += pfSecVrows(d.r);
-  if (def.list) h += pfSecList(d.list);
+  if (def.cards) h += pfSecCards(d.cards);
+  if (def.r) h += pfSecVrows(def, d.r);
+  if (def.list) h += pfSecList(def, d.list);
   if (def.tb) h += pfSecTb(d.tb);
   if (def.tl) h += pfSecTl(d.tl);
   return h;
 }
 function pfSecHasData(def, d) {
+  if (def.cards && (d || {}).cards && d.cards.length) return true;
   return !!pfSecBodyHtml(def, d || {}).replace(/\s|<[^>]*>/g, '').length;
+}
+/** 车辆卡片（照片取自该联系人附件库 image/*） */
+function pfSecCards(cards) {
+  let h = '<div class="sec-vgrid">';
+  (cards || []).forEach((c) => {
+    const img = c.fid
+      ? '<img src="/api/profile/files?id=' + PF.pid + '&fid=' + Number(c.fid) + '" alt="' + pfEsc(c.name || '车照') + '" loading="lazy">'
+      : '<span class="ph">暂无照片 · 编辑本段可从附件选择</span>';
+    h += '<div class="sec-vcard"><div class="sec-vimg">' + img
+      + (c.name ? '<span class="cap">' + pfEsc(c.name) + '</span>' : '')
+      + '</div><div class="sec-vb">' + pfSecVrows({ r: 1 }, c.rows) + '</div></div>';
+  });
+  return h + '</div>';
 }
 /** 渲染单个 JSON 段落（含空段隐藏） */
 function pfRenderJsonSection(key) {
@@ -444,10 +477,11 @@ function pfRenderJsonSections() {
 
 /* ---- JSON 段落编辑器（侧滑，一次一段） ---- */
 let pfSecEdit = null;   // {key, pid, data, isStruct}
-function pfOpenSectionEditor(key, opts = {}) {
+async function pfOpenSectionEditor(key, opts = {}) {
   const def = pfSecDef(key);
   const pid = Number(opts.pid || PF.pid);
   if (!pid) return;
+  if (def.cards && !PF.filesData) await pfEnsureFiles();   // 照片选择需要附件清单
   const src = ((PF.data && PF.data.sections) || {})[key] || {};
   const data = JSON.parse(JSON.stringify(src));
   (opts.appendRows || []).forEach((r) => {
@@ -484,6 +518,20 @@ function pfSecBuildEditorBody(def, data) {
   addBtn.type = 'button';
   addBtn.textContent = '＋ 添加一行';
   const mk = (cls, ph, val) => `<input type="text" class="${cls || ''}" placeholder="${pfEsc(ph || '')}" value="${pfEsc(val || '')}">`;
+  if (def.cards) {
+    body.insertAdjacentHTML('beforeend', '<p class="sec-hint">每张卡片 = 一辆交通工具；照片从该联系人的附件（图片）中选择，保存后显示在卡片上。</p>');
+    const cards = (data.cards && data.cards.length) ? data.cards : [{}];
+    cards.forEach((c) => body.appendChild(pfSecCardBlock(c)));
+    const addC = document.createElement('button');
+    addC.className = 'sec-add';
+    addC.type = 'button';
+    addC.textContent = '＋ 添加一辆车';
+    addC.onclick = () => body.insertBefore(pfSecCardBlock({}), body.querySelector('.sec-addc'));
+    body.appendChild(addC);
+    const gap = document.createElement('div');
+    gap.className = 'sec-addc';
+    body.appendChild(gap);
+  }
   if (def.r) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">键值行：左侧为资料名称（如 血型 / 过敏史），右侧为内容。</p>');
     const wrap = document.createElement('div');
@@ -515,6 +563,20 @@ function pfCollectSectionData() {
   const body = pfEl('secEditBody');
   const val = (inp) => String(inp.value || '').trim();
   const data = {};
+  if (def.cards) {
+    data.cards = [];
+    body.querySelectorAll('.sec-card').forEach((card) => {
+      const name = card.querySelector('.cname').value.trim();
+      const fid = Number(card.querySelector('.fidsel').value) || null;
+      const rows = [];
+      card.querySelectorAll('.sec-crows .secrow').forEach((row) => {
+        const ins = row.querySelectorAll('input[type=text]');
+        if (ins.length >= 2 && ins[0].value.trim() && ins[1].value.trim()) rows.push([ins[0].value.trim(), ins[1].value.trim()]);
+      });
+      if (name || rows.length) data.cards.push({ name, fid, rows });
+    });
+    if (!data.cards.length) delete data.cards;
+  }
   if (def.r) {
     data.r = [];
     body.querySelectorAll('.secrow').forEach((row) => {
@@ -540,6 +602,45 @@ function pfCollectSectionData() {
   return data;
 }
 function pfCloseSectionEditor() { closeModal(pfEl('secEditor')); pfSecEdit = null; }
+/** 车辆卡片编辑块：名称 + 附件照片下拉 + 键值属性行 */
+function pfSecCardBlock(c) {
+  const files = (PF.filesData || []).filter((f) => String(f.mime || '').startsWith('image/'));
+  const div = document.createElement('div');
+  div.className = 'sec-card';
+  const opts = ['<option value="">不使用照片</option>'].concat(files.map((f) =>
+    `<option value="${f.id}"${Number(c.fid) === f.id ? ' selected' : ''}>${pfEsc(f.name)}</option>`)).join('');
+  div.innerHTML = '<input type="text" class="inp cname" placeholder="车辆名称（如 大众 速腾 1.4T）" value="' + pfEsc(c.name || '') + '">'
+    + '<select class="fidsel">' + opts + '</select>'
+    + '<div class="sec-crows"></div>';
+  const rowsWrap = div.querySelector('.sec-crows');
+  const addRow = (r) => rowsWrap.insertAdjacentHTML('beforeend',
+    '<div class="secrow"><input type="text" class="sk" placeholder="名称" value="' + pfEsc(r[0] || '') + '">'
+    + '<input type="text" placeholder="内容" value="' + pfEsc(r[1] || '') + '"></div>');
+  (c.rows && c.rows.length ? c.rows : [['', '']]).forEach(addRow);
+  const ops = document.createElement('div');
+  ops.className = 'sec-cardops';
+  const addProp = document.createElement('button');
+  addProp.type = 'button';
+  addProp.className = 'sec-add';
+  addProp.textContent = '＋ 添加属性';
+  addProp.onclick = () => addRow(['', '']);
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'sec-del';
+  del.textContent = '删除本辆车';
+  del.onclick = () => div.remove();
+  ops.appendChild(addProp);
+  ops.appendChild(del);
+  div.appendChild(ops);
+  return div;
+}
+async function pfEnsureFiles() {
+  if (PF.filesData) return;
+  try {
+    const res = await api('/api/profile/files?id=' + PF.pid);
+    if (res.ok) PF.filesData = (await res.json()).files || [];
+  } catch (_) { PF.filesData = []; }
+}
 async function pfSaveSection() {
   if (!pfSecEdit) return;
   const { key, pid } = pfSecEdit;
@@ -615,9 +716,17 @@ function pfRenderIndex() {
   const main = pfEl('pfMain');
   if (!idx || !main) return;
   const panels = [...main.querySelectorAll('.panel[data-mod]')].filter((p) => !p.hidden);
-  idx.hidden = !panels.length;
-  if (!panels.length) return;
-  idx.innerHTML = '<div class="panel-head"><h3>档案目录</h3></div>'
+  const toggle = pfEl('pfIdxToggle');
+  if (toggle) toggle.classList.toggle('on', !PF.idxHidden && !!panels.length);
+  if (PF.idxHidden || !panels.length) {
+    idx.hidden = true;
+    document.body.classList.toggle('pf-idx-off', !!PF.idxHidden);   // 隐藏时栅格收起为单列
+    return;
+  }
+  document.body.classList.remove('pf-idx-off');
+  idx.hidden = false;
+  idx.innerHTML = '<div class="panel-head"><h3>档案目录</h3><span class="sp"></span>'
+    + '<button class="idx-hide" id="pfIdxHide" title="隐藏目录" aria-label="隐藏目录">»</button></div>'
     + '<button class="idx-arrow l" aria-label="向左拖动">‹</button><button class="idx-arrow r" aria-label="向右拖动">›</button>'
     + panels.map((p) => `<a data-pfidx="${p.id}">${pfEsc(pfSecDef(p.dataset.mod).t)}<span>${p.dataset.seq || ''}</span></a>`).join('');
   idx.querySelectorAll('a[data-pfidx]').forEach((a) => {
@@ -630,6 +739,13 @@ function pfRenderIndex() {
   const next = idx.querySelector('.idx-arrow.r');
   if (prev) prev.onclick = () => idx.scrollBy({ left: -160, behavior: 'smooth' });
   if (next) next.onclick = () => idx.scrollBy({ left: 160, behavior: 'smooth' });
+  const hideBtn = idx.querySelector('#pfIdxHide');
+  if (hideBtn) hideBtn.onclick = () => {
+    PF.idxHidden = true;
+    try { localStorage.setItem('pf_idx_hidden', '1'); } catch (_) {}
+    pfRenderIndex();
+    toast('目录已隐藏，点页头「目录」可恢复');
+  };
 }
 
 // ===== v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） =====
@@ -687,9 +803,14 @@ async function pfRenderBody() {
   if (!PF.editMode) {
     // 查看模式：身高表（无删除钮）+ 体重折线 + 尺码文字，无任何输入控件
     const hasAny = heights.length || weights.length || Object.values(sz).some(Boolean);
-    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny;   // 查看模式：无资料隐藏
+    const hasCustomBody = pfSecHasData(pfSecDef('body'), (PF.data.sections || {}).body);
+    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = !PF.editMode && !hasAny && !hasCustomBody;
     pfApplyOrder(); pfRenderIndex();
-    if (!hasAny) { box.innerHTML = '<div class="empty-hint">暂无身高体重与尺码记录</div>'; return; }
+    if (!hasAny) {
+      box.innerHTML = '<div class="empty-hint">暂无身高体重与尺码记录</div>';
+      if (hasCustomBody) box.insertAdjacentHTML('beforeend', pfSecCustomHtml('body'));
+      return;
+    }
     const sizeItems = [['衣裤', sz.clothing], ['鞋子', sz.shoe], ['戒指', sz.ring], ['手镯', sz.bracelet]].filter(([, v]) => v);
     box.innerHTML = `
       <div class="pf-hm">
@@ -774,6 +895,7 @@ async function pfRenderBody() {
     });
   });
   box.querySelectorAll('.pf-hm-add .inp').forEach((i) => { if (i.type === 'number') i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector(i.id === 'pfHVal' ? '[data-act=hadd]' : '[data-act=wadd]').click(); } }); });
+  box.insertAdjacentHTML('beforeend', pfSecCustomHtml('body'));
   if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;   // 编辑模式展开
   pfSyncEditMode(); // 异步渲染完成后重新同步面板可见性（含目录刷新）
 }
@@ -858,6 +980,13 @@ function pfRenderHero() {
     ${bd.length ? `<div class="note info" style="margin-top:10px">${bd.map(pfEsc).join(' · ')}</div>` : ''}`;
 }
 
+/** 结构化模块的「附加资料」（contact_sections 自定义行/清单/能力条），home 支持姓名链接 */
+function pfSecCustomHtml(key) {
+  const def = pfSecDef(key);
+  const d = (PF.data && PF.data.sections) || {};
+  const h = (def.r ? pfSecVrows(def, (d[key] || {}).r) : '') + (def.list ? pfSecList(def, (d[key] || {}).list) : '') + (def.bars ? pfSecBars((d[key] || {}).bars) : '');
+  return h ? '<div class="pf-sec-append">' + h + '</div>' : '';
+}
 function pfRenderIdentity() {
   const b = PF.data.base;
   const nameRows = [
@@ -873,7 +1002,7 @@ function pfRenderIdentity() {
   ].filter(([, v]) => v);
   const grid = (rows) => '<div class="pm-grid">' + rows.map(([k, v]) => `<div class="pm-item"><span>${pfEsc(k)}</span><b>${pfEsc(v || '—')}</b></div>`).join('') + '</div>';
   if (!PF.editMode) {
-    pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + (socialRows.length ? grid(socialRows) : '');
+    pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + (socialRows.length ? grid(socialRows) : '') + pfSecCustomHtml('identity');
     return;
   }
   pfEl('pfBasic').innerHTML = grid(nameRows.concat([['性别', b.gender || '—'], ['生日', bdLine]])) + `
@@ -897,11 +1026,13 @@ function pfRenderIdentity() {
     if (res.ok) { toast('已保存'); PF.data.base.marriage = sel.value; PF.data.base.note = note.value.trim(); pfRenderIdentity(); pfSyncEditMode(); markSynced(); }
     else toast('保存失败');
   });
+  pfEl('pfBasic').insertAdjacentHTML('beforeend', pfSecCustomHtml('identity'));
 }
 
 function pfRenderHome() {
   pfRenderRelatives();
   pfRenderPets();
+  pfEl('pfPets').insertAdjacentHTML('beforeend', pfSecCustomHtml('home'));
 }
 
 // ===== 联系方式 =====
@@ -949,6 +1080,7 @@ function pfRenderMethods() {
         <button class="btn ghost" data-act="madd" data-kind="${kind}">添加</button>
       </div>
     </div>`).join('');
+  pfEl('pfMethods').insertAdjacentHTML('beforeend', pfSecCustomHtml('methods'));
 }
 
 // ===== 家庭关系 =====
@@ -1012,6 +1144,7 @@ function pfRenderWork() {
       <button class="btn primary" type="submit">保存</button>
     </form>
     <p class="field-hint">公司与职位可多人共用：同一家公司的其他联系人可直接选择相同值。</p>`;
+  pfEl('pfWork').insertAdjacentHTML('beforeend', pfSecCustomHtml('clearance'));
 }
 
 // ===== 教育与成长 =====
@@ -1058,6 +1191,7 @@ function pfRenderEdu() {
       <label class="field"><span>重要经历（交换 / 留学 / 培训）</span><input data-k="story"></label>
       <button class="btn" type="submit">+ 添加这段教育</button>
     </form>`;
+  pfEl('pfEdu').insertAdjacentHTML('beforeend', pfSecCustomHtml('edu'));
 }
 
 // ===== 宠物 =====
@@ -1413,6 +1547,13 @@ async function pfDeletePerson() {
 // ===== 模块事件委托 =====
 function pfBindEvents() {
   pfBuildPanels();   // v0.5.33：先生成面板壳，绑定才找得到容器
+  try { PF.idxHidden = localStorage.getItem('pf_idx_hidden') === '1'; } catch (_) { PF.idxHidden = false; }
+  const idxToggle = pfEl('pfIdxToggle');
+  if (idxToggle) idxToggle.addEventListener('click', () => {
+    PF.idxHidden = !PF.idxHidden;
+    try { localStorage.setItem('pf_idx_hidden', PF.idxHidden ? '1' : '0'); } catch (_) {}
+    pfRenderIndex();
+  });
   // 段落编辑器（v0.5.33）
   const secOverlay = pfEl('secEditor');
   if (secOverlay) {
@@ -1424,6 +1565,8 @@ function pfBindEvents() {
   document.addEventListener('click', (e) => {
     const ed = e.target.closest('[data-sec-edit]');
     if (ed && window.PF && PF.pid) { pfOpenSectionEditor(ed.dataset.secEdit); return; }
+    const pl = e.target.closest('a.person[data-pf-link]');
+    if (pl) { e.preventDefault(); pfOpenProfile(Number(pl.dataset.pfLink)); window.scrollTo({ top: 0 }); return; }
     const eb = e.target.closest('[data-act=edit-basic]');
     if (eb) pfLoadNames().then(() => pfOpenEditModal());
   });

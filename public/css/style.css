@@ -1766,3 +1766,28 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
   .sec-tb-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .sec-vrow .k{flex-basis:96px}
 }
+
+/* --- v0.5.34 预备：目录隐藏按钮 + 车辆卡片 --- */
+.idx-hide{margin-left:auto;width:22px;height:22px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--muted);font-size:12px;line-height:1;cursor:pointer;padding:0}
+.idx-hide:hover{border-color:var(--plum);color:var(--plum)}
+.panel-head .sp{flex:1}
+#pfIdxToggle.on{border-color:var(--plum);color:var(--plum)}
+.sec-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 12px;margin-bottom:10px}
+.sec-card .cname{width:100%;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-family:var(--font-ui);margin-bottom:6px}
+.sec-card .fidsel{width:100%;font-size:12.5px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);margin-bottom:8px}
+.sec-cardops{display:flex;gap:8px;margin-top:8px}
+.sec-del{font-size:11.5px;color:var(--red);background:none;border:1px solid var(--red);border-radius:10px;padding:5px 10px;cursor:pointer;font-family:var(--font-ui)}
+.sec-addc{height:2px}
+.sec-vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:8px}
+.sec-vgrid>*{min-width:0}
+.sec-vcard{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.sec-vimg{height:130px;background:var(--plum-soft);position:relative;border-bottom:1px solid var(--line)}
+.sec-vimg img{width:100%;height:100%;object-fit:cover;display:block}
+.sec-vimg .ph{position:absolute;inset:0;display:grid;place-items:center;font-size:11.5px;color:var(--plum);text-align:center;padding:0 10px}
+.sec-vimg .cap{position:absolute;left:0;right:0;bottom:0;font-size:10.5px;color:#fff;background:rgba(0,0,0,.45);padding:3px 10px}
+.sec-vb{padding:6px 12px 8px}
+body.pf-idx-off .dossier-grid{grid-template-columns:minmax(0,1fr)}
+
+/* --- v0.5.34 档案卷宗：姓名自动超链接 --- */
+a.person{color:var(--plum);font-weight:600;cursor:pointer;text-decoration:underline dotted var(--plum);text-underline-offset:3px}
+a.person:hover{background:var(--plum-soft)}
