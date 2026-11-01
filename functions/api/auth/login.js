@@ -1,4 +1,4 @@
-import { json, signToken, verifyAdminPassword } from '../../_lib.js';
+import { json, signToken, verifyAdminPassword, sessionSecretOf } from '../../_lib.js';
 
 function clientIp(request) {
   // Cloudflare 会把真实 IP 放在 CF-Connecting-IP
@@ -33,6 +33,11 @@ function recordFail(ip) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  // 密钥守卫：不配置就拒绝签发（否则会用可预测密钥 "undefined" 签出可伪造的会话）
+  const secret = sessionSecretOf(env);
+  if (!secret) {
+    return json({ error: '服务器未配置 SESSION_SECRET（Pages 设置 → 环境变量），登录已停用' }, 500);
+  }
   let body;
   try {
     body = await request.json();
@@ -57,7 +62,7 @@ export async function onRequestPost(context) {
 
   // 生成唯一会话 ID，写入 token，并持久化到 sessions 表
   const sid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const token = await signToken(user, env.SESSION_SECRET, 1000 * 60 * 60 * 24 * 7, { sid });
+  const token = await signToken(user, secret, 1000 * 60 * 60 * 24 * 7, { sid });
   const ua = String(request.headers.get('user-agent') || '').slice(0, 400);
   try {
     await env.DB.prepare(

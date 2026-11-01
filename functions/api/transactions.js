@@ -12,6 +12,12 @@ function shiftMonth(month, delta) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// 月份 → [月初, 下月初) 半开区间。用列的边界比较替代 strftime('%Y-%m', 列)，
+// 后者函数包列会让 idx_txn_date 失效（全表扫描）
+function monthRange(month) {
+  return [month + '-01', shiftMonth(month, 1) + '-01'];
+}
+
 // 记账字段统一清洗（POST / PUT 共用）
 // 返回 null 表示金额无效
 export function normalizeTxnBody(body) {
@@ -68,7 +74,8 @@ export async function onRequestGet(context) {
     return json({ accounts: await listAccounts(env) });
   }
   const contactId = Number(url.searchParams.get('contact_id')) || null;
-  const month = url.searchParams.get('month') || todayStr().slice(0, 7);
+  let month = url.searchParams.get('month') || todayStr().slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(month)) month = todayStr().slice(0, 7);   // 乱值会使日均/趋势变 NaN
 
   // ---- 周期账单懒生成（房租/工资等到期自动入账，幂等；仅月度明细模式）----
   let recurringGenerated = 0;
@@ -83,14 +90,14 @@ export async function onRequestGet(context) {
     income: catTree.income.map((c) => c.name),
   };
 
-  const where = contactId ? 'contact_id = ?' : "strftime('%Y-%m', txn_date) = ?";
+  const where = contactId ? 'contact_id = ?' : 'txn_date >= ? AND txn_date < ?';
   const rows = (
     await env.DB.prepare(
       `SELECT id, flow, amount, category, sub_category, txn_date, txn_time, account, to_account, contact_id, item, note
        FROM transactions WHERE ${where}
        ORDER BY txn_date DESC, id DESC`
     )
-      .bind(contactId || month)
+      .bind(...(contactId ? [contactId] : monthRange(month)))
       .all()
   ).results || [];
 
@@ -135,18 +142,17 @@ export async function onRequestGet(context) {
   // ---- 近 6 个月趋势（含当前月；contact_id 模式不需要）----
   let trend = [];
   if (!contactId) {
-    const from = shiftMonth(month, -5);
     try {
       const tRows = (
         await env.DB.prepare(
-          `SELECT strftime('%Y-%m', txn_date) m,
+          `SELECT substr(txn_date, 1, 7) m,
                   COALESCE(SUM(CASE WHEN flow='income'  THEN amount ELSE 0 END),0) inc,
                   COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp
            FROM transactions
-           WHERE strftime('%Y-%m', txn_date) >= ? AND strftime('%Y-%m', txn_date) <= ?
+           WHERE txn_date >= ? AND txn_date < ?
            GROUP BY m`
         )
-          .bind(from, month)
+          .bind(shiftMonth(month, -5) + '-01', shiftMonth(month, 1) + '-01')
           .all()
       ).results || [];
       const map = {};

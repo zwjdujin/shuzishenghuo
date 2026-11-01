@@ -1,5 +1,5 @@
 // 全局中间件：为 /api/* 受保护接口做登录校验（公开接口除外）
-import { parseCookie, verifyToken, decodeToken } from './_lib.js';
+import { parseCookie, verifyToken, decodeToken, sessionSecretOf } from './_lib.js';
 
 const PUBLIC = ['/api/auth/login', '/api/health'];
 
@@ -16,8 +16,19 @@ export async function onRequest(context) {
   // 不走管理员会话——MCP 服务 / AI Agent 只带 Authorization 头，没有登录 Cookie
   if (path.startsWith('/api/ext/')) return next();
 
+  // SESSION_SECRET 未配置时拒绝所有受保护请求（fail-closed）：
+  // 缺失时会退化为可预测密钥签名，放行等同认证形同虚设
+  const secret = sessionSecretOf(env);
+  if (!secret) {
+    console.error('SESSION_SECRET 未配置：拒绝处理受保护 API 请求');
+    return new Response(JSON.stringify({ error: 'server_misconfigured', message: '服务器未配置 SESSION_SECRET（Pages 设置 → 环境变量），请联系管理员' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const token = parseCookie(request.headers.get('Cookie')).sz_session;
-  if (!token || !(await verifyToken(token, env.SESSION_SECRET))) {
+  if (!token || !(await verifyToken(token, secret))) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },

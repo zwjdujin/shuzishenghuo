@@ -57,6 +57,22 @@ patch('functions/api/sysinfo.js', [[/pick\(env, 'APP_VERSION', '[\d.]+'\)/, `pic
   write('package.json', JSON.stringify(pkg, null, 2) + '\n');
 }
 
+// ---------- 1b. android 壳版本同步（APP_BUILD.md 约定：versionCode = 去点三段数字） ----------
+// v0.5.44 起自动注入：此前靠人工同步已漂移（壳停在 0.5.31，网页端已 0.5.43）
+try {
+  const gradlePath = 'android/app/build.gradle';
+  const code = Number(version.replace(/\./g, ''));
+  if (!Number.isFinite(code)) throw new Error('版本号无法转 versionCode');
+  let g = read(gradlePath);
+  if (!/versionCode \d+/.test(g) || !/versionName "[^"]+"/.test(g)) throw new Error('未找到版本字段');
+  g = g.replace(/versionCode \d+/, `versionCode ${code}`);
+  g = g.replace(/versionName "[^"]+"/, `versionName "${version}"`);
+  write(gradlePath, g);
+  console.log(`  + android/app/build.gradle → versionCode ${code} / versionName "${version}"`);
+} catch (e) {
+  console.warn(`  ! android/app/build.gradle 同步跳过：${e.message}`);
+}
+
 // ---------- 2. 内容 hash 拷贝 ----------
 const FILES = [
   ['public/css/style.css', 'css/style.css', 'style'],

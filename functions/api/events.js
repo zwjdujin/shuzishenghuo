@@ -10,13 +10,19 @@ export async function onRequestGet(context) {
   const from = url.searchParams.get('from') || '';
   const to = url.searchParams.get('to') || '';
   if (!from || !to) return json({ error: '缺少 from / to 参数' }, 400);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return json({ error: 'from / to 需为 YYYY-MM-DD' }, 400);
+  }
+  // start 存的是 'YYYY-MM-DD HH:MM'，用列边界比较（可走 idx_events_start）替代 date(start) 包列；
+  // 上界取「to 的次日 0 点」即字符串 to+1day，含 to 当天全部时刻
+  const toNext = new Date(Date.parse(to + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
 
   const rows = (
     await env.DB.prepare(
       `SELECT id, title, start, "end", all_day, calendar, color, location, note
-       FROM events WHERE date(start) BETWEEN ? AND ? ORDER BY start ASC`
+       FROM events WHERE start >= ? AND start < ? ORDER BY start ASC`
     )
-      .bind(from, to)
+      .bind(from, toNext)
       .all()
   ).results || [];
 

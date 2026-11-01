@@ -34,6 +34,8 @@ export async function onRequestGet(context) {
     range = [f(start), f(end)];
   }
   const [from, to] = range;
+  // 事件 start 带时刻，用 [from, to+1) 列边界比较替代 date(start) 包列（可走 idx_events_start）
+  const toNext = new Date(Date.parse(to + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
 
   const one = async (sql, ...p) => (await env.DB.prepare(sql).bind(...p).first().catch(() => null)) || {};
   const all = async (sql, ...p) => (await env.DB.prepare(sql).bind(...p).all().catch(() => ({ results: [] }))).results || [];
@@ -62,7 +64,7 @@ export async function onRequestGet(context) {
 
   // memo / 事件 / 人际互动
   const memoCnt = await one('SELECT COUNT(*) c FROM memos WHERE memo_date BETWEEN ? AND ?', from, to);
-  const evCnt = await one('SELECT COUNT(*) c FROM events WHERE date(start) BETWEEN ? AND ?', from, to);
+  const evCnt = await one('SELECT COUNT(*) c FROM events WHERE start >= ? AND start < ?', from, toNext);
 
   return json({
     week: { from, to },

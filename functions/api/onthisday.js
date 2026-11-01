@@ -11,40 +11,40 @@ export async function onRequestGet(context) {
   const rows = async (sql, ...params) =>
     (await env.DB.prepare(sql).bind(...params).all().catch(() => ({ results: [] }))).results || [];
 
-  // 打卡（含习惯名）：habit_logs.log_date LIKE '%-MM-DD'
+  // 打卡（含习惯名）：substr(log_date, 6) = 'MM-DD'（可走表达式索引，替代前导通配 LIKE 全表扫）
   const habits = await rows(
     `SELECT h.log_date d, h.done, h.note, hb.name habit, hb.unit
      FROM habit_logs h JOIN habits hb ON hb.id = h.habit_id
-     WHERE h.log_date LIKE ? AND h.done > 0 ORDER BY h.log_date DESC LIMIT 40`,
-    `%-${md}`
+     WHERE substr(h.log_date, 6) = ? AND h.done > 0 ORDER BY h.log_date DESC LIMIT 40`,
+    md
   );
   // 流水：当年同日的支出/收入合计 + 笔数 + Top 明细
   const txns = await rows(
     `SELECT txn_date d, COUNT(*) n,
        COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp,
        COALESCE(SUM(CASE WHEN flow='income'  THEN amount ELSE 0 END),0) inc
-     FROM transactions WHERE txn_date LIKE ? GROUP BY txn_date ORDER BY txn_date DESC`,
-    `%-${md}`
+     FROM transactions WHERE substr(txn_date, 6) = ? GROUP BY txn_date ORDER BY txn_date DESC`,
+    md
   );
   const txnItems = await rows(
     `SELECT txn_date d, flow, amount, category, note, item FROM transactions
-     WHERE txn_date LIKE ? ORDER BY txn_date DESC, id DESC LIMIT 20`,
-    `%-${md}`
+     WHERE substr(txn_date, 6) = ? ORDER BY txn_date DESC, id DESC LIMIT 20`,
+    md
   );
   // 完成的待办
   const todos = await rows(
-    `SELECT todo_date d, title FROM todos WHERE done=1 AND todo_date LIKE ? ORDER BY todo_date DESC LIMIT 20`,
-    `%-${md}`
+    `SELECT todo_date d, title FROM todos WHERE done=1 AND substr(todo_date, 6) = ? ORDER BY todo_date DESC LIMIT 20`,
+    md
   );
-  // 事件
+  // 事件（start 带时刻，月日取前 5 位）
   const events = await rows(
-    `SELECT start d, title, calendar FROM events WHERE start LIKE ? ORDER BY start DESC LIMIT 20`,
-    `%-${md}%`
+    `SELECT start d, title, calendar FROM events WHERE substr(start, 6, 5) = ? ORDER BY start DESC LIMIT 20`,
+    md
   );
   // memo
   const memos = await rows(
-    `SELECT memo_date d, content FROM memos WHERE memo_date LIKE ? ORDER BY id DESC LIMIT 20`,
-    `%-${md}`
+    `SELECT memo_date d, content FROM memos WHERE substr(memo_date, 6) = ? ORDER BY id DESC LIMIT 20`,
+    md
   );
 
   // 按年分组（排除今年：今天还没过完）

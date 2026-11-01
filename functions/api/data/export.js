@@ -22,11 +22,22 @@ export async function onRequestGet(context) {
   }
 
   // 一并带上品牌与外观偏好（虽不参与清空，但备份里有它才算完整）
-  // 注意：排除管理员密码哈希 —— 备份文件可能被下载 / 转发，凭证不应外泄
+  // 注意：排除管理员密码哈希；大模型 API Key 打码（结构保留，恢复后需在「智能管理」重填 Key）
+  // —— 备份文件可能被下载 / 转发，凭证不应外泄
   let settings = {};
   try {
     const rows = (await env.DB.prepare('SELECT key, value FROM app_settings').all()).results || [];
-    rows.forEach((r) => { if (r.key !== ADMIN_PASS_KEY) settings[r.key] = r.value; });
+    rows.forEach((r) => {
+      if (r.key === ADMIN_PASS_KEY) return;
+      if (r.key === 'ai_models') {
+        try {
+          const models = JSON.parse(r.value);
+          if (!Array.isArray(models)) return;
+          r.value = JSON.stringify(models.map((m) => ({ ...m, apiKey: '' })));
+        } catch (_) { return; }
+      }
+      settings[r.key] = r.value;
+    });
   } catch (_) { /* 忽略 */ }
 
   const labels = {};
@@ -37,7 +48,7 @@ export async function onRequestGet(context) {
     appName: '数字生活',
     format: 1,
     exportedAt: new Date().toISOString(),
-    note: '本文件为「数字生活」全量数据备份，包含全部业务表与品牌/外观设置（不含登录会话）。',
+    note: '本文件为「数字生活」全量数据备份，包含全部业务表与品牌/外观设置（不含登录会话；管理员密码哈希与大模型 API Key 不入备份）。',
     labels,
     settings,
     tables,

@@ -24,6 +24,7 @@ export async function onRequestPost(context) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
       body: JSON.stringify({ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] }),
+      signal: AbortSignal.timeout(20000),
     });
     const ms = Date.now() - t0;
     if (!res.ok) {
@@ -34,6 +35,7 @@ export async function onRequestPost(context) {
     const reply = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
     return json({ ok: true, ms, reply: String(reply || '').slice(0, 40) });
   } catch (e) {
-    return json({ ok: false, error: '连接失败：' + (e && e.message ? e.message : e) }, 200);
+    const msg = e && e.name === 'TimeoutError' ? '上游 20 秒未响应' : (e && e.message ? e.message : e);
+    return json({ ok: false, error: '连接失败：' + msg }, 200);
   }
 }

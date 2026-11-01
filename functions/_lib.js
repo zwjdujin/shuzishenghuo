@@ -33,6 +33,16 @@ function bytesToB64url(bytes) {
 function strToBytes(str) {
   return new TextEncoder().encode(str);
 }
+
+/**
+ * 会话签名密钥守卫：未配置或过短时返回 ''。
+ * 调用方（登录签发 / 中间件校验）必须拒绝继续，
+ * 否则 TextEncoder 会把 undefined 编码成字符串 "undefined"，等于用可预测密钥签名，可被离线伪造会话。
+ */
+export function sessionSecretOf(env) {
+  const s = env && env.SESSION_SECRET;
+  return (typeof s === 'string' && s.length >= 8) ? s : '';
+}
 async function hmac(secret, data) {
   const key = await crypto.subtle.importKey(
     'raw', strToBytes(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']

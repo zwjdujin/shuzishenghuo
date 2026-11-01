@@ -42,6 +42,12 @@ export async function onRequestGet(context) {
     const r = await db.prepare(sql).bind(...params).first();
     return r ? Number(r.c || 0) : 0;
   };
+  // 月账单区间与「明天」（start/txn_date 边界比较可走索引；date()/strftime() 包列会架空索引）
+  const nextMonth = (() => {
+    const [y, m] = month.split('-').map(Number);
+    return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  })();
+  const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
 
   // 习惯今日完成情况（按目标值判定是否完成）
   const allHabits = await db.prepare('SELECT * FROM habits').all();
@@ -61,9 +67,10 @@ export async function onRequestGet(context) {
     const ph2 = habitIds.map(() => '?').join(',');
     const dow = ((new Date(today + 'T00:00:00+08:00').getUTCDay() + 6) % 7) + 1;
     const monday = new Date(Date.parse(today + 'T00:00:00Z') - (dow - 1) * 86400000).toISOString().slice(0, 10);
-    weekLogs = (await db.prepare(
+    // 注意括号：.results 必须取在 await 之后的数组上，否则恒为 undefined（曾致每周频率习惯统计恒空）
+    weekLogs = ((await db.prepare(
       `SELECT habit_id, log_date, done FROM habit_logs WHERE habit_id IN (${ph2}) AND log_date >= ?`
-    ).bind(...habitIds, monday).all().results) || [];
+    ).bind(...habitIds, monday).all()).results) || [];
   }
   const wlMap = {};
   weekLogs.forEach((l) => { if (!wlMap[l.habit_id]) wlMap[l.habit_id] = []; wlMap[l.habit_id].push(l); });
@@ -124,7 +131,7 @@ export async function onRequestGet(context) {
         today, today
       ),
     },
-    events: { today: await cnt('SELECT COUNT(*) c FROM events WHERE date(start) = ?', today) },
+    events: { today: await cnt('SELECT COUNT(*) c FROM events WHERE start >= ? AND start < ?', today, tomorrow) },
     relations: { upcoming: upcomingBirthdays },
   };
 
@@ -132,9 +139,9 @@ export async function onRequestGet(context) {
     .prepare(
       "SELECT COALESCE(SUM(CASE WHEN flow='income' THEN amount ELSE 0 END),0) inc, " +
         "COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp " +
-        "FROM transactions WHERE strftime('%Y-%m', txn_date)=?"
+        "FROM transactions WHERE txn_date >= ? AND txn_date < ?"
     )
-    .bind(month)
+    .bind(month + '-01', nextMonth)
     .first();
   stats.ledger.income = ledgerRow ? Number(ledgerRow.inc) : 0;
   stats.ledger.expense = ledgerRow ? Number(ledgerRow.exp) : 0;
@@ -148,8 +155,8 @@ export async function onRequestGet(context) {
     .bind(today)
     .all();
   const eventRows = await db
-    .prepare('SELECT id,title,start,all_day FROM events WHERE date(start)=? ORDER BY start ASC')
-    .bind(today)
+    .prepare('SELECT id,title,start,all_day FROM events WHERE start >= ? AND start < ? ORDER BY start ASC')
+    .bind(today, tomorrow)
     .all();
   const habitRows = null; // 已由 habitList / habitTodayDone 计算，保留变量名避免误用
 
@@ -218,18 +225,18 @@ export async function onRequestGet(context) {
   try {
     const md = today.slice(5);
     const sample = await db.prepare(
-      'SELECT memo_date d, content FROM memos WHERE memo_date LIKE ? ORDER BY memo_date DESC LIMIT 1'
-    ).bind(`%-${md}`).first();
+      'SELECT memo_date d, content FROM memos WHERE substr(memo_date, 6) = ? ORDER BY memo_date DESC LIMIT 1'
+    ).bind(md).first();
     const yRow = await db.prepare(
-      'SELECT COUNT(DISTINCT substr(log_date,1,4)) y FROM habit_logs WHERE log_date LIKE ?'
-    ).bind(`%-${md}`).first();
+      'SELECT COUNT(DISTINCT substr(log_date,1,4)) y FROM habit_logs WHERE substr(log_date, 6) = ?'
+    ).bind(md).first();
     if ((sample && sample.d !== today) || (yRow && yRow.y)) {
       onthisday = { years: yRow ? yRow.y : 0, sample: sample ? { date: sample.d, content: sample.content } : null };
     }
   } catch (_) { /* 忽略 */ }
 
   return json({
-    version: '0.5.43',
+    version: '0.5.44',
     brand,
     appearance,
     today,

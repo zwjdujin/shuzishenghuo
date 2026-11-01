@@ -5,6 +5,9 @@ _t.html
 _dom.html
 _shot_*.png
 _inj.js
+# UI 验证截图与本地体检产物不入库（_shots* 曾因 ignore 模式不匹配混入提交）
+_shots*
+_localcheck/
 # 本地验证用临时预览页，不可部署
 public/_*.html
 # 本地排版体检的临时产物（**必须**放在 public/ 之外，否则会被一起部署上线）

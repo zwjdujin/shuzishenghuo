@@ -212,6 +212,10 @@ async function pfOpenProfile(id) {
   PF.pid = Number(id);
   PF.view = 'profile';
   PF.isSample = false;
+  // v0.5.44：跨联系人缓存必须在换人时清空，否则上一位联系人的附件/体测数据
+  // 会先渲染给当前人（头像显示成别人的照片、体测编辑器预填错值）
+  PF.filesData = null;
+  PF.bodyData = null;
   document.body.classList.remove('pf-sample');
   // 深链：#/relations/{id}（hash 路由回环由 pfOpenByHash 去重）
   if (location.hash !== '#/relations/' + PF.pid) location.hash = '#/relations/' + PF.pid;
@@ -244,6 +248,8 @@ function pfBackToList() {
   PF.view = 'list';
   PF.pid = null;
   PF.data = null;
+  PF.filesData = null;
+  PF.bodyData = null;
   if (location.hash !== '#/relations') location.hash = '#/relations';
   pfEl('relProfileView').hidden = true;
   pfEl('relListView').hidden = false;
@@ -735,6 +741,8 @@ function pfOpenSample() {
   PF.isSample = true;
   PF.pid = null;
   PF.view = 'profile';
+  PF.filesData = null;   // 防止真实联系人的附件照片/体测泄漏进示例档案
+  PF.bodyData = null;
   if (location.hash !== '#/relations/sample') location.hash = '#/relations/sample';
   pfEl('relListView').hidden = true;
   pfEl('relProfileView').hidden = false;
@@ -949,16 +957,10 @@ function pfEditMethods() {
       PF.data.methods = m;
       return pfSampleSaveSection('methods', custom2);
     }
-    for (const kind of Object.keys(PF.data.methods || {})) {
-      for (const x of PF.data.methods[kind]) {
-        await api('/api/profile/contacts?id=' + x.id, { method: 'DELETE' });
-      }
-    }
-    for (const w of want) {
-      const r = await api('/api/profile/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, kind: w.kind, value: w.value, label: w.label }) });
-      if (!r.ok) { toast('联系方式保存失败'); return false; }
-    }
+    // v0.5.44 整段原子替换：先清后建在后端 batch 内完成，中途失败不再丢已删数据
+    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, contacts: want }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '联系方式保存失败'); return false; }
     const rc = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: PF.pid, key: 'methods', data: custom2 }) });
     if (!rc.ok) { toast('附加资料保存失败'); return false; }
@@ -1032,18 +1034,18 @@ function pfEditEdu() {
       PF.data.edus = edus;
       return pfSampleSaveSection('edu', pfCollectSectionData());
     }
-    for (const e of (PF.data.edus || [])) {
-      await api('/api/profile/edu?id=' + e.id, { method: 'DELETE' });
-    }
+    // v0.5.44 整段原子替换（后端 batch 先清后建）
     const rows = [...rowsEl.querySelectorAll('.secrow')];
-    for (const row of rows) {
+    const edus = [];
+    rows.forEach((row) => {
       const ins = row.querySelectorAll('input[type=text], select');
       const school = ins[0] ? ins[0].value.trim() : '';
-      if (!school) continue;
-      const r = await api('/api/profile/edu', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, school, major: ins[1] ? ins[1].value.trim() : '', degree: ins[2] ? ins[2].value.trim() : '', start: ins[3] ? ins[3].value.trim() : '', end: ins[4] ? ins[4].value.trim() : '', story: ins[5] ? ins[5].value.trim() : '' }) });
-      if (!r.ok) { toast('教育经历保存失败'); return false; }
-    }
+      if (!school) return;
+      edus.push({ school, major: ins[1] ? ins[1].value.trim() : '', degree: ins[2] ? ins[2].value.trim() : '本科', start: ins[3] ? ins[3].value.trim() : '', end: ins[4] ? ins[4].value.trim() : '', story: ins[5] ? ins[5].value.trim() : '' });
+    });
+    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, edus }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '教育经历保存失败'); return false; }
     const custom2 = pfCollectSectionData();
     const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: PF.pid, key: 'edu', data: custom2 }) });
@@ -1105,30 +1107,27 @@ function pfEditHome() {
       PF.data.pets = petsS;
       return pfSampleSaveSection('home', pfCollectSectionData());
     }
-    for (const r of (d.relatives || [])) await api('/api/profile/relatives?id=' + r.id, { method: 'DELETE' });
-    for (const p of (d.pets || [])) await api('/api/profile/pets?id=' + p.id, { method: 'DELETE' });
-    const relRows = [...relEl.querySelectorAll('.secrow')];
-    for (const row of relRows) {
+    // v0.5.44 整段原子替换：家庭成员 + 宠物一次 PUT，后端 batch 先清后建
+    const rels = [];
+    [...relEl.querySelectorAll('.secrow')].forEach((row) => {
       const ins = row.querySelectorAll('input[type=text]');
       const kin = ins[0] ? ins[0].value.trim() : '';
       const name = ins[1] ? ins[1].value.trim() : '';
-      if (!kin || !name) continue;
+      if (!kin || !name) return;
       const hit = (PF.allNames || []).find((x) => x.name === name && x.id !== PF.pid);
-      const r = await api('/api/profile/relatives', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, kin, name, ref_id: hit ? hit.id : null }) });
-      if (!r.ok) { toast('家庭成员保存失败'); return false; }
-    }
-    const petRows = [...petEl.querySelectorAll('.secrow')];
-    for (const row of petRows) {
+      rels.push({ kin, name, ref_id: hit ? hit.id : null });
+    });
+    const petsS = [];
+    [...petEl.querySelectorAll('.secrow')].forEach((row) => {
       const ins = row.querySelectorAll('input[type=text]');
       const species = ins[0] ? ins[0].value.trim() : '';
       const name = ins[1] ? ins[1].value.trim() : '';
-      const memorial = ins[2] ? ins[2].value.trim() : '';
-      if (!species || !name) continue;
-      const r = await api('/api/profile/pets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: PF.pid, species, name, memorial_date: memorial || null }) });
-      if (!r.ok) { toast('宠物保存失败'); return false; }
-    }
+      if (!species || !name) return;
+      petsS.push({ species, name, memorial_date: ins[2] ? ins[2].value.trim() : '' });
+    });
+    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, relatives: rels, pets: petsS }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '居住与家庭保存失败'); return false; }
     const custom2 = pfCollectSectionData();
     const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: PF.pid, key: 'home', data: custom2 }) });
@@ -1176,10 +1175,14 @@ function pfSecCardBlock(c) {
 }
 async function pfEnsureFiles() {
   if (PF.filesData) return;
+  const pid = PF.pid;   // 请求期间的换人保护：返回后已切换联系人则丢弃本次结果
   try {
-    const res = await api('/api/profile/files?id=' + PF.pid);
-    if (res.ok) PF.filesData = (await res.json()).files || [];
-  } catch (_) { PF.filesData = []; }
+    const res = await api('/api/profile/files?id=' + pid);
+    if (res.ok) {
+      const files = (await res.json()).files || [];
+      if (PF.pid === pid) PF.filesData = files;
+    }
+  } catch (_) { if (PF.pid === pid) PF.filesData = []; }
 }
 async function pfSaveSection() {
   if (!pfSecEdit) return;
@@ -1339,11 +1342,13 @@ async function pfRenderBody() {
     return;
   }
   if (!box || !PF.pid) return;
+  const pid = PF.pid;   // 请求期间的换人保护：返回后已切换联系人则不渲染、不写缓存
   let data = { records: [], sizes: {} };
   try {
-    const res = await api('/api/profile/body?id=' + PF.pid);
+    const res = await api('/api/profile/body?id=' + pid);
     if (res.ok) data = await res.json();
   } catch (_) { /* 401 已处理 */ }
+  if (PF.pid !== pid) return;
   const heights = (data.records || []).filter((r) => r.kind === 'height').reverse(); // 新记录在前
   const weights = (data.records || []).filter((r) => r.kind === 'weight');
   const sz = data.sizes || {};
@@ -1399,11 +1404,13 @@ async function pfRenderFiles() {
     return;
   }
   if (!box || !PF.pid) return;
+  const pid = PF.pid;   // 请求期间的换人保护：返回后已切换联系人则不渲染、不写缓存
   let data = { files: [] };
   try {
-    const res = await api('/api/profile/files?id=' + PF.pid);
+    const res = await api('/api/profile/files?id=' + pid);
     if (res.ok) data = await res.json();
   } catch (_) { /* 401 已处理 */ }
+  if (PF.pid !== pid) return;
   if (hint) hint.textContent = data.folder ? `rjgx/${data.folder}/` : '';
   PF.filesData = data.files || [];
   // 查看模式：上传入口隐藏，文件只读预览/下载

@@ -77,12 +77,15 @@ export async function onRequestPost(context) {
         ],
         temperature: 0.1,
       }),
+      // 上游挂起时不能把 Worker 请求拖到平台级上限（图片解析较慢，放宽到 60s）
+      signal: AbortSignal.timeout(60000),
     });
     const d = await res.json();
     const raw = (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
     drafts = extractDrafts(raw);
   } catch (e) {
-    return json({ error: '解析失败：' + (e && e.message ? e.message : e) }, 200);
+    const msg = e && e.name === 'TimeoutError' ? '上游 60 秒未响应（已超时中断）' : (e && e.message ? e.message : e);
+    return json({ error: '解析失败：' + msg }, 200);
   }
   if (!drafts) return json({ error: '模型未返回有效结果' }, 200);
   return json({ ok: true, drafts });

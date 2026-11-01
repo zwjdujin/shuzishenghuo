@@ -13,6 +13,11 @@ binding = "DB"
 database_name = "shuzishenghuo"
 database_id = "f22fddc8-5f8f-4498-9dab-539fea617bba"
 
+# 复用同一个 R2 存储桶（每日自动备份：D1 快照 → backup/d1/，附件镜像 → backup/files/，见 src/index.js dailyBackup）
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "shuzishenghuo"
+
 # 每分钟触发一次（Cloudflare Cron Trigger）
 [triggers]
 crons = ["* * * * *"]

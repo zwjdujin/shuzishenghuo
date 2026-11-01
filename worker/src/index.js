@@ -1,8 +1,9 @@
 // 数字生活 · 统一提醒调度 Worker（v0.6.0）
 // Cron 每分钟触发，分两类任务：
 //   分钟级（精确到 hh:mm）：待办提醒、服药提醒
-//   日检级（每天一次，app_settings.last_daily_run 幂等标记）：
+//   日检级（每天一次，app_settings 幂等标记）：
 //     生日提醒（未来 1/3/7 天）、药品临期/低库存（v0.5.31 起移除 keep-in-touch）
+//     每日自动备份（v0.5.44：D1 快照 → R2 backup/d1/，R2 附件镜像 → backup/files/）
 // 推送 payload 的 url 使用 hash 路由，点通知直达对应页面。
 import webpush from 'web-push';
 
@@ -17,6 +18,11 @@ export default {
     const today = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
     const dowCN = WK_CN[now.getUTCDay()];            // 日一二三四五六
     const dowNum = ((now.getUTCDay() + 6) % 7) + 1;  // 1=周一…7=周日（与 med_plans.days 口径一致）
+
+    // ===== 每日自动备份（不依赖 VAPID/推送配置，独立幂等标记）=====
+    try {
+      await dailyBackup(env, today);
+    } catch (e) { console.error('daily backup', e && e.message); }
 
     if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE || !env.VAPID_MAILTO) {
       console.warn('VAPID 未配置，跳过推送');
@@ -97,6 +103,89 @@ export default {
     return new Response('shuzishenghuo push worker (unified scheduler v0.6.0)', { status: 200 });
   },
 };
+
+// ===== 每日自动备份（v0.5.44）=====
+// D1 全量快照 → R2 backup/d1/YYYY-MM-DD.json（保留最近 14 份）
+// R2 附件镜像 → backup/files/<原键>（每日覆盖既有对象；镜像不删除，误删的原文件可在镜像里找回）
+// 幂等标记：app_settings.last_backup_run。备份与推送相互独立，VAPID 未配置也照常执行。
+const BACKUP_EXCLUDE = new Set(['sessions', 'app_settings', 'api_tokens', 'd1_migrations', '_cf_KV']);
+const BACKUP_KEEP_DAYS = 14;
+
+async function dailyBackup(env, today) {
+  if (!env.DB || !env.BUCKET) return;   // 未绑定 R2（旧版 worker 未重新部署）时静默跳过
+  let last = '';
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key='last_backup_run'").first();
+    last = row ? row.value : '';
+  } catch (_) {}
+  if (last === today) return;
+
+  // ---- D1 全量快照（与 /api/data/export 同口径：业务表 + 脱敏后的 app_settings）----
+  const tables = {};
+  try {
+    const rows = (await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results || [];
+    const names = rows.map((r) => r.name)
+      .filter((n) => n && !n.startsWith('sqlite_') && !n.startsWith('_cf_') && !BACKUP_EXCLUDE.has(n));
+    for (const n of names) {
+      try { tables[n] = (await env.DB.prepare(`SELECT * FROM "${n}"`).all()).results || []; } catch (_) { tables[n] = []; }
+    }
+  } catch (_) {}
+  const settings = {};
+  try {
+    const rows = (await env.DB.prepare('SELECT key, value FROM app_settings').all()).results || [];
+    rows.forEach((r) => {
+      if (r.key === 'admin_pass_hash') return;                 // 密码哈希不入备份
+      if (r.key === 'ai_models') {                             // 大模型 API Key 打码
+        try {
+          const models = JSON.parse(r.value);
+          if (Array.isArray(models)) r.value = JSON.stringify(models.map((m) => ({ ...m, apiKey: '' })));
+          else return;
+        } catch (_) { return; }
+      }
+      settings[r.key] = r.value;
+    });
+  } catch (_) {}
+
+  const key = `backup/d1/${today}.json`;
+  const payload = {
+    app: 'shuzishenghuo',
+    kind: 'auto-backup',
+    exportedAt: new Date().toISOString(),
+    note: '每日自动备份（push Worker cron 生成，存于 R2 backup/ 前缀）。管理员密码哈希与大模型 API Key 不入备份。',
+    settings,
+    tables,
+  };
+  await env.BUCKET.put(key, JSON.stringify(payload));
+
+  // ---- R2 附件镜像：backup/files/<原键> ----
+  try {
+    let cursor;
+    do {
+      const page = await env.BUCKET.list(cursor ? { cursor } : {});
+      for (const obj of page.objects || []) {
+        if (obj.key.startsWith('backup/')) continue;           // 不镜像备份自身
+        try { await env.BUCKET.copy(`backup/files/${obj.key}`, obj.key); } catch (_) {}
+      }
+      cursor = page.truncated ? page.cursor : '';
+    } while (cursor);
+  } catch (e) { console.error('r2 mirror', e && e.message); }
+
+  // ---- 快照保留最近 14 份（键名含日期，字典序即时间序）----
+  try {
+    const cutoff = new Date(Date.parse(today + 'T00:00:00Z') - (BACKUP_KEEP_DAYS - 1) * 86400000)
+      .toISOString().slice(0, 10);
+    const page = await env.BUCKET.list({ prefix: 'backup/d1/' });
+    for (const obj of page.objects || []) {
+      const d = (obj.key.match(/backup\/d1\/(\d{4}-\d{2}-\d{2})\.json$/) || [])[1];
+      if (d && d < cutoff) { try { await env.BUCKET.delete(obj.key); } catch (_) {} }
+    }
+  } catch (_) {}
+
+  await env.DB.prepare(
+    "INSERT INTO app_settings(key, value) VALUES ('last_backup_run', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+  ).bind(today).run();
+  console.log('daily backup ok:', key);
+}
 
 // ===== 日检任务：生日 / 药品库存与临期 =====
 async function dailyJobs(env, today, dowCN, pushes) {
