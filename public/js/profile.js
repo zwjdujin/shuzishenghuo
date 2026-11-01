@@ -477,8 +477,9 @@ function pfRenderJsonSection(key) {
   const panel = pfEl('pfPanel_' + key);
   if (!el || !panel) return;
   const d = (PF.data && PF.data.sections) || {};
-  el.innerHTML = pfSecBodyHtml(def, d[key] || {});
-  panel.hidden = !PF.editMode && !pfSecHasData(def, d[key]);
+  const payload = pfSecCleanCustom(key, d[key] || {});
+  el.innerHTML = pfSecBodyHtml(def, payload);
+  panel.hidden = !PF.editMode && !pfSecHasData(def, payload);
 }
 function pfRenderJsonSections() {
   PF_SECTIONS.filter((s) => s.kind === 'json').forEach((s) => pfRenderJsonSection(s.key));
@@ -503,7 +504,7 @@ async function pfOpenSectionEditor(key, opts = {}) {
   else {
     if (def.cards && !PF.filesData) await pfEnsureFiles();
     const src = ((PF.data && PF.data.sections) || {})[key] || {};
-    pfSecEdit.data = JSON.parse(JSON.stringify(src));
+    pfSecEdit.data = pfSecCleanCustom(key, JSON.parse(JSON.stringify(src)));
     (opts.appendRows || []).forEach((r) => {
       if (def.list || def.tl) {
         if (!pfSecEdit.data.list) pfSecEdit.data.list = [];
@@ -550,6 +551,7 @@ function pfSecBuildEditorBody(def, data) {
   if (def.r) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">键值行：左侧为资料名称（如 血型 / 过敏史），右侧为内容。</p>');
     const wrap = document.createElement('div');
+    wrap.className = 'sec-rwrap';
     const rows = (data.r && data.r.length) ? data.r : [['', '']];
     rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])], '', true)));
     wrap.appendChild(addBtn);
@@ -558,6 +560,7 @@ function pfSecBuildEditorBody(def, data) {
   } else if (def.list || def.tl) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">两列行：左侧为条目名称' + (def.tl ? '（时间）' : '') + '，右侧为说明。</p>');
     const wrap = document.createElement('div');
+    wrap.className = 'sec-rwrap';
     const rows = (data.list && data.list.length) ? data.list : [['', '']];
     rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])], '', true)));
     wrap.appendChild(addBtn);
@@ -566,6 +569,7 @@ function pfSecBuildEditorBody(def, data) {
   } else if (def.tb) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">四列表格：每行两组「名称 + 数值」，手机端会自动转为卡片展示。</p>');
     const wrap = document.createElement('div');
+    wrap.className = 'sec-rwrap';
     const rows = (data.tb && data.tb.length) ? data.tb : [['', '', '', '']];
     rows.forEach((row) => wrap.appendChild(pfSecRow([mk('', '名称', row[0]), mk('', '数值', row[1]), mk('', '名称', row[2]), mk('', '数值', row[3])], '', true)));
     wrap.appendChild(addBtn);
@@ -595,21 +599,22 @@ function pfCollectSectionData() {
   }
   if (def.r) {
     data.r = [];
-    body.querySelectorAll('.secrow').forEach((row) => {
+    // v0.5.41：必须圈定在自定义行容器内——居住与家庭等编辑器同屏还有家庭成员/宠物行，全量查询会把它们误收进自定义数据
+    body.querySelectorAll('.sec-rwrap .secrow').forEach((row) => {
       if (row.dataset.del) return;
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 2 && val(ins[0]) && val(ins[1])) data.r.push([val(ins[0]), val(ins[1])]);
     });
   } else if (def.list || def.tl) {
     data.list = [];
-    body.querySelectorAll('.secrow').forEach((row) => {
+    body.querySelectorAll('.sec-rwrap .secrow').forEach((row) => {
       if (row.dataset.del) return;
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 2 && val(ins[0])) data.list.push([val(ins[0]), val(ins[1])]);
     });
   } else if (def.tb) {
     data.tb = [['部位', '数值', '部位', '数值']];
-    body.querySelectorAll('.secrow').forEach((row) => {
+    body.querySelectorAll('.sec-rwrap .secrow').forEach((row) => {
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 4 && ins.slice(0, 4).some((x) => val(x))) {
         data.tb.push([0, 1, 2, 3].map((k) => val(ins[k])));
@@ -946,7 +951,7 @@ function pfEditHome() {
   petAddBtn.textContent = '＋ 添加宠物';
   petAddBtn.onclick = () => addPet({ species: '', name: '', memorialDate: '' });
   body.appendChild(petAddBtn);
-  const customWrap = pfSecBuildEditorBody(pfSecDef('home'), (PF.data?.sections || {}).home || {});
+  const customWrap = pfSecBuildEditorBody(pfSecDef('home'), pfSecCleanCustom('home', ((PF.data?.sections) || {}).home || {}));
   body.appendChild(customWrap);
   pfSecEdit.save = async () => {
     for (const r of (d.relatives || [])) await api('/api/profile/relatives?id=' + r.id, { method: 'DELETE' });
@@ -1319,10 +1324,44 @@ function pfRenderIdentity() {
   pfEl('pfBasic').innerHTML = pfSecVrows({ r: 1 }, rows) + pfSecCustomHtml('identity');
 }
 
+// v0.5.41：自定义段落历史脏数据自愈——旧版收集未圈定容器，居住与家庭的保存曾把家庭成员/宠物行
+// 误收进 sections.home.r、交通工具保存把车辆属性行误收进 sections.vehicle.r；渲染/编辑前过滤掉这些重复行
+function pfSecCleanCustom(key, data) {
+  const src = data || {};
+  const rowsOf = (x) => (Array.isArray(x) ? x : []);
+  if (key === 'home') {
+    const isDup = (k, v) => {
+      const kk = String(k || '').trim(), vv = String(v || '').trim();
+      if (!kk || !vv) return false;
+      if (rowsOf(PF.data && PF.data.relatives).some((r) => r.kin === kk && r.name === vv)) return true;
+      if (rowsOf(PF.data && PF.data.pets).some((p) => p.species === kk && p.name === vv)) return true;
+      return false;
+    };
+    return {
+      r: rowsOf(src.r).filter((row) => !isDup(row[0], row[1])),
+      list: rowsOf(src.list).filter((row) => !isDup(row[0], row[1])),
+    };
+  }
+  if (key === 'vehicle') {
+    const pairs = new Set();
+    rowsOf(src.cards).forEach((c) => rowsOf(c && c.rows).forEach((r) => {
+      if (String(r[0] || '').trim() && String(r[1] || '').trim()) pairs.add(String(r[0]).trim() + '\u0001' + String(r[1]).trim());
+    }));
+    return {
+      cards: rowsOf(src.cards),
+      r: rowsOf(src.r).filter((row) => !pairs.has(String(row[0] || '').trim() + '\u0001' + String(row[1] || '').trim())),
+    };
+  }
+  return src;
+}
+
 function pfRenderHome() {
   pfRenderRelatives();
   pfRenderPets();
-  pfEl('pfPets').insertAdjacentHTML('beforeend', pfSecCustomHtml('home'));
+  const def = pfSecDef('home');
+  const hc = pfSecCleanCustom('home', ((PF.data && PF.data.sections) || {}).home || {});
+  const h = pfSecVrows(def, hc.r) + pfSecList(def, hc.list);
+  if (h) pfEl('pfPets').insertAdjacentHTML('beforeend', '<div class="pf-sec-append">' + h + '</div>');
 }
 
 // ===== 联系方式 =====
