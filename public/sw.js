@@ -1,9 +1,9 @@
 // 数字生活 · Service Worker（由 scripts/release.mjs 自动生成，勿手改）
 // 策略：除 /api/ 外静态资源网络优先、离线回退缓存；install 时预缓存版本化资源。
 // 文件名固定为 sw.js（_headers 对其 no-cache）；内容变化 → 字节变化 → 浏览器自动更新。
-const CACHE = 'shuzishenghuo-f3eada90';
+const CACHE = 'shuzishenghuo-20d9e6ec';
 
-const PRECACHE = ['./', './index.html', './manifest.webmanifest', './assets/fc2617dc/css/style.css', './assets/c5cb3fe4/js/lunar.js', './assets/6318d6ae/js/profile.js', './assets/d5aa57e2/js/medicine.js', './assets/a0a2ceb8/js/app.js'];
+const PRECACHE = ['./', './index.html', './manifest.webmanifest', './assets/d8a966cf/css/style.css', './assets/c5cb3fe4/js/lunar.js', './assets/8ad91c5c/js/profile.js', './assets/d5aa57e2/js/medicine.js', './assets/11a646f9/js/app.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));

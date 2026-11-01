@@ -1748,11 +1748,7 @@ html[data-mode="night"] .boot-err{background:var(--t-night-paper,#12100e)}
 .sec-vrow:first-of-type{border-top:none}
 .sec-vrow .k{flex:0 0 118px;font-size:12px;color:var(--muted)}
 .sec-vrow .v{flex:1;min-width:0;font-size:13.5px;overflow-wrap:anywhere}
-.sec-list{list-style:none}
-.sec-list li{padding:8px 0;border-top:1px dashed var(--line);display:flex;justify-content:space-between;gap:14px}
-.sec-list li:first-child{border-top:none}
-.sec-list li b{font-size:13.5px}
-.sec-list li .n{color:var(--muted);font-size:12px;text-align:right;min-width:0}
+/* v0.5.40：原 .sec-list（左右两端对齐）已并入 .sec-vrow 键值行样式，规则移除 */
 .sec-tbwrap{overflow-x:auto;margin-top:8px}
 .sec-tbwrap table{width:100%;border-collapse:collapse;font-size:13px}
 .sec-tbwrap th,.sec-tbwrap td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left}

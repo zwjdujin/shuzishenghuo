@@ -399,15 +399,16 @@ function pfSecVrows(def, rows) {
   });
   return h;
 }
+// v0.5.40：列表行改为与键值行一致（.sec-vrow），左侧对齐，不再右对齐
 function pfSecList(def, list) {
-  let h = '<ul class="sec-list">';
+  let h = '';
   (list || []).forEach((it) => {
-    if (!String(it[0] || '').trim()) return;
-    const bHtml = def.link ? pfLinkify(it[0]) : pfEsc(it[0]);
-    const nHtml = def.link ? pfLinkify(it[1] || '') : pfEsc(it[1] || '');
-    h += '<li><b>' + bHtml + '</b><span class="n">' + nHtml + '</span></li>';
+    if (!String(it[0] || '').trim() && !String(it[1] || '').trim()) return;
+    const kHtml = def.link ? pfLinkify(it[0]) : pfEsc(it[0]);
+    const vHtml = def.link ? pfLinkify(it[1] || '') : pfEsc(it[1] || '');
+    h += '<div class="sec-vrow"><span class="k">' + kHtml + '</span><span class="v">' + vHtml + '</span></div>';
   });
-  return h + '</ul>';
+  return h;
 }
 function pfSecTb(tb) {
   if (!tb || !tb.length) return '';
@@ -441,7 +442,7 @@ function pfSecChips(tags) {
   (tags || []).forEach((t) => { if (String(t || '').trim()) h += '<span class="sec-chip">' + pfEsc(t) + '</span>'; });
   return h + '</div>';
 }
-function pfSecTl(tl) { return pfSecList(tl); }
+function pfSecTl(tl) { return pfSecList({ list: 1 }, tl); }
 function pfSecBodyHtml(def, d) {
   let h = '';
   if (def.cards) h += pfSecCards(d.cards);
@@ -550,25 +551,25 @@ function pfSecBuildEditorBody(def, data) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">键值行：左侧为资料名称（如 血型 / 过敏史），右侧为内容。</p>');
     const wrap = document.createElement('div');
     const rows = (data.r && data.r.length) ? data.r : [['', '']];
-    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])], true)));
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])], '', true)));
     wrap.appendChild(addBtn);
-    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', '名称'), mk('', '内容')]), addBtn);
+    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', '名称'), mk('', '内容')], '', true), addBtn);
     body.appendChild(wrap);
   } else if (def.list || def.tl) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">两列行：左侧为条目名称' + (def.tl ? '（时间）' : '') + '，右侧为说明。</p>');
     const wrap = document.createElement('div');
     const rows = (data.list && data.list.length) ? data.list : [['', '']];
-    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])], true)));
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])], '', true)));
     wrap.appendChild(addBtn);
-    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', def.tl ? '时间' : '条目'), mk('', '说明')]), addBtn);
+    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', def.tl ? '时间' : '条目'), mk('', '说明')], '', true), addBtn);
     body.appendChild(wrap);
   } else if (def.tb) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">四列表格：每行两组「名称 + 数值」，手机端会自动转为卡片展示。</p>');
     const wrap = document.createElement('div');
     const rows = (data.tb && data.tb.length) ? data.tb : [['', '', '', '']];
-    rows.forEach((row) => wrap.appendChild(pfSecRow([mk('', '名称', row[0]), mk('', '数值', row[1]), mk('', '名称', row[2]), mk('', '数值', row[3])])));
+    rows.forEach((row) => wrap.appendChild(pfSecRow([mk('', '名称', row[0]), mk('', '数值', row[1]), mk('', '名称', row[2]), mk('', '数值', row[3])], '', true)));
     wrap.appendChild(addBtn);
-    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')]), addBtn);
+    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')], '', true), addBtn);
     body.appendChild(wrap);
   }
   return body;
@@ -1343,12 +1344,15 @@ function pfRenderMethods() {
 }
 
 // ===== 家庭关系 =====
+// v0.5.40：家庭成员改为键值行样式（左称谓右姓名，靠左对齐）
 function pfRenderRelatives() {
   const d = PF.data;
-  pfEl('pfRelatives').innerHTML = pfSecList({ list: 1 }, (d.relatives || []).map((r) => [
-    r.refId ? '<a class="person" data-pf-link="' + r.refId + '">' + pfEsc(r.name) + '</a>' : pfEsc(r.name),
-    '是' + pfEsc(d.base.name) + '的' + pfEsc(r.kin),
-  ]));
+  let h = '';
+  (d.relatives || []).forEach((r) => {
+    const vHtml = r.refId ? '<a class="person" data-pf-link="' + r.refId + '">' + pfEsc(r.name) + '</a>' : pfEsc(r.name);
+    h += '<div class="sec-vrow"><span class="k">' + pfEsc(r.kin || '亲属') + '</span><span class="v">' + vHtml + '</span></div>';
+  });
+  pfEl('pfRelatives').innerHTML = h;
 }
 
 // ===== 公司/组织与职位 =====
@@ -1368,12 +1372,15 @@ function pfRenderEdu() {
 }
 
 // ===== 宠物 =====
+// v0.5.40：宠物同样改为键值行样式
 function pfRenderPets() {
   const list = PF.data.pets || [];
-  pfEl('pfPets').innerHTML = pfSecList({ list: 1 }, list.map((p) => [
-    '🐾 ' + pfEsc(p.species) + ' · ' + pfEsc(p.name),
-    p.memorialDate ? '纪念日 ' + pfEsc(p.memorialDate) : '',
-  ]));
+  let h = '';
+  list.forEach((p) => {
+    const v = pfEsc(p.name) + (p.memorialDate ? '（纪念日 ' + pfEsc(p.memorialDate) + '）' : '');
+    h += '<div class="sec-vrow"><span class="k">' + pfEsc(p.species || '宠物') + '</span><span class="v">' + v + '</span></div>';
+  });
+  pfEl('pfPets').innerHTML = h;
 }
 
 // ===== 财务往来（v0.5.0：账本流水按联系人自动关联） =====
