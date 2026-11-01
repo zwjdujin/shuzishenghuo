@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.5.37
-const VERSION = '0.5.37';
+// 数字生活 · 前端逻辑 v0.5.38
+const VERSION = '0.5.38';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '主题风格新增版式设置（圆角度数/上下间隔/左右间隔滑杆，写回设置同步全设备）；修复移动端 sections 竞态报错；原生选框（下拉）跟随日夜主题';
-const __BUILD_TIME__ = '2026-10-31';
+const __BUILD_ID__ = '人际关系：全部联系人顶部新增「示例档案」（内置示范卷宗，19 模块全展开，仅供查看）';
+const __BUILD_TIME__ = '2026-11-01';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -3588,6 +3588,7 @@ function routeFromHash() {
   }
   if (seg === 'relations' && /^\d+$/.test(arg)) {
     // 已在该档案上则不重复加载（pfOpenProfile 写 hash 会触发本函数）
+    if (arg === 'sample' && window.pfOpenSample) { window.pfOpenSample(); return; }
     if (window.pfOpenByHash) {
       switchView('relations', { fromHash: true });
       window.pfOpenByHash(Number(arg));

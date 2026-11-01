@@ -169,12 +169,13 @@ function pfRenderList() {
   if (!box) return;
   const cnt = pfEl('relCount');
   if (cnt) cnt.textContent = PF.list.length ? `共 ${PF.list.length} 人` : '';
+  const sampleRow = '<div class="sample-row" id="pfSampleRow" role="button" tabindex="0"><span class="sample-ico">📖</span><div class="sample-main"><b>示例档案 · 陈默</b><small>示范资料页 · 19 个模块全展开，点开看看能记什么</small></div><span class="sample-go">查看 →</span></div>';
   if (!PF.list.length) {
-    box.innerHTML = '<div class="empty-hint">没有符合条件的联系人，点右上角「添加联系人」开始</div>';
+    box.innerHTML = sampleRow + '<div class="empty-hint">还没有联系人。可以先看看下面的示例档案，或点右上角「添加联系人」开始</div>';
     return;
   }
   // v0.5.31：列表行样式与「记一笔 → 选择联系人」一致（头像 + 名字 + 字段小字行），A-Z 分组保留
-  box.innerHTML = pfGroupByLetter(PF.list).map((g) => `
+  box.innerHTML = sampleRow + pfGroupByLetter(PF.list).map((g) => `
     <div class="az-group">
       <div class="az-letter">${pfEsc(g.letter)}<span>${g.rows.length}</span></div>
       ${g.rows.map((p) => `
@@ -210,6 +211,8 @@ function pfListSubtitle(p) {
 async function pfOpenProfile(id) {
   PF.pid = Number(id);
   PF.view = 'profile';
+  PF.isSample = false;
+  document.body.classList.remove('pf-sample');
   // 深链：#/relations/{id}（hash 路由回环由 pfOpenByHash 去重）
   if (location.hash !== '#/relations/' + PF.pid) location.hash = '#/relations/' + PF.pid;
   pfEl('relListView').hidden = true;
@@ -236,6 +239,8 @@ async function pfOpenProfile(id) {
 }
 
 function pfBackToList() {
+  PF.isSample = false;
+  document.body.classList.remove('pf-sample');
   PF.view = 'list';
   PF.pid = null;
   PF.data = null;
@@ -484,6 +489,8 @@ async function pfOpenSectionEditor(key, opts = {}) {
   const def = pfSecDef(key);
   const pid = Number(opts.pid || PF.pid);
   if (!pid || def.kind === 'app') return;
+  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
+  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
   pfSecEdit = { key, pid, def, editor: def.editor || 'json' };
   pfSeHead(key, opts.pname);
   if (def.editor === 'identity') pfEditIdentity();
@@ -617,6 +624,62 @@ async function pfRefreshDetail() {
     PF.data = await res.json();
   } catch (_) { return; }
   pfRenderAll();
+}
+
+/* ===== v0.5.38 内置示例档案（纯前端示范，不占数据库） ===== */
+const PF_SAMPLE = {
+  base: {
+    name: '陈默', firstName: '陈默', formerName: '陈小满', englishName: 'NIGHTJAR',
+    gender: '男', marriage: '已婚',
+    birthdayType: 'full', birthdayCalendar: 'solar', birthYear: 1991, birthMonth: 8, birthDay: 12,
+    birthText: '1991-08-12', lunarText: '辛未年八月十二', age: 35, nextBirthday: null,
+    birthdayRemind: false, isDeceased: false, referrer: null,
+    tags: ['示例'], groups: ['示范档案'], note: '这是一份内置示例档案，展示资料页的全部模块与记录方式。',
+  },
+  methods: {
+    phones: [{ value: '138****0000', label: '个人' }],
+    emails: [{ value: 'nightjar@example.com', label: '个人' }],
+    qq: [], wechat: [{ value: 'nightjar_0812', label: '个人' }], addresses: [],
+  },
+  work: { company: '某科技有限公司', position: '信息安全负责人' },
+  edus: [{ school: '××研究所', major: '信息安全', degree: '硕士', start: '2014', end: '2017', story: '方向：入侵检测与日志审计' }],
+  relatives: [{ kin: '父亲', name: '陈某（退休教师）' }, { kin: '配偶', name: '李某（教师）' }],
+  pets: [{ species: '中华田园犬', name: '豆豆', memorialDate: '' }],
+  meta: { marriages: ['已婚'] },
+  sections: {
+    identity: { r: [['生肖 / 星座', '羊 / 狮子座'], ['血型', 'A 型 RH+'], ['国籍 / 民族', '中国 / 汉族'], ['外貌特征', '左耳后小痣；右手食指旧疤'], ['性格类型', 'INTJ / 九型 5w4'], ['行为评估', '内敛、系统化思维、长期主义，偏好书面沟通与流程化协作']] },
+    body: { r: [['身高', '178 cm'], ['体重', '72.4 kg（季度波动 ±2 kg）'], ['BMI', '22.9（自动计算）'], ['体型', '偏瘦 / 肩宽 / 腰腹平坦'], ['测量日期', '2026-10-28 / 晨起空腹']] },
+    methods: { r: [['备用手机', '139****0000（工作）'], ['备用邮箱', 'cm.work@example.com'], ['通讯地址', '浙江省丽水市缙云县 ××× 街道 ××× 号'], ['PGP 指纹', '4F7A 9C21 88D0 7E3B']] },
+    clearance: { r: [['行业', '制造业 / 信息技术'], ['部门', 'IT 与安全部'], ['办公地点', '缙云总部 · 3F 机房区'], ['工作模式', '驻场为主 / 每周 1 天远程']], tags: ['服务器运维', '云资源管理', '容器编排', '数据防泄漏 DLP'] },
+    vehicle: { cards: [{ name: '大众 速腾 1.4T 舒适型', rows: [['号牌', '浙K×××××'], ['车身颜色 / 燃油', '极地白 / 95 号'], ['购置日期', '2021-05-20'], ['保险有效期', '至 2027-05-19']] }, { name: '捷安特 ATX 660', rows: [['类型', '山地车（通勤与周末骑行）'], ['购置', '2019-03']] }], r: [['驾驶执照', 'C1 / 初领 2010-11-05 / 有效至 2026-11-04']] },
+    interest: { list: [['中医古籍阅读', '每日 30—60 分钟｜《黄帝内经》精读并做批注'], ['技术书籍', '每月 1—2 本｜安全架构、分布式系统'], ['写作与建站', '每周 2 篇｜科普专栏与自建站点维护'], ['书法（楷书）', '每周 3 次｜临《九成宫》'], ['徒步登山', '每月 1 次｜仙都、括苍山 10—15 km'], ['烹饪', '每周 4 次｜江浙家常菜']] },
+    network: { r: [['主域名', '110011.best'], ['站点', '中医古籍阅读站；个人数字生活系统'], ['基础设施', 'Cloudflare DNS+CDN / 对象存储异地备份'], ['备份策略', '每日增量+每周全量，3-2-1 策略']] },
+    lifecycle: { r: [['睡眠', '23:30—07:00，平均 7.2 小时'], ['运动', '力量训练 3 次/周 + 有氧 1 次/周，日均 7,800 步'], ['订阅服务', 'iCloud 200G、JetBrains、云主机'], ['智能家居', '智能门锁、温湿度传感器、扫地机器人']] },
+    food: { r: [['口味', '清淡偏咸鲜，少辣，喜醋'], ['忌口', '不吃动物内脏、香菜少量'], ['咖啡因', '上午美式 1 杯，14:00 后不饮'], ['常喝饮品', '绿茶、气泡水、无糖豆浆']] },
+    health: { r: [['血型', 'A 型 RH+'], ['慢性病', '无'], ['长期用药', '维生素 D 每日 1 次；季节性鼻炎按需'], ['手术史', '2018 年阑尾切除术'], ['疫苗接种', '乙肝、流感（年度）、新冠全程'], ['医嘱备注', '长期伏案，每小时起身活动；避免熬夜与高盐']] },
+    home: { r: [['居住形态', '自有住房（婚房）'], ['建筑面积 / 户型', '118 m² / 三室两厅两卫'], ['楼层 / 朝向', '12 / 18 层 · 南北通透'], ['家财险', '至 2027-02']], list: [['母亲 王某', '1968-11｜随子女居住，健康良好'], ['子女 陈屿', '2021-09｜幼儿园在读'], ['挚友 周某', '1992-01｜技术同行，季度聚会']] },
+    finview: { r: [['收入结构', '薪资为主 + 少量项目与稿酬'], ['资产分布', '理财 60% / 现金 25% / 数字资产 15%'], ['负债', '房贷（月供 ¥4,300）'], ['储蓄目标', '储蓄率约 42%，年度目标 ¥120,000']] },
+    docs: { r: [['居民身份证', '3301**********1234｜有效至 2030-08-11'], ['护照', 'E1234****｜有效至 2030-04-18'], ['驾驶证', 'C1｜有效至 2026-11-04（需换证）'], ['银行卡', '招商 6214****8899｜工商 6222****3311'], ['存放位置', '书房保险箱 A（证件）/ 文件柜第 2 格（房产）']] },
+    background: { r: [['兵役状况', '未服兵役（免役）'], ['宗教信仰', '无'], ['方言', '缙云话（母语级）、吴语通行'], ['普通话', '标准，一级乙等水平'], ['教学能力', '内部培训讲师，年均 6 场']] },
+    emergency: { r: [['医疗决策代理人', '李某（配偶）｜授权书 2025-06 签署'], ['保险受益人', '法定（配偶与子女）'], ['遗嘱状态', '已立草稿，2027 年复核'], ['数字遗产', '密码管理器主密钥交由配偶保管（信封封存）'], ['重要提醒', '出差携带：身份证、少量现金、常用药、充电宝']] },
+    devices: { tb: [['设备 / 平台', '配置或账号', '指纹或序列号', '状态'], ['HP Z1 G1i 工作站', 'Ultra 7 / 64G / RTX 2000 Ada', 'SN-77D0-4E9A', '在线'], ['ThinkPad X1 Carbon', 'i7 / 32G / 1T SSD', 'SN-1BC8-0F72', '在线'], ['iPhone 15', '256G', 'IMEI 3567…', '在线'], ['GitHub', 'nightjar', 'sha256:9a3f…c21b', '2FA 已启用']] },
+    travel: { r: [['护照有效期', '至 2030-04-18'], ['签证', '日本单次（已用）；新加坡电子签至 2027-01'], ['出行偏好', '高铁出行、山地与古镇、淡季错峰']], list: [['完成中医古籍站点 v1.0', '进度 70%｜截止 2027-03'], ['体重降至 70 kg 并保持', '进度 40%｜截止 2027-02'], ['CISSP 续证与云安全进阶', '进度 80%｜截止 2026-12']] },
+    timeline: { tl: [['1991-08', '出生于浙江丽水'], ['2014-06', '本科毕业，进入信息安全领域'], ['2019-04', '入职现公司，负责终端与网络安全'], ['2022-08', '入住新居，家庭结构变化'], ['2025-11', '启动个人数字生活系统'], ['2026-10', '本档案系统建档并归档']] },
+  },
+};
+
+/** 打开内置示例档案（纯前端渲染，不占数据库） */
+function pfOpenSample() {
+  PF.isSample = true;
+  PF.pid = null;
+  PF.view = 'profile';
+  if (location.hash !== '#/relations/sample') location.hash = '#/relations/sample';
+  pfEl('relListView').hidden = true;
+  pfEl('relProfileView').hidden = false;
+  PF.data = JSON.parse(JSON.stringify(PF_SAMPLE));
+  document.body.classList.add('pf-sample');
+  pfRenderAll();
+  window.scrollTo({ top: 0 });
 }
 
 /* ===== v0.5.35 各段侧滑编辑器（保存写回原数据表） ===== */
@@ -949,6 +1012,8 @@ async function pfEnsureFiles() {
 }
 async function pfSaveSection() {
   if (!pfSecEdit) return;
+  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
+  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
   const btn = pfEl('secEditSave');
   if (btn) btn.disabled = true;
   try {
@@ -1145,6 +1210,12 @@ function pfFileSize(n) {
 async function pfRenderFiles() {
   const box = pfEl('pfFiles');
   const hint = pfEl('pfFilesHint');
+  if (PF.isSample) {
+    box.innerHTML = '<div class="empty-hint">示例：附件（照片 / 视频 / 文档）存放在你自己的对象存储 rjgx/姓名+手机号/ 目录，可在真实联系人档案中上传。</div>';
+    if (pfEl('pfPanel_files')) pfEl('pfPanel_files').hidden = false;
+    if (hint) hint.textContent = '';
+    return;
+  }
   if (!box || !PF.pid) return;
   let data = { files: [] };
   try {
@@ -1288,6 +1359,14 @@ function pfRenderPets() {
 async function pfRenderFinance() {
   const el = pfEl('pfFinance');
   if (!el) return;
+  if (PF.isSample) {
+    el.innerHTML = '<ul class="dlist">' +
+      [['团队聚餐', '10/30 · 餐饮 · 微信', '-¥268.00'], ['代收设备款', '09-12 · 其他 · 支付宝', '+¥1,200.00'], ['生日礼物', '06-18 · 人情 · 微信', '-¥520.00']].map((f) =>
+        '<li><b>' + pfEsc(f[0]) + '</b><span class="n">' + pfEsc(f[1]) + '</span></li>').join('') + '</ul>' +
+      '<p class="ts-hint">示例内容：真实使用时，在「记一笔」时选择该联系人，账目会自动关联到这里。</p>';
+    if (pfEl('pfFinSum')) pfEl('pfFinSum').textContent = '';
+    return;
+  }
   el.innerHTML = '<div class="empty-hint">加载中…</div>';
   pfEl('pfFinSum').textContent = '';
   try {
@@ -1704,6 +1783,7 @@ function pfBindEvents() {
   }
   const listBox = pfEl('relList');
   if (listBox) listBox.addEventListener('click', (e) => {
+    if (e.target.closest('#pfSampleRow')) { pfOpenSample(); return; }
     const row = e.target.closest('[data-pf-id]');
     if (row) pfOpenProfile(Number(row.dataset.pfId));
   });
