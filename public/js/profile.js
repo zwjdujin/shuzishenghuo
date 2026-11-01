@@ -518,10 +518,10 @@ async function pfOpenSectionEditor(key, opts = {}) {
   }
   openModal(pfEl('secEditor'), { onEsc: () => pfCloseSectionEditor() });
 }
-function pfSecRow(inputs, extraHtml) {
+function pfSecRow(inputs, extraHtml, del) {
   const div = document.createElement('div');
   div.className = 'secrow';
-  div.innerHTML = inputs.map((inp) => inp).join('') + (extraHtml || '');
+  div.innerHTML = inputs.map((inp) => inp).join('') + (extraHtml || '') + (del ? '<button type="button" class="sec-row-del" title="删除此行">✕</button>' : '');
   return div;
 }
 function pfSecBuildEditorBody(def, data) {
@@ -550,7 +550,7 @@ function pfSecBuildEditorBody(def, data) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">键值行：左侧为资料名称（如 血型 / 过敏史），右侧为内容。</p>');
     const wrap = document.createElement('div');
     const rows = (data.r && data.r.length) ? data.r : [['', '']];
-    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])])));
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])], true)));
     wrap.appendChild(addBtn);
     addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', '名称'), mk('', '内容')]), addBtn);
     body.appendChild(wrap);
@@ -558,7 +558,7 @@ function pfSecBuildEditorBody(def, data) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">两列行：左侧为条目名称' + (def.tl ? '（时间）' : '') + '，右侧为说明。</p>');
     const wrap = document.createElement('div');
     const rows = (data.list && data.list.length) ? data.list : [['', '']];
-    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])])));
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])], true)));
     wrap.appendChild(addBtn);
     addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', def.tl ? '时间' : '条目'), mk('', '说明')]), addBtn);
     body.appendChild(wrap);
@@ -595,12 +595,14 @@ function pfCollectSectionData() {
   if (def.r) {
     data.r = [];
     body.querySelectorAll('.secrow').forEach((row) => {
+      if (row.dataset.del) return;
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 2 && val(ins[0]) && val(ins[1])) data.r.push([val(ins[0]), val(ins[1])]);
     });
   } else if (def.list || def.tl) {
     data.list = [];
     body.querySelectorAll('.secrow').forEach((row) => {
+      if (row.dataset.del) return;
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 2 && val(ins[0])) data.list.push([val(ins[0]), val(ins[1])]);
     });
@@ -921,16 +923,28 @@ function pfEditHome() {
   body.innerHTML = '<p class="sec-hint">家庭成员：称谓 + 姓名（姓名命中联系人会自动建立跳转）；宠物：种类 + 名字 + 纪念日。保存时按此表整体重建。</p>';
   body.insertAdjacentHTML('beforeend', '<div class="sec-grp">家庭成员</div>');
   const relEl = document.createElement('div');
-  const addRel = (kin, name) => relEl.appendChild(pfSeRow(pfSeInput('称谓', kin, 'sk') + pfSeInput('姓名', name)));
+  const addRel = (kin, name) => relEl.appendChild(pfSecRow([pfSeInput('称谓', kin, 'sk'), pfSeInput('姓名', name)], '', true));
   (d.relatives || []).forEach((r) => addRel(r.kin, r.name));
   if (!(d.relatives || []).length) addRel('', '');
   body.appendChild(relEl);
+  const relAddBtn = document.createElement('button');
+  relAddBtn.className = 'sec-add';
+  relAddBtn.type = 'button';
+  relAddBtn.textContent = '＋ 添加家庭成员';
+  relAddBtn.onclick = () => addRel('', '');
+  body.appendChild(relAddBtn);
   body.insertAdjacentHTML('beforeend', '<div class="sec-grp">宠物</div>');
   const petEl = document.createElement('div');
-  const addPet = (p) => petEl.appendChild(pfSeRow(pfSeInput('种类', p.species, 'sk') + pfSeInput('名字', p.name) + pfSeInput('纪念日', p.memorialDate)));
+  const addPet = (p) => petEl.appendChild(pfSecRow([pfSeInput('种类', p.species, 'sk'), pfSeInput('名字', p.name), pfSeInput('纪念日', p.memorialDate)], '', true));
   (d.pets || []).forEach(addPet);
   if (!(d.pets || []).length) addPet({ species: '', name: '', memorialDate: '' });
   body.appendChild(petEl);
+  const petAddBtn = document.createElement('button');
+  petAddBtn.className = 'sec-add';
+  petAddBtn.type = 'button';
+  petAddBtn.textContent = '＋ 添加宠物';
+  petAddBtn.onclick = () => addPet({ species: '', name: '', memorialDate: '' });
+  body.appendChild(petAddBtn);
   const customWrap = pfSecBuildEditorBody(pfSecDef('home'), (PF.data?.sections || {}).home || {});
   body.appendChild(customWrap);
   pfSecEdit.save = async () => {
@@ -1156,6 +1170,13 @@ function pfWeightSvg(recs) {
 
 async function pfRenderBody() {
   const box = pfEl('pfBody');
+  if (PF.isSample) {
+    const bd = (PF.data.sections || {}).body || {};
+    box.innerHTML = pfSecVrows({ r: 1 }, bd.r || []);
+    if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;
+    pfApplyOrder(); pfRenderIndex();
+    return;
+  }
   if (!box || !PF.pid) return;
   let data = { records: [], sizes: {} };
   try {
@@ -1701,6 +1722,10 @@ function pfBindEvents() {
     pfEl('secEditCancel').addEventListener('click', pfCloseSectionEditor);
     pfEl('secEditSave').addEventListener('click', pfSaveSection);
     secOverlay.addEventListener('click', (e) => { if (e.target === secOverlay) pfCloseSectionEditor(); });
+    secOverlay.addEventListener('click', (e) => {
+      const del = e.target.closest('.sec-row-del');
+      if (del) { const row = del.closest('.secrow'); if (row) row.remove(); }
+    });
   }
   document.addEventListener('click', (e) => {
     const ed = e.target.closest('[data-sec-edit]');

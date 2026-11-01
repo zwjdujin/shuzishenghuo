@@ -1813,3 +1813,9 @@ body.pf-sample #pfEditBtn,body.pf-sample #pfDelete{display:none!important}
 .sample-main b{display:block;font-size:13.5px}
 .sample-main small{display:block;font-size:11px;color:var(--muted)}
 .sample-go{font-size:11.5px;color:var(--plum);font-weight:600;white-space:nowrap}
+
+/* --- v0.5.39 编辑器行删除按钮 + 家庭成员/宠物添加按钮 --- */
+.sec-row-del{flex:0 0 auto;width:26px;height:26px;border:1px solid var(--red);border-radius:8px;background:none;color:var(--red);font-size:12px;cursor:pointer;display:grid;place-items:center;padding:0}
+.sec-row-del:hover{background:var(--red);color:#fff}
+.sec-cardops{display:flex;gap:8px;margin-top:6px}
+.sec-del{font-size:11.5px;color:var(--red);background:none;border:1px solid var(--red);border-radius:8px;padding:4px 10px;cursor:pointer;font-family:var(--font-ui)}
