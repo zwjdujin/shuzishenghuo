@@ -1800,7 +1800,8 @@ body.edit .sec-edit{display:inline-block}
 .sec-edit:hover{background:var(--plum);color:#fff}
 
 /* --- v0.5.38 示例档案（仅供查看） --- */
-body.pf-sample .sec-edit{display:none!important}
+/* v0.5.43：示例档案段落可试编辑——常显各段「编辑本段」按钮（示例无编辑模式开关）；仅隐藏整档删除与「编辑基本信息」弹窗入口 */
+body.pf-sample .sec-edit{display:inline-block!important}
 body.pf-sample #pfEditBtn,body.pf-sample #pfDelete{display:none!important}
 .sample-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px dashed var(--plum);border-radius:14px;background:var(--plum-soft);cursor:pointer;margin-bottom:16px}
 .sample-row:hover{border-style:solid}

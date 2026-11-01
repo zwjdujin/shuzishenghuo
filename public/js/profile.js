@@ -169,7 +169,7 @@ function pfRenderList() {
   if (!box) return;
   const cnt = pfEl('relCount');
   if (cnt) cnt.textContent = PF.list.length ? `共 ${PF.list.length} 人` : '';
-  const sampleRow = '<div class="sample-row" id="pfSampleRow" role="button" tabindex="0"><span class="sample-ico">📖</span><div class="sample-main"><b>示例档案 · 陈默</b><small>示范资料页 · 19 个模块全展开，点开看看能记什么</small></div><span class="sample-go">查看 →</span></div>';
+  const sampleRow = '<div class="sample-row" id="pfSampleRow" role="button" tabindex="0"><span class="sample-ico">📖</span><div class="sample-main"><b>示例档案 · 陈默</b><small>示范资料页 · 19 个模块全展开，可试编辑（仅本页生效，刷新还原）</small></div><span class="sample-go">查看 →</span></div>';
   if (!PF.list.length) {
     box.innerHTML = sampleRow + '<div class="empty-hint">还没有联系人。可以先看看下面的示例档案，或点右上角「添加联系人」开始</div>';
     return;
@@ -490,9 +490,7 @@ let pfSecEdit = null;   // {key, pid, data, isStruct}
 async function pfOpenSectionEditor(key, opts = {}) {
   const def = pfSecDef(key);
   const pid = Number(opts.pid || PF.pid);
-  if (!pid || def.kind === 'app') return;
-  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
-  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
+  if ((!pid && !PF.isSample) || def.kind === 'app') return;
   pfSecEdit = { key, pid, def, editor: def.editor || 'json' };
   pfSeHead(key, opts.pname);
   if (def.editor === 'identity') pfEditIdentity();
@@ -583,6 +581,20 @@ function pfSecBuildEditorBody(def, data) {
     addRowBtn(wrap, () => pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')], '', true));
     body.appendChild(wrap);
   }
+  if (def.bars) {
+    body.insertAdjacentHTML('beforeend', '<p class="sec-hint">能力条：每行「名称 + 百分比」（0—100 的整数，如 88）。</p>');
+    const wrap = document.createElement('div');
+    wrap.className = 'sec-rwrap';
+    wrap.dataset.kind = 'bars';
+    const rows = (data.bars && data.bars.length) ? data.bars : [['', '']];
+    rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '百分比', r[1])], '', true)));
+    addRowBtn(wrap, () => pfSecRow([mk('sk', '名称'), mk('', '百分比')], '', true));
+    body.appendChild(wrap);
+  }
+  if (def.chips) {
+    body.insertAdjacentHTML('beforeend', '<p class="sec-hint">标签组：用逗号分隔多个标签，留空则不显示。</p>');
+    body.insertAdjacentHTML('beforeend', '<div class="sec-rwrap" data-kind="tags"><div class="secrow"><input type="text" data-tags-inp placeholder="标签（用逗号分隔，如：服务器运维, 容器编排）" value="' + pfEsc((data.tags || []).join(', ')) + '"></div></div>');
+  }
   return body;
 }
 function pfCollectSectionData() {
@@ -626,16 +638,42 @@ function pfCollectSectionData() {
     data.tb = [['部位', '数值', '部位', '数值']];
     body.querySelectorAll('.sec-rwrap[data-kind="tb"] .secrow').forEach((row) => {
       const ins = row.querySelectorAll('input[type=text]');
-      if (ins.length >= 4 && ins.slice(0, 4).some((x) => val(x))) {
+      if (ins.length >= 4 && [0, 1, 2, 3].some((k) => val(ins[k]))) {
         data.tb.push([0, 1, 2, 3].map((k) => val(ins[k])));
       }
     });
     if (data.tb.length === 1) delete data.tb;
   }
+  if (def.bars) {
+    data.bars = [];
+    body.querySelectorAll('.sec-rwrap[data-kind="bars"] .secrow').forEach((row) => {
+      if (row.dataset.del) return;
+      const ins = row.querySelectorAll('input[type=text]');
+      const pct = parseInt(val(ins[1]), 10);
+      if (val(ins[0]) && !isNaN(pct)) data.bars.push([val(ins[0]), Math.max(0, Math.min(100, pct))]);
+    });
+    if (!data.bars.length) delete data.bars;
+  }
+  if (def.chips) {
+    const inp = body.querySelector('[data-tags-inp]');
+    const tags = inp ? inp.value.split(/[,，、]/).map((s) => s.trim()).filter(Boolean) : [];
+    if (tags.length) data.tags = tags;
+  }
   return data;
 }
 
+/** 示例档案：段落写回内存示例并整体重渲染（不落库，刷新后还原） */
+function pfSampleSaveSection(key, custom) {
+  if (!PF.data.sections) PF.data.sections = {};
+  PF.data.sections[key] = custom || {};
+  toast('示例已更新（仅本页生效，刷新后还原）');
+  pfRenderAll();
+  pfApplyOrder(); pfRenderIndex();
+  return true;
+}
+
 async function pfRefreshDetail() {
+  if (PF.isSample) { pfRenderAll(); pfApplyOrder(); pfRenderIndex(); return; }
   if (!PF.pid) return;
   try {
     const res = await api('/api/profile/detail?id=' + PF.pid);
@@ -652,7 +690,7 @@ const PF_SAMPLE = {
     birthdayType: 'full', birthdayCalendar: 'solar', birthYear: 1991, birthMonth: 8, birthDay: 12,
     birthText: '1991-08-12', lunarText: '辛未年八月十二', age: 35, nextBirthday: null,
     birthdayRemind: false, isDeceased: false, referrer: null,
-    tags: ['示例', 'INTJ', 'A 型 RH+', '178 cm / 72 kg', '上衣 L · 裤 32'], groups: ['示范档案'], note: '这是一份内置示例档案，展示资料页的全部模块与记录方式。',
+    tags: ['示例', 'INTJ', 'A 型 RH+', '178 cm / 72 kg', '上衣 L · 裤 32'], groups: ['示范档案'], note: '这是一份内置示例档案，可试编辑各模块（修改仅保存在本页，刷新后还原）。',
   },
   methods: {
     phones: [{ value: '138****0000', label: '个人' }],
@@ -710,7 +748,7 @@ function pfOpenSample() {
 function pfSeHead(key, pname) {
   pfEl('secEditTitle').textContent = '编辑 - ' + pfSecDef(key).t;
   pfEl('secEditSub').textContent = (pname || ((PF.data && PF.data.base && PF.data.base.name) || '')) + ' · 档案段落';
-  pfEl('secEditHint').textContent = '一次只编辑一段，保存后仅本段刷新；留空的行自动忽略。';
+  pfEl('secEditHint').textContent = '一次只编辑一段，保存后仅本段刷新；留空的行自动忽略。' + (PF.isSample ? ' 示例修改仅保存在本页，刷新后还原。' : '');
 }
 function pfSeRow(html) { const d = document.createElement('div'); d.className = 'secrow'; d.innerHTML = html; return d; }
 function pfSeInput(label, val, cls) { return '<input type="text" class="' + (cls || '') + '" placeholder="' + pfEsc(label) + '" value="' + pfEsc(val || '') + '">'; }
@@ -734,7 +772,10 @@ function pfEditIdentity() {
   body.appendChild(pfSeRow('<input type="text" class="sk" data-f="marriage" placeholder="婚姻状况" value="' + pfEsc(b.marriage || '') + '">'));
   body.appendChild(pfSeRow('<input type="text" data-f="note" placeholder="备注" value="' + pfEsc(b.note || '') + '">'));
   const more = pfSeRow('<button type="button" class="btn ghost" data-se="full" style="flex:1">完整资料（生日提醒 / 标签 / 群组 / 引荐人 / 已逝）</button>');
-  body.appendChild(more);
+  if (!PF.isSample) body.appendChild(more);
+  // v0.5.43：身份标识补上附加键值行（生肖/血型/籍贯/证件号码等自定义资料），与示例页内容对齐
+  const customWrap = pfSecBuildEditorBody(pfSecDef('identity'), (PF.data?.sections || {}).identity || {});
+  body.appendChild(customWrap);
   const bdBtn = bd.querySelector('[data-se=bday]');
   const lunarChk = bd.querySelector('[data-se=lunar]');
   let bdayLunar = b.birthdayCalendar === 'lunar';
@@ -768,8 +809,33 @@ function pfEditIdentity() {
       payload.birthdayType = ''; payload.birthdayCalendar = 'solar';
       payload.birthYear = null; payload.birthMonth = null; payload.birthDay = null;
     }
+    const custom2 = pfCollectSectionData();
+    if (PF.isSample) {
+      const b = PF.data.base;
+      b.firstName = payload.firstName; b.nickname = payload.nickname; b.formerName = payload.formerName;
+      b.englishName = payload.englishName; b.alias = payload.alias;
+      b.gender = payload.gender; b.marriage = payload.marriage; b.note = payload.note;
+      if (bdayDate) {
+        const p = bdayDate.split('-').map(Number);
+        b.birthdayType = 'full'; b.birthdayCalendar = 'solar';
+        b.birthYear = p[0]; b.birthMonth = p[1]; b.birthDay = p[2];
+        b.birthText = bdayDate; b.lunarText = '';
+        b.age = new Date().getFullYear() - p[0];
+      } else {
+        b.birthdayType = ''; b.birthdayCalendar = 'solar';
+        b.birthYear = null; b.birthMonth = null; b.birthDay = null;
+        b.birthText = ''; b.lunarText = ''; b.age = null;
+      }
+      b.name = payload.firstName || payload.nickname || payload.formerName || payload.englishName || payload.alias || b.name;
+      return pfSampleSaveSection('identity', custom2);
+    }
     const res = await api('/api/profile/detail', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) { const d2 = await res.json().catch(() => ({})); toast(d2.error || '保存失败'); return false; }
+    const rSec = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: PF.pid, key: 'identity', data: custom2 }) });
+    if (!rSec.ok) { toast('附加资料保存失败'); return false; }
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections.identity = custom2;
     toast('身份标识已保存'); markSynced();
     await pfRefreshDetail();
     return true;
@@ -778,9 +844,19 @@ function pfEditIdentity() {
 
 function pfEditBody() {
   const bd = PF.bodyData || { heights: [], weights: [], sizes: {} };
-  const latestH = bd.heights.length ? bd.heights[0].value : '';
-  const latestW = bd.weights.length ? bd.weights[bd.weights.length - 1].value : '';
-  const sz = bd.sizes || {};
+  let latestH = bd.heights.length ? bd.heights[0].value : '';
+  let latestW = bd.weights.length ? bd.weights[bd.weights.length - 1].value : '';
+  let sz = bd.sizes || {};
+  // v0.5.43：示例档案从 sections.body 行反推当前值（身高/体重/尺码），编辑后可回显
+  if (PF.isSample) {
+    const srows = (((PF.data.sections || {}).body || {}).r) || [];
+    const num = (name) => { const row = srows.find(([k]) => k === name); return row ? String(row[1]).replace(/[^\d.]/g, '') : ''; };
+    const lrows = (((PF.data.sections || {}).body || {}).list) || [];
+    const lv = (name) => { const row = lrows.find(([k]) => k === name); return row ? row[1] : ''; };
+    latestH = num('身高');
+    latestW = num('体重');
+    sz = { clothing: lv('衣裤尺码'), shoe: lv('鞋子尺码'), ring: lv('戒指尺码'), bracelet: lv('手镯尺码') };
+  }
   const body = pfEl('secEditBody');
   body.innerHTML = '<p class="sec-hint">身高/体重保存后按今天新增一条测量记录（同日覆盖），BMI 自动重算；尺码随档保存。</p>';
   body.appendChild(pfSeRow(pfSeInput('身高（cm）', latestH)));
@@ -789,10 +865,28 @@ function pfEditBody() {
   body.appendChild(pfSeRow(pfSeInput('鞋子尺码', sz.shoe, 'sk')));
   body.appendChild(pfSeRow(pfSeInput('戒指尺码', sz.ring, 'sk')));
   body.appendChild(pfSeRow(pfSeInput('手镯尺码', sz.bracelet, 'sk')));
+  // v0.5.43：补上附加键值行 / 四列表格 / 尺码清单编辑组
+  const customWrap = pfSecBuildEditorBody(pfSecDef('body'), (PF.data?.sections || {}).body || {});
+  body.appendChild(customWrap);
   pfSecEdit.save = async () => {
     const get = (i) => { const el = pfEl('secEditBody').querySelectorAll('.secrow input[type=text]')[i]; return el ? el.value.trim() : ''; };
     const hV = get(0), wV = get(1);
     const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    if (PF.isSample) {
+      // 示例：把身高/体重/尺码映射进 sections.body 的行，整体写回内存
+      const bdSave = pfCollectSectionData();
+      bdSave.r = (bdSave.r || []).filter(([k]) => !['身高', '体重', 'BMI', '测量日期'].includes(k));
+      const hn = parseFloat(hV), wn = parseFloat(wV);
+      const head = [];
+      if (hn > 0) head.push(['身高', hV + ' cm']);
+      if (wn > 0) head.push(['体重', wV + ' kg']);
+      if (hn > 0 && wn > 0) head.push(['BMI', (wn / Math.pow(hn / 100, 2)).toFixed(1) + '（自动计算）']);
+      if (head.length) head.push(['测量日期', today + ' / 晨起空腹']);
+      bdSave.r = head.concat(bdSave.r);
+      bdSave.list = (bdSave.list || []).filter(([k]) => !['衣裤尺码', '鞋子尺码', '戒指尺码', '手镯尺码'].includes(k));
+      [['衣裤尺码', get(2)], ['鞋子尺码', get(3)], ['戒指尺码', get(4)], ['手镯尺码', get(5)]].forEach(([k, v]) => { if (v) bdSave.list.push([k, v]); });
+      return pfSampleSaveSection('body', bdSave);
+    }
     if (hV && Number(hV) > 0 && String(latestH) !== hV) {
       const r1 = await api('/api/profile/body', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ person_id: PF.pid, kind: 'height', value: Number(hV), date: today }) });
@@ -807,18 +901,11 @@ function pfEditBody() {
     const r3 = await api('/api/profile/body', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: PF.pid, sizes }) });
     if (!r3.ok) { toast('尺码保存失败'); return false; }
-    // 附加键值行（contact_sections.body）
-    const custom = {};
-    const rows = [];
-    pfEl('secEditBody').querySelectorAll('.sec-card, .sec-add').forEach(() => {});
-    pfEl('secEditBody').querySelectorAll('.secrow').forEach((row, idx) => {
-      if (idx < 6) return;   // 前 6 行是身高/体重/尺码
-      const ins = row.querySelectorAll('input[type=text]');
-      if (ins.length >= 2 && ins[0].value.trim() && ins[1].value.trim()) rows.push([ins[0].value.trim(), ins[1].value.trim()]);
-    });
-    if (rows.length) custom.r = rows;
-    await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    // 附加键值行 / 表格 / 清单（contact_sections.body）
+    const custom = pfCollectSectionData();
+    const rSec = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: PF.pid, key: 'body', data: custom }) });
+    if (!rSec.ok) { toast('附加资料保存失败'); return false; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections.body = custom;
     toast('体测与尺码已保存'); markSynced();
@@ -843,6 +930,9 @@ function pfEditMethods() {
   addBtn.onclick = () => addRow('phones', '', '');
   body.appendChild(rowsEl);
   body.appendChild(addBtn);
+  // v0.5.43：补上附加键值行（PGP 指纹 / 个人站点 / 紧急联系人等）
+  const customWrap = pfSecBuildEditorBody(pfSecDef('methods'), (PF.data?.sections || {}).methods || {});
+  body.appendChild(customWrap);
   pfSecEdit.save = async () => {
     const want = [];
     rowsEl.querySelectorAll('.secrow').forEach((row) => {
@@ -852,6 +942,13 @@ function pfEditMethods() {
       const label = ins[1] ? ins[1].value.trim() : '';
       if (value) want.push({ kind, value, label });
     });
+    const custom2 = pfCollectSectionData();
+    if (PF.isSample) {
+      const m = {};
+      want.forEach((w) => { (m[w.kind] = m[w.kind] || []).push({ value: w.value, label: w.label }); });
+      PF.data.methods = m;
+      return pfSampleSaveSection('methods', custom2);
+    }
     for (const kind of Object.keys(PF.data.methods || {})) {
       for (const x of PF.data.methods[kind]) {
         await api('/api/profile/contacts?id=' + x.id, { method: 'DELETE' });
@@ -862,6 +959,11 @@ function pfEditMethods() {
         body: JSON.stringify({ person_id: PF.pid, kind: w.kind, value: w.value, label: w.label }) });
       if (!r.ok) { toast('联系方式保存失败'); return false; }
     }
+    const rc = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: PF.pid, key: 'methods', data: custom2 }) });
+    if (!rc.ok) { toast('附加资料保存失败'); return false; }
+    if (!PF.data.sections) PF.data.sections = {};
+    PF.data.sections.methods = custom2;
     toast('联络方式已保存'); markSynced();
     await pfRefreshDetail();
     return true;
@@ -880,10 +982,14 @@ function pfEditClearance() {
     const ins = body.querySelectorAll('.secrow input[type=text]');
     const company = ins[0] ? ins[0].value.trim() : '';
     const position = ins[1] ? ins[1].value.trim() : '';
+    const custom2 = pfCollectSectionData();
+    if (PF.isSample) {
+      PF.data.work = { company, position };
+      return pfSampleSaveSection('clearance', custom2);
+    }
     const r1 = await api('/api/profile/work', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ person_id: PF.pid, company, position }) });
     if (!r1.ok) { toast('职业信息保存失败'); return false; }
-    const custom2 = pfCollectSectionData();
     const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: PF.pid, key: 'clearance', data: custom2 }) });
     if (!r2.ok) { toast('附加资料保存失败'); return false; }
@@ -915,6 +1021,17 @@ function pfEditEdu() {
   const customWrap = pfSecBuildEditorBody(pfSecDef('edu'), (PF.data?.sections || {}).edu || {});
   body.appendChild(customWrap);
   pfSecEdit.save = async () => {
+    if (PF.isSample) {
+      const edus = [];
+      rowsEl.querySelectorAll('.secrow').forEach((row) => {
+        const ins = row.querySelectorAll('input[type=text], select');
+        const school = ins[0] ? ins[0].value.trim() : '';
+        if (!school) return;
+        edus.push({ school, major: ins[1] ? ins[1].value.trim() : '', degree: ins[2] ? ins[2].value.trim() : '本科', start: ins[3] ? ins[3].value.trim() : '', end: ins[4] ? ins[4].value.trim() : '', story: ins[5] ? ins[5].value.trim() : '' });
+      });
+      PF.data.edus = edus;
+      return pfSampleSaveSection('edu', pfCollectSectionData());
+    }
     for (const e of (PF.data.edus || [])) {
       await api('/api/profile/edu?id=' + e.id, { method: 'DELETE' });
     }
@@ -970,6 +1087,24 @@ function pfEditHome() {
   const customWrap = pfSecBuildEditorBody(pfSecDef('home'), pfSecCleanCustom('home', ((PF.data?.sections) || {}).home || {}));
   body.appendChild(customWrap);
   pfSecEdit.save = async () => {
+    if (PF.isSample) {
+      const rels = [], petsS = [];
+      [...relEl.querySelectorAll('.secrow')].forEach((row) => {
+        const ins = row.querySelectorAll('input[type=text]');
+        const kin = ins[0] ? ins[0].value.trim() : '';
+        const name = ins[1] ? ins[1].value.trim() : '';
+        if (kin && name) rels.push({ kin, name });
+      });
+      [...petEl.querySelectorAll('.secrow')].forEach((row) => {
+        const ins = row.querySelectorAll('input[type=text]');
+        const species = ins[0] ? ins[0].value.trim() : '';
+        const name = ins[1] ? ins[1].value.trim() : '';
+        if (species && name) petsS.push({ species, name, memorialDate: ins[2] ? ins[2].value.trim() : '' });
+      });
+      PF.data.relatives = rels;
+      PF.data.pets = petsS;
+      return pfSampleSaveSection('home', pfCollectSectionData());
+    }
     for (const r of (d.relatives || [])) await api('/api/profile/relatives?id=' + r.id, { method: 'DELETE' });
     for (const p of (d.pets || [])) await api('/api/profile/pets?id=' + p.id, { method: 'DELETE' });
     const relRows = [...relEl.querySelectorAll('.secrow')];
@@ -1048,8 +1183,6 @@ async function pfEnsureFiles() {
 }
 async function pfSaveSection() {
   if (!pfSecEdit) return;
-  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
-  if (PF.isSample) { toast('示例档案仅供查看参考'); return; }
   const btn = pfEl('secEditSave');
   if (btn) btn.disabled = true;
   try {
@@ -1060,6 +1193,11 @@ async function pfSaveSection() {
     }
     const key = pfSecEdit.key;
     const data = pfCollectSectionData();
+    if (PF.isSample) {
+      pfCloseSectionEditor();
+      pfSampleSaveSection(key, data);
+      return;
+    }
     const res = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: pfSecEdit.pid, key, data }) });
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast(d.error || '保存失败'); return; }
@@ -1792,7 +1930,7 @@ function pfBindEvents() {
   }
   document.addEventListener('click', (e) => {
     const ed = e.target.closest('[data-sec-edit]');
-    if (ed && window.PF && PF.pid) { pfOpenSectionEditor(ed.dataset.secEdit); return; }
+    if (ed && window.PF && (PF.pid || PF.isSample)) { pfOpenSectionEditor(ed.dataset.secEdit); return; }
     const pl = e.target.closest('a.person[data-pf-link]');
     if (pl) { e.preventDefault(); pfOpenProfile(Number(pl.dataset.pfLink)); window.scrollTo({ top: 0 }); return; }
     const eb = e.target.closest('[data-act=edit-basic]');
