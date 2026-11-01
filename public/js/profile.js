@@ -312,11 +312,11 @@ function pfSyncEditMode() {
 // kind: struct=原结构化模块（原表直读，编辑走全局「编辑」/弹窗）| json=自由段落（contact_sections 载荷）
 //       app=应用联动（账本流水 / R2 附件）
 const PF_SECTIONS = [
-  { key: 'identity',  t: '身份标识', kind: 'struct', editor: 'identity' },
-  { key: 'body',      t: '体测与尺码', badge: '量体记录', kind: 'struct', editor: 'body' },
-  { key: 'methods',   t: '联络方式', kind: 'struct', editor: 'methods' },
-  { key: 'clearance', t: '职务与授权', kind: 'struct', editor: 'clearance' },
-  { key: 'edu',       t: '教育与能力', kind: 'struct', editor: 'edu' },
+  { key: 'identity',  t: '身份标识', kind: 'struct', r: 1, editor: 'identity' },
+  { key: 'body',      t: '体测与尺码', badge: '量体记录', kind: 'struct', r: 1, tb: 1, list: 1, editor: 'body' },
+  { key: 'methods',   t: '联络方式', kind: 'struct', r: 1, editor: 'methods' },
+  { key: 'clearance', t: '职务与授权', kind: 'struct', r: 1, chips: 1, editor: 'clearance' },
+  { key: 'edu',       t: '教育与能力', kind: 'struct', bars: 1, editor: 'edu' },
   { key: 'vehicle',   t: '交通工具', badge: '可附车照', kind: 'json', cards: 1, r: 1 },
   { key: 'interest',  t: '兴趣爱好', kind: 'json', list: 1 },
   { key: 'network',   t: '网络资产', kind: 'json', r: 1, tb: 1 },
@@ -329,7 +329,7 @@ const PF_SECTIONS = [
   { key: 'docs',      t: '证件与证照', badge: '敏感信息', kind: 'json', r: 1 },
   { key: 'background',t: '背景与语言', kind: 'json', r: 1 },
   { key: 'emergency', t: '授权与应急', badge: '仅自己可见', badgeClay: 1, kind: 'json', r: 1, link: 1 },
-  { key: 'devices',   t: '设备与凭据', kind: 'json', tb: 1 },
+  { key: 'devices',   t: '设备与凭据', badge: '仅存指纹', badgeClay: 1, kind: 'json', tb: 1 },
   { key: 'travel',    t: '出行与目标', kind: 'json', r: 1, list: 1 },
   { key: 'timeline',  t: '大事记', kind: 'json', tl: 1 },
   { key: 'files',     t: '附件', kind: 'app' },
@@ -529,11 +529,16 @@ function pfSecRow(inputs, extraHtml, del) {
 function pfSecBuildEditorBody(def, data) {
   const body = document.createElement('div');
   body.className = 'sec-custom';
-  const addBtn = document.createElement('button');
-  addBtn.className = 'sec-add';
-  addBtn.type = 'button';
-  addBtn.textContent = '＋ 添加一行';
   const mk = (cls, ph, val) => `<input type="text" class="${cls || ''}" placeholder="${pfEsc(ph || '')}" value="${pfEsc(val || '')}">`;
+  // v0.5.42：r/list/tb 各自独立成组（此前 else-if 串行，键值行+清单/表格并存的段落只能编辑到第一种）
+  const addRowBtn = (wrap, buildRow) => {
+    const btn = document.createElement('button');
+    btn.className = 'sec-add';
+    btn.type = 'button';
+    btn.textContent = '＋ 添加一行';
+    btn.onclick = () => wrap.insertBefore(buildRow(), btn);
+    wrap.appendChild(btn);
+  };
   if (def.cards) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">每张卡片 = 一辆交通工具；照片从该联系人的附件（图片）中选择，保存后显示在卡片上。</p>');
     const cards = (data.cards && data.cards.length) ? data.cards : [{}];
@@ -552,28 +557,30 @@ function pfSecBuildEditorBody(def, data) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">键值行：左侧为资料名称（如 血型 / 过敏史），右侧为内容。</p>');
     const wrap = document.createElement('div');
     wrap.className = 'sec-rwrap';
+    wrap.dataset.kind = 'r';
     const rows = (data.r && data.r.length) ? data.r : [['', '']];
     rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', '名称', r[0]), mk('', '内容', r[1])], '', true)));
-    wrap.appendChild(addBtn);
-    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', '名称'), mk('', '内容')], '', true), addBtn);
+    addRowBtn(wrap, () => pfSecRow([mk('sk', '名称'), mk('', '内容')], '', true));
     body.appendChild(wrap);
-  } else if (def.list || def.tl) {
+  }
+  if (def.list || def.tl) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">两列行：左侧为条目名称' + (def.tl ? '（时间）' : '') + '，右侧为说明。</p>');
     const wrap = document.createElement('div');
     wrap.className = 'sec-rwrap';
+    wrap.dataset.kind = 'list';
     const rows = (data.list && data.list.length) ? data.list : [['', '']];
     rows.forEach((r) => wrap.appendChild(pfSecRow([mk('sk', def.tl ? '时间' : '条目', r[0]), mk('', '说明', r[1])], '', true)));
-    wrap.appendChild(addBtn);
-    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('sk', def.tl ? '时间' : '条目'), mk('', '说明')], '', true), addBtn);
+    addRowBtn(wrap, () => pfSecRow([mk('sk', def.tl ? '时间' : '条目'), mk('', '说明')], '', true));
     body.appendChild(wrap);
-  } else if (def.tb) {
+  }
+  if (def.tb) {
     body.insertAdjacentHTML('beforeend', '<p class="sec-hint">四列表格：每行两组「名称 + 数值」，手机端会自动转为卡片展示。</p>');
     const wrap = document.createElement('div');
     wrap.className = 'sec-rwrap';
+    wrap.dataset.kind = 'tb';
     const rows = (data.tb && data.tb.length) ? data.tb : [['', '', '', '']];
     rows.forEach((row) => wrap.appendChild(pfSecRow([mk('', '名称', row[0]), mk('', '数值', row[1]), mk('', '名称', row[2]), mk('', '数值', row[3])], '', true)));
-    wrap.appendChild(addBtn);
-    addBtn.onclick = () => wrap.insertBefore(pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')], '', true), addBtn);
+    addRowBtn(wrap, () => pfSecRow([mk('', '名称'), mk('', '数值'), mk('', '名称'), mk('', '数值')], '', true));
     body.appendChild(wrap);
   }
   return body;
@@ -600,21 +607,24 @@ function pfCollectSectionData() {
   if (def.r) {
     data.r = [];
     // v0.5.41：必须圈定在自定义行容器内——居住与家庭等编辑器同屏还有家庭成员/宠物行，全量查询会把它们误收进自定义数据
-    body.querySelectorAll('.sec-rwrap .secrow').forEach((row) => {
+    // v0.5.42：r/list/tb 三种行组并存（data-kind 区分），各收各的
+    body.querySelectorAll('.sec-rwrap[data-kind="r"] .secrow').forEach((row) => {
       if (row.dataset.del) return;
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 2 && val(ins[0]) && val(ins[1])) data.r.push([val(ins[0]), val(ins[1])]);
     });
-  } else if (def.list || def.tl) {
+  }
+  if (def.list || def.tl) {
     data.list = [];
-    body.querySelectorAll('.sec-rwrap .secrow').forEach((row) => {
+    body.querySelectorAll('.sec-rwrap[data-kind="list"] .secrow').forEach((row) => {
       if (row.dataset.del) return;
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 2 && val(ins[0])) data.list.push([val(ins[0]), val(ins[1])]);
     });
-  } else if (def.tb) {
+  }
+  if (def.tb) {
     data.tb = [['部位', '数值', '部位', '数值']];
-    body.querySelectorAll('.sec-rwrap .secrow').forEach((row) => {
+    body.querySelectorAll('.sec-rwrap[data-kind="tb"] .secrow').forEach((row) => {
       const ins = row.querySelectorAll('input[type=text]');
       if (ins.length >= 4 && ins.slice(0, 4).some((x) => val(x))) {
         data.tb.push([0, 1, 2, 3].map((k) => val(ins[k])));
@@ -642,37 +652,43 @@ const PF_SAMPLE = {
     birthdayType: 'full', birthdayCalendar: 'solar', birthYear: 1991, birthMonth: 8, birthDay: 12,
     birthText: '1991-08-12', lunarText: '辛未年八月十二', age: 35, nextBirthday: null,
     birthdayRemind: false, isDeceased: false, referrer: null,
-    tags: ['示例'], groups: ['示范档案'], note: '这是一份内置示例档案，展示资料页的全部模块与记录方式。',
+    tags: ['示例', 'INTJ', 'A 型 RH+', '178 cm / 72 kg', '上衣 L · 裤 32'], groups: ['示范档案'], note: '这是一份内置示例档案，展示资料页的全部模块与记录方式。',
   },
   methods: {
     phones: [{ value: '138****0000', label: '个人' }],
     emails: [{ value: 'nightjar@example.com', label: '个人' }],
-    qq: [], wechat: [{ value: 'nightjar_0812', label: '个人' }], addresses: [],
+    qq: [], wechat: [{ value: 'nightjar_0812', label: '个人' }], addresses: [{ value: '浙江省丽水市缙云县 ×××', label: '家庭' }],
   },
   work: { company: '某科技有限公司', position: '信息安全负责人' },
-  edus: [{ school: '××研究所', major: '信息安全', degree: '硕士', start: '2014', end: '2017', story: '方向：入侵检测与日志审计' }],
+  edus: [{ school: '××大学', major: '计算机科学与技术', degree: '学士', start: '2010', end: '2014', story: 'GPA 3.6 / 校级奖学金' }, { school: '××研究所', major: '信息安全', degree: '硕士', start: '2014', end: '2017', story: '方向：入侵检测与日志审计' }],
   relatives: [{ kin: '父亲', name: '陈某（退休教师）' }, { kin: '配偶', name: '李某（教师）' }],
   pets: [{ species: '中华田园犬', name: '豆豆', memorialDate: '' }],
   meta: { marriages: ['已婚'] },
   sections: {
-    identity: { r: [['生肖 / 星座', '羊 / 狮子座'], ['血型', 'A 型 RH+'], ['国籍 / 民族', '中国 / 汉族'], ['外貌特征', '左耳后小痣；右手食指旧疤'], ['性格类型', 'INTJ / 九型 5w4'], ['行为评估', '内敛、系统化思维、长期主义，偏好书面沟通与流程化协作']] },
-    body: { r: [['身高', '178 cm'], ['体重', '72.4 kg（季度波动 ±2 kg）'], ['BMI', '22.9（自动计算）'], ['体型', '偏瘦 / 肩宽 / 腰腹平坦'], ['测量日期', '2026-10-28 / 晨起空腹']] },
-    methods: { r: [['备用手机', '139****0000（工作）'], ['备用邮箱', 'cm.work@example.com'], ['通讯地址', '浙江省丽水市缙云县 ××× 街道 ××× 号'], ['PGP 指纹', '4F7A 9C21 88D0 7E3B']] },
-    clearance: { r: [['行业', '制造业 / 信息技术'], ['部门', 'IT 与安全部'], ['办公地点', '缙云总部 · 3F 机房区'], ['工作模式', '驻场为主 / 每周 1 天远程']], tags: ['服务器运维', '云资源管理', '容器编排', '数据防泄漏 DLP'] },
-    vehicle: { cards: [{ name: '大众 速腾 1.4T 舒适型', rows: [['号牌', '浙K×××××'], ['车身颜色 / 燃油', '极地白 / 95 号'], ['购置日期', '2021-05-20'], ['保险有效期', '至 2027-05-19']] }, { name: '捷安特 ATX 660', rows: [['类型', '山地车（通勤与周末骑行）'], ['购置', '2019-03']] }], r: [['驾驶执照', 'C1 / 初领 2010-11-05 / 有效至 2026-11-04']] },
-    interest: { list: [['中医古籍阅读', '每日 30—60 分钟｜《黄帝内经》精读并做批注'], ['技术书籍', '每月 1—2 本｜安全架构、分布式系统'], ['写作与建站', '每周 2 篇｜科普专栏与自建站点维护'], ['书法（楷书）', '每周 3 次｜临《九成宫》'], ['徒步登山', '每月 1 次｜仙都、括苍山 10—15 km'], ['烹饪', '每周 4 次｜江浙家常菜']] },
-    network: { r: [['主域名', '110011.best'], ['站点', '中医古籍阅读站；个人数字生活系统'], ['基础设施', 'Cloudflare DNS+CDN / 对象存储异地备份'], ['备份策略', '每日增量+每周全量，3-2-1 策略']] },
-    lifecycle: { r: [['睡眠', '23:30—07:00，平均 7.2 小时'], ['运动', '力量训练 3 次/周 + 有氧 1 次/周，日均 7,800 步'], ['订阅服务', 'iCloud 200G、JetBrains、云主机'], ['智能家居', '智能门锁、温湿度传感器、扫地机器人']] },
-    food: { r: [['口味', '清淡偏咸鲜，少辣，喜醋'], ['忌口', '不吃动物内脏、香菜少量'], ['咖啡因', '上午美式 1 杯，14:00 后不饮'], ['常喝饮品', '绿茶、气泡水、无糖豆浆']] },
-    health: { r: [['血型', 'A 型 RH+'], ['慢性病', '无'], ['长期用药', '维生素 D 每日 1 次；季节性鼻炎按需'], ['手术史', '2018 年阑尾切除术'], ['疫苗接种', '乙肝、流感（年度）、新冠全程'], ['医嘱备注', '长期伏案，每小时起身活动；避免熬夜与高盐']] },
-    home: { r: [['居住形态', '自有住房（婚房）'], ['建筑面积 / 户型', '118 m² / 三室两厅两卫'], ['楼层 / 朝向', '12 / 18 层 · 南北通透'], ['家财险', '至 2027-02']], list: [['母亲 王某', '1968-11｜随子女居住，健康良好'], ['子女 陈屿', '2021-09｜幼儿园在读'], ['挚友 周某', '1992-01｜技术同行，季度聚会']] },
-    finview: { r: [['收入结构', '薪资为主 + 少量项目与稿酬'], ['资产分布', '理财 60% / 现金 25% / 数字资产 15%'], ['负债', '房贷（月供 ¥4,300）'], ['储蓄目标', '储蓄率约 42%，年度目标 ¥120,000']] },
-    docs: { r: [['居民身份证', '3301**********1234｜有效至 2030-08-11'], ['护照', 'E1234****｜有效至 2030-04-18'], ['驾驶证', 'C1｜有效至 2026-11-04（需换证）'], ['银行卡', '招商 6214****8899｜工商 6222****3311'], ['存放位置', '书房保险箱 A（证件）/ 文件柜第 2 格（房产）']] },
-    background: { r: [['兵役状况', '未服兵役（免役）'], ['宗教信仰', '无'], ['方言', '缙云话（母语级）、吴语通行'], ['普通话', '标准，一级乙等水平'], ['教学能力', '内部培训讲师，年均 6 场']] },
-    emergency: { r: [['医疗决策代理人', '李某（配偶）｜授权书 2025-06 签署'], ['保险受益人', '法定（配偶与子女）'], ['遗嘱状态', '已立草稿，2027 年复核'], ['数字遗产', '密码管理器主密钥交由配偶保管（信封封存）'], ['重要提醒', '出差携带：身份证、少量现金、常用药、充电宝']] },
-    devices: { tb: [['设备 / 平台', '配置或账号', '指纹或序列号', '状态'], ['HP Z1 G1i 工作站', 'Ultra 7 / 64G / RTX 2000 Ada', 'SN-77D0-4E9A', '在线'], ['ThinkPad X1 Carbon', 'i7 / 32G / 1T SSD', 'SN-1BC8-0F72', '在线'], ['iPhone 15', '256G', 'IMEI 3567…', '在线'], ['GitHub', 'nightjar', 'sha256:9a3f…c21b', '2FA 已启用']] },
-    travel: { r: [['护照有效期', '至 2030-04-18'], ['签证', '日本单次（已用）；新加坡电子签至 2027-01'], ['出行偏好', '高铁出行、山地与古镇、淡季错峰']], list: [['完成中医古籍站点 v1.0', '进度 70%｜截止 2027-03'], ['体重降至 70 kg 并保持', '进度 40%｜截止 2027-02'], ['CISSP 续证与云安全进阶', '进度 80%｜截止 2026-12']] },
-    timeline: { tl: [['1991-08', '出生于浙江丽水'], ['2014-06', '本科毕业，进入信息安全领域'], ['2019-04', '入职现公司，负责终端与网络安全'], ['2022-08', '入住新居，家庭结构变化'], ['2025-11', '启动个人数字生活系统'], ['2026-10', '本档案系统建档并归档']] },
+    // v0.5.42：内容对齐 1.html 原稿（19 段全量：键值/两列/四列表/能力条/标签组）
+    identity: { r: [['姓名 / 拼音', '陈默 / Chen Mo'], ['代号', 'NIGHTJAR'], ['生肖 / 星座', '辛未年 羊 / 狮子座'], ['血型', 'A 型 RH+'], ['国籍 / 民族', '中国 / 汉族'], ['籍贯 / 出生地', '浙江 缙云 / 浙江 丽水'], ['发色 / 瞳色 / 惯用手', '黑短发 / 深棕 / 右手'], ['外貌特征', '左耳后小痣；右手食指旧疤；无纹身'], ['声音特征', '中低音，语速偏慢'], ['证件号码', '3301**********1234'], ['指纹编码', 'FBI-9A3F-C21B'], ['虹膜编码', 'IRIS-77D0-4E9A'], ['生物样本编号', 'DNA-CN-2291-8840'], ['性格类型', 'INTJ / 九型 5w4'], ['行为评估', '内敛、系统化思维、长期主义，偏好书面沟通与流程化协作']] },
+    body: {
+      r: [['身高', '178 cm'], ['体重', '72.4 kg（季度波动 ±2 kg）'], ['BMI', '22.9（自动计算）'], ['体型', '偏瘦 / 肩宽 / 腰腹平坦'], ['测量日期', '2026-10-28 / 晨起空腹'], ['测量方式', '软尺贴身测量，单位 cm']],
+      tb: [['部位', '数值', '部位', '数值'], ['胸围', '96（放松）/ 100（吸气）', '腰围', '82（脐上 1 cm）'], ['臀围', '98（最宽处）', '肩宽', '46（肩峰至肩峰）'], ['臂长 / 袖长', '62（肩峰至腕）', '上臂围', '34'], ['衣长（上衣）', '72（肩颈点至下摆）', '下摆围', '104'], ['腿长（内长）', '84（裆至脚踝）', '腿长（外长）', '108'], ['大腿围 / 小腿围', '58 / 38', '颈围', '38'], ['头围', '57', '手长 / 指距', '19 / 178'], ['脚长', '26.5', '身高体重指数', 'BMI 22.8']],
+      list: [['上衣 / 衬衫', 'L（欧码 50）｜衬衫领围 40、袖长 62'], ['外套 / 卫衣', 'L｜偏好略宽松，落肩款'], ['裤装', '32 / 82A｜直筒，腰围 82、内长 84'], ['鞋履', 'EU 42 / US 8.5｜脚长 26.5，偏窄'], ['内衣 / 袜子', '内裤 L｜袜 26—28'], ['常购品牌', '优衣库、迪卡侬、亚瑟士（鞋）'], ['尺码备注', '上衣袖长偏短需选长款；裤装需改短 2 cm'], ['复测提醒', '每半年复测一次，体重变化超 3 kg 即时更新']],
+    },
+    methods: { r: [['备用手机', '139****0000（工作）'], ['备用邮箱', 'cm.work@example.com'], ['通讯地址', '浙江省丽水市缙云县 ××× 街道 ××× 号'], ['户籍地址', '浙江省丽水市缙云县 ×××'], ['紧急联系人', '李某（配偶）/ 139****0000'], ['备用联系人', '陈某（父）/ 137****0000'], ['PGP 指纹', '4F7A 9C21 88D0 7E3B'], ['个人站点', '110011.best']] },
+    clearance: { r: [['行业', '制造业 / 信息技术'], ['部门', 'IT 与安全部'], ['职级', 'L4 / 主管'], ['任职时间', '2019-04-08（7 年 6 个月）'], ['汇报对象', 'CTO'], ['办公地点', '缙云总部 · 3F 机房区'], ['工作模式', '驻场为主 / 每周 1 天远程'], ['保密协议编号', 'NDA-2019-0412-SEC']], tags: ['服务器运维', '云资源管理', '容器编排', '数据防泄漏 DLP', '密钥与证书管理', '备份与容灾', '安全审计'] },
+    vehicle: { cards: [{ name: '大众 速腾 1.4T 舒适型', rows: [['号牌', '浙K×××××'], ['车身颜色 / 燃油', '极地白 / 95 号'], ['购置日期', '2021-05-20'], ['行驶里程', '68,420 km'], ['保险有效期', '交强险+商业险 至 2027-05-19'], ['年检有效期', '至 2027-05'], ['保养记录', '每 10,000 km / 上次 2026-09-12'], ['固定车位', '小区 B2 车位 077']] }, { name: '捷安特 ATX 660', rows: [['类型', '山地车（通勤与周末骑行）'], ['购置', '2019-03']] }], r: [['通勤方式', '自驾 12 km；雨天电动车；出差高铁'], ['驾驶执照', 'C1 / 初领 2010-11-05 / 有效至 2026-11-04'], ['飞行记录', '近 12 个月 6 次 · 约 18,600 里程']] },
+    interest: { list: [['中医古籍阅读', '每日 30—60 分钟｜《黄帝内经》《伤寒论》精读并做批注'], ['技术书籍', '每月 1—2 本｜安全架构、分布式系统'], ['写作与建站', '每周 2 篇｜科普专栏与自建站点维护'], ['书法（楷书）', '每周 3 次｜临《九成宫》'], ['摄影', '周末｜富士 X-T30，风光与街拍'], ['徒步登山', '每月 1 次｜仙都、括苍山 10—15 km'], ['骑行', '每周 1 次｜环壶镇 40 km'], ['烹饪', '每周 4 次｜江浙家常菜'], ['古典与影视配乐', '常听｜巴赫、久石让'], ['模型与硬件', '季度｜键盘改造、NAS 与服务器折腾']] },
+    network: { r: [['主域名', '110011.best'], ['二级域名', 'cal / health / learn / books.110011.best'], ['站点', '中医古籍阅读站；LifeOS 个人数字生活系统'], ['代码仓库', 'private/lifeos · private/legacy-cms · public/tcm-notes'], ['基础设施', 'Cloudflare DNS+CDN / Let\'s Encrypt / 对象存储异地备份'], ['备份策略', '每日增量+每周全量，3-2-1 策略，离线冷备一份'], ['安全基线', '全站 2FA、密码管理器、SSH 仅密钥登录、失败封禁']], tb: [['资产', '规格', '用途', '系统'], ['HP Z1 G1i 工作站', 'Ultra 7 / 64G / RTX 2000 Ada 16G', '本地大模型与开发', 'Ubuntu 24.04'], ['VPS（华东）', '2C4G / 80G SSD', '站点与反向代理', 'Debian 12 / 续费 2027-03-11'], ['NAS 4 盘位', '32T RAID5', '备份与离线归档', 'OpenWrt + OMV']] },
+    lifecycle: { r: [['睡眠', '23:30—07:00，平均 7.2 小时，深睡约 1.4 小时'], ['周末作息', '08:30 起床，补觉不超过 1.5 小时'], ['运动', '力量训练 3 次/周 + 有氧 1 次/周，日均 7,800 步'], ['屏幕使用', '工作日 8.5 h，娱乐 1.5 h，22:00 后护眼模式'], ['媒体消费', '播客《科技》《历史》各 1 档，通勤听有声书'], ['订阅服务', 'iCloud 200G、JetBrains、云主机、音乐与视频会员'], ['智能家居', '智能门锁、温湿度传感器、扫地机器人、NAS 自动备份'], ['月度预算', '固定 ¥6,800 / 弹性 ¥2,500，储蓄率约 42%'], ['习惯', '晨间 10 分钟复盘、周日做周计划、月度财务对账']] },
+    food: { r: [['口味', '清淡偏咸鲜，少辣，喜醋'], ['忌口', '不吃动物内脏、香菜少量'], ['过敏食物', '海鲜（轻度皮疹）、芒果'], ['咖啡因', '上午美式 1 杯，14:00 后不饮'], ['酒精', '啤酒偶尔，白酒不耐'], ['常喝饮品', '绿茶、气泡水、无糖豆浆'], ['主食偏好', '米饭为主，面食每周 2 次'], ['烹饪擅长', '红烧、炖汤、江浙家常'], ['餐厅偏好', '本帮菜、面馆、咖啡馆'], ['购物偏好', '线上为主，重参数与评测，冲动消费低'], ['娱乐偏好', '悬疑与科幻影视、策略类游戏'], ['宠物偏好', '犬类，偏好中小型']], list: [['固定餐单', '早餐：豆浆+包子｜午餐：公司食堂｜晚餐：家常'], ['戒断目标', '减少夜宵与含糖饮料，2027 年前达成']] },
+    health: { r: [['血型', 'A 型 RH+'], ['过敏史', '青霉素、海鲜（轻度皮疹）'], ['慢性病', '无'], ['长期用药', '维生素 D 每日 1 次；季节性鼻炎按需'], ['手术史', '2018 年阑尾切除术'], ['视力', '右 -3.25 / 左 -3.50，散光 0.75'], ['口腔', '洁牙每年 1 次，无龋齿'], ['体检结论', '2026-03 指标基本正常，颈椎曲度变直、干眼倾向'], ['疫苗接种', '乙肝、流感（年度）、新冠全程'], ['心理状态', '压力自评 6/10，通过运动与写作调节'], ['医嘱备注', '长期伏案，每小时起身活动；避免熬夜与高盐']] },
+    home: { r: [['居住形态', '自有住房（婚房）'], ['建筑面积 / 户型', '118 m² / 三室两厅两卫'], ['楼层 / 朝向', '12 / 18 层 · 南北通透'], ['入住时间', '2022-08'], ['贷款', '商贷至 2050-07，月供 ¥4,300'], ['家财险', '至 2027-02'], ['家居概况', '书房 1 间（工作站+NAS 机柜）、阳台绿植 12 盆']], list: [['母亲 王某', '1968-11｜随子女居住，健康良好'], ['子女 陈屿', '2021-09｜幼儿园在读'], ['挚友 周某', '1992-01｜技术同行，季度聚会']] },
+    finview: { r: [['收入结构', '薪资为主 + 少量项目与稿酬'], ['资产分布', '理财 60% / 现金 25% / 数字资产 15%'], ['负债', '房贷（月供 ¥4,300）'], ['保险', '重疾、医疗、意外、寿险（家庭支柱）'], ['月度支出', '固定 ¥6,800 / 弹性 ¥2,500'], ['储蓄目标', '储蓄率约 42%，年度目标 ¥120,000'], ['税务', '个税年度汇算已办理'], ['备注', '明细见 LifeOS 账本模块，本页仅存概览']] },
+    docs: { r: [['居民身份证', '3301**********1234｜有效至 2030-08-11'], ['护照', 'E1234****｜有效至 2030-04-18'], ['驾驶证', 'C1｜有效至 2026-11-04（需换证）'], ['社保卡', '6222********0001｜正常参保'], ['公积金', '账号 8800****77｜月缴 ¥1,200'], ['学历证书', '本科 / 硕士毕业证与学位证｜原件在保险箱 B'], ['职业资格', 'CISP、CISSP（有效期内）'], ['银行卡', '招商 6214****8899｜工商 6222****3311'], ['存放位置', '书房保险箱 A（证件）/ 文件柜第 2 格（房产）'], ['复印限制', '复印件须注明用途，禁止二次流转']] },
+    background: { r: [['政治面貌', '群众'], ['兵役状况', '未服兵役（免役）'], ['宗教信仰', '无'], ['方言', '缙云话（母语级）、吴语通行'], ['普通话', '标准，一级乙等水平'], ['英语', 'CET-6 550｜可阅读技术文献与会议沟通'], ['日语', 'N4 基础｜日常会话吃力'], ['编程语言', 'Python、Shell、Go（读）、SQL'], ['专业术语', '网络安全、云原生、中医古籍训诂'], ['教学能力', '内部培训讲师，年均 6 场']] },
+    emergency: { r: [['医疗决策代理人', '李某（配偶）｜授权书 2025-06 签署'], ['紧急联系人 1', '李某（配偶）/ 139****0000'], ['紧急联系人 2', '陈某（父）/ 137****0000'], ['保险受益人', '法定（配偶与子女）'], ['遗嘱状态', '已立草稿，2027 年复核'], ['身后意愿', '器官捐献登记：否；安葬意愿：本地'], ['数字遗产', '密码管理器主密钥交由配偶保管（信封封存）'], ['重要提醒', '出差携带：身份证、少量现金、常用药、充电宝']] },
+    devices: { tb: [['设备 / 平台', '配置或账号', '指纹或序列号', '状态'], ['HP Z1 G1i 工作站', 'Ultra 7 / 64G / RTX 2000 Ada', 'SN-77D0-4E9A', '在线'], ['ThinkPad X1 Carbon', 'i7 / 32G / 1T SSD', 'SN-1BC8-0F72', '在线'], ['MacBook Air 13', 'M3 / 16G / 512G', 'SN-9A3F-C21B', '在线'], ['iPhone 15', '256G', 'IMEI 3567…', '在线'], ['家用 NAS', '4 盘位 / 32T', 'SN-55AA-77C1', '离线'], ['GitHub', 'nightjar', 'sha256:9a3f…c21b', '2FA 已启用'], ['VPN 网关', 'cm01', 'sha256:1bc8…0f72', '证书 90 天轮换'], ['密码管理器', 'master-vault', 'sha256:2291…8840', '明文不入库']] },
+    travel: { r: [['护照号码', 'E1234****'], ['护照有效期', '至 2030-04-18'], ['签证', '日本单次（已用）；新加坡电子签至 2027-01'], ['出行偏好', '高铁出行、山地与古镇、淡季错峰'], ['后续计划', '2027 春 敦煌或川西']], list: [['完成中医古籍站点 v1.0', '进度 70%｜截止 2027-03'], ['LifeOS 五模块上线', '进度 55%｜截止 2027-06'], ['体重降至 70 kg 并保持', '进度 40%｜截止 2027-02'], ['CISSP 续证与云安全进阶', '进度 80%｜截止 2026-12'], ['完成 24 篇科普专栏', '进度 50%｜截止 2027-12']] },
+    timeline: { tl: [['1991-08', '出生于浙江丽水'], ['2014-06', '本科毕业，进入信息安全领域'], ['2017-06', '硕士毕业，入职首家公司'], ['2019-04', '入职现公司，负责终端与网络安全'], ['2021-09', '主导数据防泄漏（DLP）方案上线'], ['2022-08', '入住新居，家庭结构变化'], ['2023-06', '完成核心服务容器化迁移'], ['2025-11', '启动 LifeOS 个人数字生活系统'], ['2026-08', '中医古籍阅读站点原型完成'], ['2026-10', '本档案系统建档并归档']] },
+    edu: { bars: [['网络安全与应急', 88], ['系统运维', 82], ['云与容器', 78], ['建站与前端', 70], ['技术写作', 76], ['项目管理', 68]] },
   },
 };
 
@@ -1178,7 +1194,8 @@ async function pfRenderBody() {
   const box = pfEl('pfBody');
   if (PF.isSample) {
     const bd = (PF.data.sections || {}).body || {};
-    box.innerHTML = pfSecVrows({ r: 1 }, bd.r || []);
+    // v0.5.42：示例体测补齐 1.html 的部位表格与尺码清单
+    box.innerHTML = pfSecVrows({ r: 1 }, bd.r || []) + pfSecTb(bd.tb) + pfSecList({ list: 1 }, bd.list);
     if (pfEl('pfPanel_body')) pfEl('pfPanel_body').hidden = false;
     pfApplyOrder(); pfRenderIndex();
     return;
@@ -1311,7 +1328,7 @@ function pfRenderHero() {
 function pfSecCustomHtml(key) {
   const def = pfSecDef(key);
   const d = (PF.data && PF.data.sections) || {};
-  const h = (def.r ? pfSecVrows(def, (d[key] || {}).r) : '') + (def.list ? pfSecList(def, (d[key] || {}).list) : '') + (def.bars ? pfSecBars((d[key] || {}).bars) : '');
+  const h = (def.r ? pfSecVrows(def, (d[key] || {}).r) : '') + (def.list ? pfSecList(def, (d[key] || {}).list) : '') + (def.bars ? pfSecBars((d[key] || {}).bars) : '') + (def.chips ? pfSecChips((d[key] || {}).tags) : '');
   return h ? '<div class="pf-sec-append">' + h + '</div>' : '';
 }
 function pfRenderIdentity() {
