@@ -425,13 +425,17 @@
           <div id="relsetList" class="ledset-list"></div>
         </article>
       </section>
-      <!-- 记账设置（v0.5.0：分类管理 + 二级分类 + 拖动排序） -->
-      <section class="view" id="view-ledgerset" data-title="记账设置">
+      <!-- 账本设置（v0.5.45：分类管理 + 账户设置 两个类目） -->
+      <section class="view" id="view-ledgerset" data-title="账本设置">
         <div class="growth-head">
-          <div><p class="eyebrow">记账设置</p><h2>分类管理</h2></div>
+          <div><p class="eyebrow">账本设置</p><h2 id="ledsetPageTitle">分类管理</h2></div>
           <button class="btn ghost" id="ledsetBack" type="button">← 返回账本</button>
         </div>
-        <article class="panel">
+        <div class="seg ledset-tabs">
+          <button class="seg-item active" data-lstab="cats" type="button"><span>分类管理</span></button>
+          <button class="seg-item" data-lstab="accounts" type="button"><span>账户设置</span></button>
+        </div>
+        <article class="panel" id="ledsetCatsPanel">
           <div class="panel-head">
             <div><p class="eyebrow">分类</p><h2 id="ledsetFlowTitle">支出分类</h2></div>
             <div class="seg">
@@ -445,6 +449,17 @@
             <button class="btn primary" id="ledsetAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加</button>
           </div>
           <div id="ledsetList" class="ledset-list"></div>
+        </article>
+        <article class="panel" id="ledsetAcctPanel" hidden>
+          <div class="panel-head">
+            <div><p class="eyebrow">账户</p><h2>付款账户管理</h2></div>
+          </div>
+          <p class="ts-hint">账户用于「记一笔」的付款账户与转账转入账户。按住 <b>≡</b> 拖动可调整顺序；点 ☆ 把该账户设为默认（记一笔默认选中）；重命名会同步更新历史流水；删除账户时，其历史流水会归并到默认账户。「人情往来」为人际归并专用账户，不可改名或删除。</p>
+          <div class="ledset-add">
+            <input class="inp" id="ledsetAcctName" maxlength="12" placeholder="新增账户，如：公积金卡">
+            <button class="btn primary" id="ledsetAcctAddBtn" type="button"><svg><use href="#i-plus"/></svg>添加</button>
+          </div>
+          <div id="ledsetAcctList" class="ledset-list"></div>
         </article>
       </section>
       <!-- 家庭药箱（v0.3.7 录入 + 药品一览 + 临期 + 过期） -->
@@ -1117,6 +1132,7 @@
       </div>
       <div id="acctPickBody"></div>
       <button class="btn primary full" id="acctPickDone" type="button" hidden>完成</button>
+      <button class="btn ghost full" id="acctPickManage" type="button" style="margin-top:8px">管理账户（账本设置）</button>
     </div>
   </div>
 
@@ -1415,6 +1431,6 @@
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/81702485/js/profile.js"></script>
   <script src="./assets/d5aa57e2/js/medicine.js"></script>
-  <script src="./assets/2a886d90/js/app.js"></script>
+  <script src="./assets/8c456b1c/js/app.js"></script>
 </body>
 </html>

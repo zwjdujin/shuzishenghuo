@@ -1,8 +1,9 @@
 import { json, todayStr } from '../_lib.js';
 import { loadCatTree } from './txn-categories.js';
 import { generateDue } from './recurring.js';
+import { listTxnAccountRows } from './txn-accounts.js';
 
-// 默认账户（预置 + 实际用过的）
+// 默认账户（v0.5.45 起预置清单只作 txn_accounts 表缺失时的回退）
 export const ACCOUNTS = ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'];
 
 // 「YYYY-MM」加减月份
@@ -48,8 +49,12 @@ export function normalizeTxnBody(body) {
   };
 }
 
-// 账户（预置 + 实际用过的，含转账转入账户）
+// 账户（v0.5.45：txn_accounts 表为准；未跑迁移/表为空时回退「预置 + 实际用过的」）
 export async function listAccounts(env) {
+  try {
+    const rows = await listTxnAccountRows(env);
+    if (rows.length && rows[0].id) return rows.map((r) => r.name);
+  } catch (_) { /* 忽略，走回退 */ }
   const accounts = [...ACCOUNTS];
   try {
     const aRows = (
@@ -63,6 +68,16 @@ export async function listAccounts(env) {
   return accounts;
 }
 
+// 默认账户名（记一笔缺省选中）；表缺失时回退「默认账户」
+export async function defaultAccountName(env) {
+  try {
+    const rows = await listTxnAccountRows(env);
+    const def = rows.find((r) => r.is_default) || rows[0];
+    if (def && def.id) return def.name;
+  } catch (_) { /* 忽略 */ }
+  return '默认账户';
+}
+
 // GET /api/transactions?month=YYYY-MM[&contact_id=123]
 // 返回：当月明细 + 收支汇总 + 支出/收入分类占比 + 近 6 个月趋势 + 账户 + 预算 + @人名反查 + 分类树
 // 传 contact_id 时：返回该联系人名下全部流水（人际关系 · 财务往来用）
@@ -71,7 +86,7 @@ export async function onRequestGet(context) {
   const { env, request } = context;
   const url = new URL(request.url);
   if (url.searchParams.get('meta') === 'accounts') {
-    return json({ accounts: await listAccounts(env) });
+    return json({ accounts: await listAccounts(env), default_account: await defaultAccountName(env) });
   }
   const contactId = Number(url.searchParams.get('contact_id')) || null;
   let month = url.searchParams.get('month') || todayStr().slice(0, 7);
@@ -167,8 +182,9 @@ export async function onRequestGet(context) {
     }
   }
 
-  // ---- 账户（预置 + 实际用过的，含转账转入账户）----
+  // ---- 账户（v0.5.45：txn_accounts 表；预置 + 实际用过的作为回退，含转账转入账户）----
   const accounts = await listAccounts(env);
+  const default_account = await defaultAccountName(env);
 
   // ---- 「@人名」反查 + 关联联系人（两种都跳转人际关系档案）----
   const payees = {};
@@ -243,6 +259,7 @@ export async function onRequestGet(context) {
     incomeCatStats,
     trend,
     accounts,
+    default_account,
     payees,
     linked,
     budget,

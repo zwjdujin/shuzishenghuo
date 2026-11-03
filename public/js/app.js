@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.5.44
-const VERSION = '0.5.44';
+// 数字生活 · 前端逻辑 v0.5.45
+const VERSION = '0.5.45';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '体检修复：SESSION_SECRET 守卫/备份泄露/AI 超时/档案串数据/整段保存/查询索引/自动备份';
-const __BUILD_TIME__ = '2026-11-01';
+const __BUILD_ID__ = '账本设置改版 —— 分类管理升级为账本设置页（分类管理/账户设置两个类目）；新增账户设置：自定义添加/重命名(联动历史流水)/删除(流水归并默认账户)/拖动排序/设默认账户；记一笔默认账户与选择弹窗联动，弹窗新增管理入口；迁移0013 txn_accounts';
+const __BUILD_TIME__ = '2026-11-03';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
 let __SYNC_TIME__ = '尚未同步';
@@ -2119,6 +2119,7 @@ let ledgerState = { month: todayStrLocal().slice(0, 7), donutMode: 'expense', fl
 let ledgerData = {
   catStats: [], incomeCatStats: [], list: [], trend: [],
   accounts: ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'],
+  defaultAccount: '默认账户',
   payees: {}, linked: {}, budget: 0, summary: {}, social: { out: 0, in: 0, count: 0 },
 };
 // 分类树：{ expense: [{name, children:[name]}], income: [...] }（来自 txn_categories，空表回退默认）
@@ -2195,6 +2196,7 @@ async function renderLedger() {
       list: data.list || [],
       trend: data.trend || [],
       accounts: (data.accounts && data.accounts.length) ? data.accounts : ['默认账户'],
+      defaultAccount: data.default_account || '默认账户',
       payees: data.payees || {},
       linked: data.linked || {},
       budget: Number(data.budget) || 0,
@@ -2762,7 +2764,9 @@ function openTxnModal(t) {
     txnDraft = {
       flow: 'expense', category: '', sub: '',
       date: todayStrLocal(), time: nowHM(),          // 默认添加时的当前时间
-      account: ledgerState.lastAccount || '默认账户', toAccount: '',
+      // 默认账户优先取上次使用的（仍存在时），否则取账户设置里的默认账户
+      account: (ledgerData.accounts || []).includes(ledgerState.lastAccount) ? ledgerState.lastAccount : (ledgerData.defaultAccount || '默认账户'),
+      toAccount: '',
       contact: null, item: '',
     };
     $('#txnAmount').value = '';
@@ -3226,7 +3230,11 @@ async function ensureAccountOptions() {
   try {
     const res = await api('/api/transactions?meta=accounts');
     const d = await res.json();
-    if (d.accounts && d.accounts.length) { ledgerData.accounts = d.accounts; accountsLoaded = true; }
+    if (d.accounts && d.accounts.length) {
+      ledgerData.accounts = d.accounts;
+      ledgerData.defaultAccount = d.default_account || '默认账户';
+      accountsLoaded = true;
+    }
   } catch (_) { /* 失败时仍可用预置账户列表 */ }
 }
 
@@ -3262,6 +3270,18 @@ function renderAcctPick() {
   } else {
     grp('付款账户', txnDraft.account, (a) => { txnDraft.account = a; $('#acctPickModal').hidden = true; });
   }
+  // v0.5.45：账户不够用时入口直达「账本设置 · 账户设置」
+  const mgr = document.createElement('button');
+  mgr.type = 'button';
+  mgr.className = 'btn ghost full';
+  mgr.style.marginTop = '10px';
+  mgr.textContent = '管理账户（账本设置）';
+  mgr.onclick = () => {
+    $('#acctPickModal').hidden = true;
+    ledset.tab = 'accounts';
+    switchView('ledgerset');
+  };
+  body.appendChild(mgr);
 }
 
 /* ---------- 联系人选择（来自人际关系，选中即关联） ---------- */
@@ -3320,10 +3340,24 @@ function renderContactPick(q) {
   });
 }
 
-/* ---------- 记账设置 · 分类管理（两级 + 拖动排序） ---------- */
-let ledset = { flow: 'expense', tree: null, expanded: new Set() };
+/* ---------- 账本设置（v0.5.45：分类管理 + 账户设置 两个类目） ---------- */
+let ledset = { tab: 'cats', flow: 'expense', tree: null, expanded: new Set() };
 
 async function renderLedgerSet() {
+  $$('#view-ledgerset [data-lstab]').forEach((b) =>
+    b.classList.toggle('active', b.dataset.lstab === ledset.tab)
+  );
+  const catsPanel = $('#ledsetCatsPanel');
+  const acctPanel = $('#ledsetAcctPanel');
+  if (catsPanel) catsPanel.hidden = ledset.tab !== 'cats';
+  if (acctPanel) acctPanel.hidden = ledset.tab !== 'accounts';
+  const pageTitle = $('#ledsetPageTitle');
+  if (pageTitle) pageTitle.textContent = ledset.tab === 'accounts' ? '账户设置' : '分类管理';
+  if (ledset.tab === 'accounts') return renderLedgerAccts();
+  return renderLedgerCats();
+}
+
+async function renderLedgerCats() {
   const box = $('#ledsetList');
   if (!box) return;
   $('#ledsetFlowTitle').textContent = ledset.flow === 'income' ? '收入分类' : '支出分类';
@@ -3456,13 +3490,14 @@ function ledsetRow(cat, level, opt = {}) {
   return row;
 }
 
-/** 指针拖动排序（鼠标 / 触屏通用）：拖起时绝对定位跟随指针，其余行让位，松手写回顺序 */
-function bindLedgerDrag(handle, row, level, parentId) {
+/** 指针拖动排序（鼠标 / 触屏通用）：拖起时绝对定位跟随指针，其余行让位，松手写回顺序。
+ *  writeBack(ids) 传入时由调用方决定持久化（账户排序复用本交互）；缺省为分类排序。 */
+function bindLedgerDrag(handle, row, level, parentId, writeBack) {
   handle.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     try { handle.setPointerCapture(e.pointerId); } catch (_) { /* 合成事件无活动指针时忽略 */ }
     const isTop = level === 'top';
-    const scope = isTop ? row.closest('.ledset-list') : row.closest('.ls-kids');
+    const scope = isTop ? row.closest('.ledset-list') : row.closest(writeBack ? '.ledset-list' : '.ls-kids');
     if (!scope) return;
     // 参与排序的行：top 层取每块的 .ls-row.top，sub 层取本 .ls-kids 里的 .ls-row.sub
     const rows = Array.from(scope.children)
@@ -3512,10 +3547,11 @@ function bindLedgerDrag(handle, row, level, parentId) {
         .filter((el) => el.classList.contains(isTop ? 'ls-item' : 'ls-row'))
         .map((b) => Number((isTop ? b.querySelector('.ls-row.top') : b).dataset.id))
         .filter(Boolean);
-      api('/api/txn-categories', {
+      const put = writeBack || ((list) => api('/api/txn-categories', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids }),
-      }).then((res) => {
+        body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids: list }),
+      }));
+      put(ids).then((res) => {
         if (res.ok) { toast('排序已保存'); markSynced(); renderLedgerSet(); }
         else toast('排序保存失败');
       }).catch(() => {});
@@ -3523,6 +3559,95 @@ function bindLedgerDrag(handle, row, level, parentId) {
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
   });
+}
+
+/* ---------- 账本设置 · 账户管理（v0.5.45：txn_accounts 表） ---------- */
+async function renderLedgerAccts() {
+  const box = $('#ledsetAcctList');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  let rows = [];
+  try {
+    const res = await api('/api/txn-accounts');
+    rows = (await res.json()).accounts || [];
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+  }
+  // 同步到「记一笔」的账户清单与默认账户
+  if (rows.length) {
+    ledgerData.accounts = rows.map((r) => r.name);
+    ledgerData.defaultAccount = (rows.find((r) => r.is_default) || rows[0]).name;
+    accountsLoaded = !!rows[0].id;
+  }
+  box.innerHTML = '';
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty-hint">还没有账户，在上方输入名称添加一个吧。</div>';
+    return;
+  }
+  rows.forEach((a) => box.appendChild(acctRow(a)));
+}
+
+function acctRow(a) {
+  const row = document.createElement('div');
+  row.className = 'ls-row sub';
+  row.dataset.id = a.id || '';
+  row.dataset.name = a.name;
+  const locked = a.name === '人情往来';
+  row.innerHTML = `
+    <span class="ls-handle" title="拖动排序" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="ls-name">${escHtml(a.name)}${a.is_default ? '<span class="cat-tag">默认</span>' : ''}</span>
+    ${locked
+      ? '<span class="ls-cnt">人际专用</span>'
+      : `<button class="ls-cnt" type="button" title="设为默认账户（记一笔默认选中）">${a.is_default ? '★ 默认账户' : '☆ 设为默认'}</button>`}
+    <span class="ls-actions">
+      ${locked
+        ? '<span title="人际归并专用，不可改名或删除">🔒</span>'
+        : '<button class="icon-btn edit" title="重命名（历史流水同步更新）" aria-label="重命名"><svg><use href="#i-edit"/></svg></button><button class="icon-btn del" title="删除" aria-label="删除"><svg><use href="#i-trash"/></svg></button>'}
+    </span>`;
+  if (!a.id) {
+    // 未迁移（账户表为空回退预置）时不可管理，只展示
+    row.querySelector('.ls-handle').style.visibility = 'hidden';
+    row.querySelectorAll('.ls-actions .icon-btn, button.ls-cnt').forEach((b) => { b.style.visibility = 'hidden'; });
+    return row;
+  }
+  const after = () => { renderLedgerAccts(); if (currentView === 'ledger') renderLedger(); };
+  const defBtn = row.querySelector('button.ls-cnt');
+  if (defBtn) defBtn.onclick = async () => {
+    if (a.is_default) return;
+    const res = await api(`/api/txn-accounts/${a.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_default: true }),
+    });
+    if (res.ok) { toast(`默认账户已设为「${a.name}」`); markSynced(); after(); }
+    else toast((await res.json().catch(() => ({}))).error || '设置失败');
+  };
+  const editBtn = row.querySelector('.ls-actions .edit');
+  if (editBtn) editBtn.onclick = async () => {
+    const v = await askText({ title: '修改账户名称', value: a.name, maxlen: 12 });
+    if (v === null) return;
+    if (!v) { toast('名称不能为空'); return; }
+    const res = await api(`/api/txn-accounts/${a.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: v }),
+    });
+    if (res.ok) { toast('已重命名，历史流水同步更新'); markSynced(); after(); }
+    else toast((await res.json().catch(() => ({}))).error || '修改失败');
+  };
+  const delBtn = row.querySelector('.ls-actions .del');
+  if (delBtn) delBtn.onclick = async () => {
+    if (!(await confirmModal(`删除账户「${a.name}」？其历史流水会归并到默认账户。`))) return;
+    const res = await api(`/api/txn-accounts/${a.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast(d.merged_to ? `已删除，历史流水归并到「${d.merged_to}」` : '已删除');
+      markSynced(); after();
+    } else toast((await res.json().catch(() => ({}))).error || '删除失败');
+  };
+  // 同一套拖动排序交互，写回账户排序
+  bindLedgerDrag(row.querySelector('.ls-handle'), row, 'sub', null, (ids) =>
+    api('/api/txn-accounts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
+  );
+  return row;
 }
 
 // ===== 人际关系 =====
@@ -5134,6 +5259,31 @@ bind('#ledsetAddBtn', 'click', async () => {
   else toast((await res.json().catch(() => ({}))).error || '添加失败');
 });
 bind('#ledsetName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAddBtn').click(); } });
+
+// 账本设置 · 类目切换（分类管理 / 账户设置）
+$$('[data-lstab]').forEach((b) => {
+  b.onclick = () => { ledset.tab = b.dataset.lstab; renderLedgerSet(); };
+});
+// 账户管理：新增账户
+bind('#ledsetAcctAddBtn', 'click', async () => {
+  const inp = $('#ledsetAcctName');
+  const name = (inp.value || '').trim();
+  if (!name) { toast('请填写账户名称'); return; }
+  const res = await api('/api/txn-accounts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); renderLedgerAccts(); }
+  else toast((await res.json().catch(() => ({}))).error || '添加失败');
+});
+bind('#ledsetAcctName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAcctAddBtn').click(); } });
+// 记一笔 · 账户选择弹窗底部的管理入口
+bind('#acctPickManage', 'click', () => {
+  const m = $('#acctPickModal');
+  if (m) m.hidden = true;
+  ledset.tab = 'accounts';
+  switchView('ledgerset');
+});
 
 // 快捷金额
 $$('#quickAmt button').forEach((b) => {
