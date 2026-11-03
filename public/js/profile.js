@@ -837,11 +837,10 @@ function pfEditIdentity() {
       b.name = payload.firstName || payload.nickname || payload.formerName || payload.englishName || payload.alias || b.name;
       return pfSampleSaveSection('identity', custom2);
     }
-    const res = await api('/api/profile/detail', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // v0.5.47：base + identity 段落合并为一个原子请求（此前 detail PUT + sections PUT 两步，中途失败不同步）
+    const res = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, base: payload, sections: [{ key: 'identity', data: custom2 }] }) });
     if (!res.ok) { const d2 = await res.json().catch(() => ({})); toast(d2.error || '保存失败'); return false; }
-    const rSec = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: PF.pid, key: 'identity', data: custom2 }) });
-    if (!rSec.ok) { toast('附加资料保存失败'); return false; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections.identity = custom2;
     toast('身份标识已保存'); markSynced();
@@ -957,13 +956,10 @@ function pfEditMethods() {
       PF.data.methods = m;
       return pfSampleSaveSection('methods', custom2);
     }
-    // v0.5.44 整段原子替换：先清后建在后端 batch 内完成，中途失败不再丢已删数据
+    // v0.5.47：contacts 行替换 + methods 段落合并为一个原子请求
     const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: PF.pid, contacts: want }) });
+      body: JSON.stringify({ person_id: PF.pid, contacts: want, sections: [{ key: 'methods', data: custom2 }] }) });
     if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '联系方式保存失败'); return false; }
-    const rc = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: PF.pid, key: 'methods', data: custom2 }) });
-    if (!rc.ok) { toast('附加资料保存失败'); return false; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections.methods = custom2;
     toast('联络方式已保存'); markSynced();
@@ -989,12 +985,10 @@ function pfEditClearance() {
       PF.data.work = { company, position };
       return pfSampleSaveSection('clearance', custom2);
     }
-    const r1 = await api('/api/profile/work', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: PF.pid, company, position }) });
-    if (!r1.ok) { toast('职业信息保存失败'); return false; }
-    const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: PF.pid, key: 'clearance', data: custom2 }) });
-    if (!r2.ok) { toast('附加资料保存失败'); return false; }
+    // v0.5.47：work UPSERT + clearance 段落合并为一个原子请求
+    const r1 = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, work: { company, position }, sections: [{ key: 'clearance', data: custom2 }] }) });
+    if (!r1.ok) { const d1 = await r1.json().catch(() => ({})); toast(d1.error || '保存失败'); return false; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections.clearance = custom2;
     toast('职务与授权已保存'); markSynced();
@@ -1043,13 +1037,11 @@ function pfEditEdu() {
       if (!school) return;
       edus.push({ school, major: ins[1] ? ins[1].value.trim() : '', degree: ins[2] ? ins[2].value.trim() : '本科', start: ins[3] ? ins[3].value.trim() : '', end: ins[4] ? ins[4].value.trim() : '', story: ins[5] ? ins[5].value.trim() : '' });
     });
-    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: PF.pid, edus }) });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '教育经历保存失败'); return false; }
+    // v0.5.47：edus 行替换 + edu 段落合并为一个原子请求
     const custom2 = pfCollectSectionData();
-    const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: PF.pid, key: 'edu', data: custom2 }) });
-    if (!r2.ok) { toast('附加资料保存失败'); return false; }
+    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, edus, sections: [{ key: 'edu', data: custom2 }] }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '教育经历保存失败'); return false; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections.edu = custom2;
     toast('教育与能力已保存'); markSynced();
@@ -1125,13 +1117,11 @@ function pfEditHome() {
       if (!species || !name) return;
       petsS.push({ species, name, memorial_date: ins[2] ? ins[2].value.trim() : '' });
     });
-    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: PF.pid, relatives: rels, pets: petsS }) });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '居住与家庭保存失败'); return false; }
+    // v0.5.47：relatives/pets 替换 + home 段落合并为一个原子请求
     const custom2 = pfCollectSectionData();
-    const r2 = await api('/api/profile/sections', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: PF.pid, key: 'home', data: custom2 }) });
-    if (!r2.ok) { toast('附加资料保存失败'); return false; }
+    const r = await api('/api/profile/replace', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ person_id: PF.pid, relatives: rels, pets: petsS, sections: [{ key: 'home', data: custom2 }] }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); toast(d.error || '居住与家庭保存失败'); return false; }
     if (!PF.data.sections) PF.data.sections = {};
     PF.data.sections.home = custom2;
     toast('居住与家庭已保存'); markSynced();
@@ -2090,9 +2080,10 @@ function pfBindEvents() {
     const res = await api(`/api/profile/files?id=${PF.pid}&fid=${btn.dataset.id}`, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); pfRenderFiles(); }
   });
+}
 
-
-// 交给 app.js
+// 交给 app.js（v0.5.47 修复：以下人脉词库 / 档案目录排序代码此前误嵌在 pfBindEvents
+// 函数体内，靠「app.js 恰好在启动时调用 pfBindEvents」才能存活，任何人改动调用时机即瘫痪）
 window.PF = PF;
 /* ---------- 人脉词库设置（v0.5.2：标签/群组 增删改 + 拖动排序） ---------- */
 let relset = { kind: 'rel_tag', words: [] };
@@ -2149,7 +2140,8 @@ function relsetRow(w) {
     else toast((await res.json().catch(() => ({}))).error || '修改失败');
   };
   row.querySelector('.del').onclick = async () => {
-    if (!confirm(`删除「${w.word}」？已保存到联系人身上的该${relset.kind === 'rel_tag' ? '标签' : '群组'}不受影响。`)) return;
+    // v0.5.47：原生 confirm() 在 WebView 壳里不可靠（项目内其余 30+ 处均已 confirmModal），此处补齐
+    if (!(await confirmModal(`删除「${w.word}」？已保存到联系人身上的该${relset.kind === 'rel_tag' ? '标签' : '群组'}不受影响。`))) return;
     const res = await api('/api/vocab?id=' + w.id, { method: 'DELETE' });
     if (res.ok) { toast('已删除'); markSynced(); renderRelSet(); }
     else toast('删除失败');
@@ -2292,8 +2284,6 @@ function pfBindDossierDrag() {
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
   });
-}
-
 }
 
 window.pfLoadList = pfLoadList;

@@ -26,7 +26,8 @@ function displayName(b) {
 }
 
 /** 合并请求体中的基础字段（PUT 局部更新：只动传入的字段） */
-async function mergeBase(env, body, existing) {
+// v0.5.47 起导出：/api/profile/replace 的 base 字段复用同一套字段校验（编辑器统一原子保存）
+export async function mergeBase(env, body, existing) {
   const cur = existing || {};
   const get = (col, key) => (body[key] !== undefined ? body[key] : cur[col]);
   const merged = {};

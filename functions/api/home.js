@@ -18,8 +18,62 @@ export async function onRequestGet(context) {
   const today = todayStr();
   const month = today.slice(0, 7);
 
+  // 计数永不抛错（表未迁移等场景按 0 处理，与旧版逐段 try/catch 行为一致）
+  const cnt = async (sql, ...params) => {
+    try {
+      const r = await db.prepare(sql).bind(...params).first();
+      return r ? Number(r.c || 0) : 0;
+    } catch (_) { return 0; }
+  };
+  // 月账单区间与「明天」（start/txn_date 边界比较可走索引；date()/strftime() 包列会架空索引）
+  const nextMonth = (() => {
+    const [y, m] = month.split('-').map(Number);
+    return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  })();
+  const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
+  const dow = ((new Date(today + 'T00:00:00+08:00').getUTCDay() + 6) % 7) + 1;
+  const monday = new Date(Date.parse(today + 'T00:00:00Z') - (dow - 1) * 86400000).toISOString().slice(0, 10);
+  const md = today.slice(5);
+
+  // ===== v0.5.47：15+ 次串行 D1 往返改为一批并发（登录后首屏延迟的主要来源） =====
+  // 每个查询自带 catch 兜底，单表失败不影响其它数据。
+  // 本周打卡日志一次查询同时供「今日完成」(log_date===today) 与「周/间隔频率」两处使用。
+  const [settingRows, allHabitsRes, weekLogsRes, cRowsRes,
+    todosOverdue, todosTodayCnt, todosWeek, medTotal, medExpiring, eventsTodayCnt,
+    ledgerRow, todoRowsRes, eventRowsRes, memosRes, otSample, otYears,
+    medPlanRows, medLogRows] = await Promise.all([
+    db.prepare('SELECT key, value FROM app_settings').all().catch(() => ({ results: [] })),
+    db.prepare('SELECT * FROM habits').all().catch(() => ({ results: [] })),
+    db.prepare('SELECT habit_id, log_date, done, done_bed, done_rise, done_nap FROM habit_logs WHERE log_date >= ?')
+      .bind(monday).all().catch(() => ({ results: [] })),
+    db.prepare('SELECT birthday_type, birthday_calendar, birth_year, birth_month, birth_day, is_deceased FROM contacts')
+      .all().catch(() => ({ results: [] })),
+    cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date < ?", today),
+    cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date = ?", today),
+    cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date BETWEEN ? AND date(?, '+7 days')", today, today),
+    cnt('SELECT COUNT(*) c FROM medicines'),
+    cnt("SELECT COUNT(*) c FROM medicines WHERE expiry IS NOT NULL AND expiry BETWEEN ? AND date(?, '+30 days')", today, today),
+    cnt('SELECT COUNT(*) c FROM events WHERE start >= ? AND start < ?', today, tomorrow),
+    db.prepare(
+      "SELECT COALESCE(SUM(CASE WHEN flow='income' THEN amount ELSE 0 END),0) inc, " +
+        "COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp " +
+        "FROM transactions WHERE txn_date >= ? AND txn_date < ?"
+    ).bind(month + '-01', nextMonth).first().catch(() => null),
+    db.prepare('SELECT id,title,todo_date,todo_time,list,priority FROM todos WHERE done=0 AND todo_date <= ? ORDER BY todo_date ASC, todo_time ASC')
+      .bind(today).all().catch(() => ({ results: [] })),
+    db.prepare('SELECT id,title,start,all_day FROM events WHERE start >= ? AND start < ? ORDER BY start ASC')
+      .bind(today, tomorrow).all().catch(() => ({ results: [] })),
+    db.prepare('SELECT id, content, memo_date FROM memos ORDER BY id DESC LIMIT 5').all().catch(() => ({ results: [] })),
+    db.prepare('SELECT memo_date d, content FROM memos WHERE substr(memo_date, 6) = ? ORDER BY memo_date DESC LIMIT 1')
+      .bind(md).first().catch(() => null),
+    db.prepare('SELECT COUNT(DISTINCT substr(log_date,1,4)) y FROM habit_logs WHERE substr(log_date, 6) = ?')
+      .bind(md).first().catch(() => null),
+    db.prepare('SELECT p.id, p.time_of_day t, p.days, m.name FROM med_plans p JOIN medicines m ON m.id=p.medicine_id WHERE p.active=1')
+      .all().catch(() => ({ results: [] })),
+    db.prepare('SELECT plan_id FROM med_logs WHERE log_date=?').bind(today).all().catch(() => ({ results: [] })),
+  ]);
+
   // 品牌 / 外观设置
-  const settingRows = await db.prepare('SELECT key, value FROM app_settings').all();
   const settings = {};
   (settingRows.results || []).forEach((r) => (settings[r.key] = r.value));
   const brand = {
@@ -38,40 +92,11 @@ export async function onRequestGet(context) {
     gap_x: settings.gap_x || '',
   };
 
-  const cnt = async (sql, ...params) => {
-    const r = await db.prepare(sql).bind(...params).first();
-    return r ? Number(r.c || 0) : 0;
-  };
-  // 月账单区间与「明天」（start/txn_date 边界比较可走索引；date()/strftime() 包列会架空索引）
-  const nextMonth = (() => {
-    const [y, m] = month.split('-').map(Number);
-    return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
-  })();
-  const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
-
   // 习惯今日完成情况（按目标值判定是否完成）
-  const allHabits = await db.prepare('SELECT * FROM habits').all();
-  const habitList = allHabits.results || [];
-  const habitIds = habitList.map((h) => h.id);
-  let habitLogs = [];
-  if (habitIds.length) {
-    const ph = habitIds.map(() => '?').join(',');
-    habitLogs =
-      (await db.prepare(`SELECT * FROM habit_logs WHERE habit_id IN (${ph}) AND log_date = ?`).bind(...habitIds, today).all()).results || [];
-  }
+  const habitList = allHabitsRes.results || [];
+  const weekLogs = weekLogsRes.results || [];
   const hlMap = {};
-  habitLogs.forEach((l) => (hlMap[l.habit_id] = l));
-  // v0.6.0：频率目标（每周 N 次 / 每 N 天）判定用的本周与近 30 天日志
-  let weekLogs = [];
-  if (habitIds.length) {
-    const ph2 = habitIds.map(() => '?').join(',');
-    const dow = ((new Date(today + 'T00:00:00+08:00').getUTCDay() + 6) % 7) + 1;
-    const monday = new Date(Date.parse(today + 'T00:00:00Z') - (dow - 1) * 86400000).toISOString().slice(0, 10);
-    // 注意括号：.results 必须取在 await 之后的数组上，否则恒为 undefined（曾致每周频率习惯统计恒空）
-    weekLogs = ((await db.prepare(
-      `SELECT habit_id, log_date, done FROM habit_logs WHERE habit_id IN (${ph2}) AND log_date >= ?`
-    ).bind(...habitIds, monday).all()).results) || [];
-  }
+  weekLogs.forEach((l) => { if (l.log_date === today) hlMap[l.habit_id] = l; });
   const wlMap = {};
   weekLogs.forEach((l) => { if (!wlMap[l.habit_id]) wlMap[l.habit_id] = []; wlMap[l.habit_id].push(l); });
   function habitTodayDone(h) {
@@ -104,64 +129,24 @@ export async function onRequestGet(context) {
   // 关系：30 天内有生日的联系人（生日向导三种形态 + 阳历/农历统一换算）
   let upcomingBirthdays = 0;
   try {
-    const cRows = (
-      await db.prepare('SELECT birthday_type, birthday_calendar, birth_year, birth_month, birth_day, is_deceased FROM contacts').all()
-    ).results || [];
-    upcomingBirthdays = cRows.filter((c) => !c.is_deceased && birthdayWithin30Of(c)).length;
+    upcomingBirthdays = (cRowsRes.results || []).filter((c) => !c.is_deceased && birthdayWithin30Of(c)).length;
   } catch (_) { /* 忽略 */ }
 
   const stats = {
-    todos: {
-      overdue: await cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date < ?", today),
-      today: await cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date = ?", today),
-      week: await cnt(
-        "SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date BETWEEN ? AND date(?, '+7 days')",
-        today, today
-      ),
-    },
-    habits: {
-      done: habitDoneCount,
-      total: habitList.length,
-    },
+    todos: { overdue: todosOverdue, today: todosTodayCnt, week: todosWeek },
+    habits: { done: habitDoneCount, total: habitList.length },
     ledger: {},
-    medicines: {
-      total: await cnt('SELECT COUNT(*) c FROM medicines'),
-      expiring: await cnt(
-        "SELECT COUNT(*) c FROM medicines WHERE expiry IS NOT NULL AND expiry BETWEEN ? AND date(?, '+30 days')",
-        today, today
-      ),
-    },
-    events: { today: await cnt('SELECT COUNT(*) c FROM events WHERE start >= ? AND start < ?', today, tomorrow) },
+    medicines: { total: medTotal, expiring: medExpiring },
+    events: { today: eventsTodayCnt },
     relations: { upcoming: upcomingBirthdays },
   };
-
-  const ledgerRow = await db
-    .prepare(
-      "SELECT COALESCE(SUM(CASE WHEN flow='income' THEN amount ELSE 0 END),0) inc, " +
-        "COALESCE(SUM(CASE WHEN flow='expense' THEN amount ELSE 0 END),0) exp " +
-        "FROM transactions WHERE txn_date >= ? AND txn_date < ?"
-    )
-    .bind(month + '-01', nextMonth)
-    .first();
   stats.ledger.income = ledgerRow ? Number(ledgerRow.inc) : 0;
   stats.ledger.expense = ledgerRow ? Number(ledgerRow.exp) : 0;
   stats.ledger.balance = stats.ledger.income - stats.ledger.expense;
 
   // 「今天要处理」：待办（逾期/今日）+ 今日事件
-  const todoRows = await db
-    .prepare(
-      'SELECT id,title,todo_date,todo_time,list,priority FROM todos WHERE done=0 AND todo_date <= ? ORDER BY todo_date ASC, todo_time ASC'
-    )
-    .bind(today)
-    .all();
-  const eventRows = await db
-    .prepare('SELECT id,title,start,all_day FROM events WHERE start >= ? AND start < ? ORDER BY start ASC')
-    .bind(today, tomorrow)
-    .all();
-  const habitRows = null; // 已由 habitList / habitTodayDone 计算，保留变量名避免误用
-
   const todayTasks = [];
-  (todoRows.results || []).forEach((t) => {
+  (todoRowsRes.results || []).forEach((t) => {
     todayTasks.push({
       type: 'todo',
       id: t.id,
@@ -173,7 +158,7 @@ export async function onRequestGet(context) {
       actionable: true,
     });
   });
-  (eventRows.results || []).forEach((e) => {
+  (eventRowsRes.results || []).forEach((e) => {
     todayTasks.push({
       type: 'event',
       id: e.id,
@@ -196,47 +181,25 @@ export async function onRequestGet(context) {
 
   const now = cnNow();
 
-  // ===== v0.6.0 P3 聚合：随手记 / 保持联系 / 今日服药 / 那年今天 =====
-  // 一句话 memo（最近 5 条）
-  let memos = [];
-  try {
-    memos = ((await db.prepare('SELECT id, content, memo_date FROM memos ORDER BY id DESC LIMIT 5').all()).results || [])
-      .map((r) => ({ id: r.id, content: r.content, date: r.memo_date }));
-  } catch (_) { /* 表未迁移忽略 */ }
+  // ===== v0.6.0 P3 聚合：随手记 / 今日服药 / 那年今天（数据已在上方并行取得） =====
+  const memos = (memosRes.results || []).map((r) => ({ id: r.id, content: r.content, date: r.memo_date }));
 
   // 今日服药计划（到期未处理的）
-  let medToday = [];
-  try {
-    const dow = String(((new Date(today + 'T00:00:00+08:00').getUTCDay() + 6) % 7) + 1);
-    const pRows = (await db.prepare(
-      'SELECT p.id, p.time_of_day t, p.days, m.name FROM med_plans p JOIN medicines m ON m.id=p.medicine_id WHERE p.active=1'
-    ).all()).results || [];
-    const lRows = ((await db.prepare('SELECT plan_id FROM med_logs WHERE log_date=?').bind(today).all()).results) || [];
-    const doneSet = new Set(lRows.map((r) => r.plan_id));
-    medToday = pRows
-      .filter((p) => String(p.days || '1,2,3,4,5,6,7').split(',').includes(dow) && !doneSet.has(p.id))
-      .sort((a, b) => a.t.localeCompare(b.t))
-      .slice(0, 5)
-      .map((p) => ({ id: p.id, medicine: p.name, time: p.t }));
-  } catch (_) { /* 忽略 */ }
+  const doneSet = new Set((medLogRows.results || []).map((r) => r.plan_id));
+  const medToday = (medPlanRows.results || [])
+    .filter((p) => String(p.days || '1,2,3,4,5,6,7').split(',').includes(String(dow)) && !doneSet.has(p.id))
+    .sort((a, b) => a.t.localeCompare(b.t))
+    .slice(0, 5)
+    .map((p) => ({ id: p.id, medicine: p.name, time: p.t }));
 
   // 那年今天：有记录的年份数 + 最近一条样例
   let onthisday = null;
-  try {
-    const md = today.slice(5);
-    const sample = await db.prepare(
-      'SELECT memo_date d, content FROM memos WHERE substr(memo_date, 6) = ? ORDER BY memo_date DESC LIMIT 1'
-    ).bind(md).first();
-    const yRow = await db.prepare(
-      'SELECT COUNT(DISTINCT substr(log_date,1,4)) y FROM habit_logs WHERE substr(log_date, 6) = ?'
-    ).bind(md).first();
-    if ((sample && sample.d !== today) || (yRow && yRow.y)) {
-      onthisday = { years: yRow ? yRow.y : 0, sample: sample ? { date: sample.d, content: sample.content } : null };
-    }
-  } catch (_) { /* 忽略 */ }
+  if ((otSample && otSample.d !== today) || (otYears && otYears.y)) {
+    onthisday = { years: otYears ? otYears.y : 0, sample: otSample ? { date: otSample.d, content: otSample.content } : null };
+  }
 
   return json({
-    version: '0.5.46',
+    version: '0.5.47',
     brand,
     appearance,
     today,

@@ -1,7 +1,7 @@
 // 全局中间件：为 /api/* 受保护接口做登录校验（公开接口除外）
 import { parseCookie, verifyToken, decodeToken, sessionSecretOf } from './_lib.js';
 
-const PUBLIC = ['/api/auth/login', '/api/health'];
+const PUBLIC = ['/api/auth/login', '/api/health', '/api/client-log'];
 
 export async function onRequest(context) {
   const { request, env, next } = context;

@@ -36,7 +36,8 @@ export const TABLE_LABELS = {
 //   sessions       —— 登录态，清空会把本人踢下线
 //   app_settings   —— 品牌与外观偏好（管理员配置，含 AI 模型配置）
 //   api_tokens     —— 外部访问凭据（安全数据，等同密码，绝不入备份）
-const EXCLUDE = new Set(['sessions', 'app_settings', 'api_tokens', 'd1_migrations', '_cf_KV']);
+//   client_logs    —— v0.5.47 前端错误诊断数据（滚动上限 200 行，非业务数据）
+const EXCLUDE = new Set(['sessions', 'app_settings', 'api_tokens', 'd1_migrations', '_cf_KV', 'client_logs']);
 
 /** 动态读取数据库中实际存在的业务表（避免迁移未跑时 DELETE 报错） */
 export async function listDataTables(env) {

@@ -87,6 +87,10 @@ echo -n "$SESSION_SECRET"  | wrangler pages secret put SESSION_SECRET  --project
 echo "==> 部署到 Cloudflare Pages"
 wrangler pages deploy ./public --project-name="$PROJECT" --commit-dirty=true
 
+# ---------- 7) 部署推送 Worker（提醒 + 每日备份，见 worker/）----------
+echo "==> 部署推送 Worker"
+( cd worker && npm install && wrangler deploy ) || echo "!! Worker 部署失败，可稍后手动执行：cd worker && wrangler deploy"
+
 echo ""
 echo "✅ 部署完成！访问你的 Pages 域名（控制台可查），用 ADMIN_USER / ADMIN_PASS 登录。"
 echo "   若修改管理员账号密码，重新运行本脚本第 5 步即可（或到控制台改环境变量后重新部署）。"

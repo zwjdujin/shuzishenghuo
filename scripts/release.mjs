@@ -106,6 +106,29 @@ for (const [src, rel] of FILES) {
   write('public/index.html', html);
 }
 
+// ---------- 3b. 内联首屏脚本 CSP hash 注入（v0.5.47） ----------
+// index.html 顶部的主题恢复内联脚本此前被 CSP `script-src 'self'` 拦截，防主题闪烁机制
+// 在生产从未生效。此处按脚本内容实时计算 sha256 注入 _headers——脚本内容变化时 hash
+// 自动跟进，不再出现"改了脚本、CSP 静默拦截"的隐患。
+{
+  const html = read('public/index.html');
+  const m = html.match(/<script>([\s\S]*?首屏外观恢复[\s\S]*?)<\/script>/);
+  if (m) {
+    const inner = m[1];   // CSP hash 按 <script> 与 </script> 之间的原始字节计算，不trim
+    const directive = `'sha256-${createHash('sha256').update(inner, 'utf8').digest('base64')}'`;
+    let h = read('public/_headers');
+    if (/'sha256-[A-Za-z0-9+/=]+'/.test(h)) {
+      h = h.replace(/'sha256-[A-Za-z0-9+/=]+'/, directive);
+    } else {
+      h = h.replace("script-src 'self';", `script-src 'self' ${directive};`);
+    }
+    write('public/_headers', h);
+    console.log(`  + _headers CSP script-src 注入 ${directive.slice(0, 24)}…`);
+  } else {
+    console.warn('  ! 未找到内联首屏脚本（可能已外置），跳过 CSP hash 注入');
+  }
+}
+
 // ---------- 4. 固定名 sw.js（字节随内容变化，浏览器自动判定更新） ----------
 const cacheTag = sha8(Object.values(contents).join(''));
 const pre = [

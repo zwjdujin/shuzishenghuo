@@ -104,7 +104,7 @@ wrangler r2 bucket create shuzishenghuo
 wrangler d1 migrations apply shuzishenghuo --remote
 ```
 
-看到 `0001 … ✅` 到 `0008 … ✅` 全部勾上即成功。以后每次升级新版本，也是跑同一条命令——它有执行记录，只会应用没跑过的部分，**不会动你已有的数据**。
+看到迁移列表全部 `✅` 即成功（当前共 15 个，以 `migrations/` 目录为准）。以后每次升级新版本，也是跑同一条命令——它有执行记录，只会应用没跑过的部分，**不会动你已有的数据**。
 
 ---
 

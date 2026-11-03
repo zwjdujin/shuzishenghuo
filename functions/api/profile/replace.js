@@ -1,14 +1,20 @@
 import { json } from '../../_lib.js';
-import { syncPrimaryPhone } from './detail.js';
+import { syncPrimaryPhone, mergeBase } from './detail.js';
 
-// ===== 编辑器整段保存（v0.5.44）=====
-// PUT /api/profile/replace  body: { person_id, contacts?, edus?, relatives?, pets? }
+// ===== 编辑器整段保存（v0.5.44；v0.5.47 扩展）=====
+// PUT /api/profile/replace  body: { person_id, contacts?, edus?, relatives?, pets?, base?, work?, sections? }
 // 数组字段提供即整表替换：先清后建放在同一个 DB.batch 内原子完成，
 // 任一步失败整体回滚 —— 替代旧版「逐条 DELETE 再逐条 POST」的多次请求
 // （中途失败会留下半清空状态，造成该段资料丢失）。
-// 未提供的数组不动对应表。响应 counts 为实际写入行数。
+// v0.5.47 扩展（同批原子）：
+//   base     —— 身份标识字段（复用 detail.js mergeBase 的同一套校验，contacts UPDATE）
+//   work     —— {company, position}（contact_work UPSERT）
+//   sections —— [{key, data}]（contact_sections UPSERT，每段 ≤24KB，与 /api/profile/sections 同规则）
+//   五个编辑器（身份/职务/联络/教育/居住）由此全部收敛为单请求保存。
+// 未提供的字段不动对应数据。响应 counts 为实际写入行数。
 const clean = (s, max) => String(s || '').trim().slice(0, max);
 const METHOD_KINDS = ['phones', 'emails', 'addresses', 'qq', 'wechat'];
+const MAX_SECTION = 24 * 1024;
 
 export async function onRequestPut(context) {
   const { env, request } = context;
@@ -22,6 +28,35 @@ export async function onRequestPut(context) {
 
   // ---- 先全部清洗校验，通过后才执行替换 ----
   let contacts = null, edus = null, relatives = null, pets = null;
+
+  // v0.5.47 base：身份标识（mergeBase 校验失败整体 400，不影响已存数据）
+  let baseSets = null;
+  if (b.base && typeof b.base === 'object' && !Array.isArray(b.base)) {
+    const existing = await env.DB.prepare('SELECT * FROM contacts WHERE id=?').bind(personId).first();
+    const merged = await mergeBase(env, b.base, existing);
+    if (merged.error) return json({ error: merged.error }, 400);
+    if (merged.sets && Object.keys(merged.sets).length) baseSets = merged.sets;
+  }
+
+  // v0.5.47 work：公司/职位
+  let work = null;
+  if (b.work && typeof b.work === 'object' && !Array.isArray(b.work)) {
+    work = { company: clean(b.work.company, 40) || null, position: clean(b.work.position, 40) || null };
+  }
+
+  // v0.5.47 sections：自定义段落（与 /api/profile/sections 同规则）
+  let sections = null;
+  if (Array.isArray(b.sections)) {
+    sections = [];
+    for (const s of b.sections) {
+      const key = String((s && s.key) || '').trim();
+      const data = s && s.data && typeof s.data === 'object' ? s.data : {};
+      const dataStr = JSON.stringify(data);
+      if (!key) return json({ error: '段落缺少 key' }, 400);
+      if (dataStr.length > MAX_SECTION) return json({ error: '段落「' + key + '」内容过大（上限 24KB）' }, 400);
+      sections.push({ key, dataStr });
+    }
+  }
 
   if (Array.isArray(b.contacts)) {
     contacts = [];
@@ -85,12 +120,24 @@ export async function onRequestPut(context) {
     }
   }
 
-  if (!contacts && !edus && !relatives && !pets) {
-    return json({ error: '没有需要替换的数据' }, 400);
+  if (!contacts && !edus && !relatives && !pets && !baseSets && !work && !sections) {
+    return json({ error: '没有需要保存的数据' }, 400);
   }
 
-  // ---- batch 原子替换：要么全部成功，要么全部不动 ----
+  // ---- batch 原子保存：要么全部成功，要么全部不动 ----
   const stmts = [];
+  if (baseSets) {
+    const cols = Object.keys(baseSets);
+    stmts.push(env.DB.prepare(
+      `UPDATE contacts SET ${cols.map((k) => `${k}=?`).join(', ')} WHERE id=?`
+    ).bind(...cols.map((k) => baseSets[k]), personId));
+  }
+  if (work) {
+    stmts.push(env.DB.prepare(
+      `INSERT INTO contact_work(person_id, company, position) VALUES (?,?,?)
+       ON CONFLICT(person_id) DO UPDATE SET company=excluded.company, position=excluded.position`
+    ).bind(personId, work.company, work.position));
+  }
   if (contacts) {
     stmts.push(env.DB.prepare('DELETE FROM contact_contacts WHERE person_id=?').bind(personId));
     contacts.forEach((r) => stmts.push(env.DB.prepare(
@@ -115,10 +162,26 @@ export async function onRequestPut(context) {
       'INSERT INTO rel_pets(person_id, species, name, memorial_date) VALUES (?,?,?,?)'
     ).bind(personId, r.species, r.name, r.memorial)));
   }
+  if (sections) {
+    sections.forEach((s) => stmts.push(env.DB.prepare(
+      `INSERT INTO contact_sections(contact_id, sec_key, data) VALUES (?,?,?)
+       ON CONFLICT(contact_id, sec_key) DO UPDATE SET data=excluded.data, updated_at=datetime('now','localtime')`
+    ).bind(personId, s.key, s.dataStr)));
+  }
   await env.DB.batch(stmts);
 
-  // 词库沉淀与主电话同步（与单条接口行为一致；失败不影响已完成的替换）
+  // 词库沉淀与主电话同步（与单条接口行为一致；失败不影响已完成的保存）
   try {
+    if (work) {
+      if (work.company) {
+        await env.DB.prepare('INSERT INTO vocab(kind, word) VALUES (?, ?) ON CONFLICT(kind, word) DO UPDATE SET hits = hits + 1')
+          .bind('rel_company', work.company).run();
+      }
+      if (work.position) {
+        await env.DB.prepare('INSERT INTO vocab(kind, word) VALUES (?, ?) ON CONFLICT(kind, word) DO UPDATE SET hits = hits + 1')
+          .bind('rel_position', work.position).run();
+      }
+    }
     if (relatives && relatives.length) {
       const seen = new Set();
       for (const r of relatives) {
@@ -147,6 +210,9 @@ export async function onRequestPut(context) {
       edus: edus ? edus.length : null,
       relatives: relatives ? relatives.length : null,
       pets: pets ? pets.length : null,
+      base: baseSets ? Object.keys(baseSets).length : null,
+      work: work ? 1 : null,
+      sections: sections ? sections.length : null,
     },
   });
 }

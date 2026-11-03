@@ -1,23 +1,34 @@
-// 数字生活 · 前端逻辑 v0.5.46
-const VERSION = '0.5.46';
+// 数字生活 · 前端逻辑 v0.5.47
+const VERSION = '0.5.47';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '令牌生命周期+安全收尾+服药扣库存/周期账单防双记';
+const __BUILD_ID__ = '前端排雷+CSP hash+编辑器统一原子+错误上报真数据+clear原子+home并行+文档卫生';
 const __BUILD_TIME__ = '2026-11-03';
 
-// 同步状态（数据实时写入云端 D1，无待同步队列）
+// 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
 let __SYNC_TIME__ = '尚未同步';
-let __PENDING__ = '0 项';
-let __CONFLICT__ = '0 项';
 // 每次成功调用写接口后更新「最近成功同步」
 function markSynced() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   __SYNC_TIME__ = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  __PENDING__ = '0 项';
 }
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
+// v0.5.47：同步上报到 /api/client-log（系统信息页展示真实统计），线上故障不再只靠用户肉眼发现
+function reportError(msg) {
+  try {
+    if ((window.__errReported = (window.__errReported || 0)) >= 20) return;   // 防循环上报
+    window.__errReported++;
+    fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({ level: 'error', message: String(msg).slice(0, 500), url: location.hash || '/' }),
+    }).catch(() => {});
+  } catch (_) { /* 上报失败静默（显示红条本身优先） */ }
+}
 function fatal(msg) {
+  reportError(msg);
   let b = document.getElementById('fatalBanner');
   if (!b) {
     b = document.createElement('div');
@@ -45,7 +56,9 @@ const escHtml = (s) => String(s == null ? '' : s)
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 function money(n) {
-  return '¥' + Math.round(Number(n || 0)).toLocaleString('zh-CN');
+  // v0.5.47：保留两位小数（去尾零）——此前 Math.round 取整，录 12.34 显示 ¥12，与录入精度不一致
+  const v = Math.round(Number(n || 0) * 100) / 100;
+  return '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 function toast(msg) {
   const el = $('#toast');
@@ -3287,8 +3300,12 @@ function renderAcctPick() {
 /* ---------- 联系人选择（来自人际关系，选中即关联） ---------- */
 let contactCache = null;
 // profile.js 增删改联系人成功后调用，避免「记一笔→联系人」仍是旧名单
-window.invalidateContacts = function () { contactCache = null; };
+// v0.5.47 修复：下面那行 PF.allNames 清空此前错位到模块顶层，只在加载时执行一次（恒无效），
+// 导致增删改联系人后档案页姓名自动链接一直用旧名单
+window.invalidateContacts = function () {
+  contactCache = null;
   if (window.PF) PF.allNames = [];   // v0.5.34：姓名链接名单同步失效
+};
 async function openContactPicker() {
   const m = $('#contactPickModal');
   if (!m) return;
@@ -4799,8 +4816,11 @@ async function renderSysInfo() {
       ['实例连接状况', health.ok ? '● 正常' : '○ ' + (health.note || '异常')],
       ['健康检查耗时', `${health.ms ?? rtt} ms（服务端） · ${rtt} ms（往返）`],
       ['最近成功同步', __SYNC_TIME__],
-      ['待同步', __PENDING__],
-      ['失败或冲突', __CONFLICT__],
+      // v0.5.47：前端错误真实统计（数据实时入云，无待同步队列；错误来自 fatal 全局上报）
+      ['近 7 天前端错误', `${(data.clientErrors && data.clientErrors.last7d) || 0} 次（累计 ${(data.clientErrors && data.clientErrors.total) || 0}）`],
+      ['最近一次错误', data.clientErrors && data.clientErrors.latest
+        ? `${data.clientErrors.latest.at} · ${escHtml(String(data.clientErrors.latest.message)).slice(0, 60)}`
+        : '暂无'],
     ]);
   } catch (err) {
     const msg = String(err.message).includes('unauthorized') ? '未登录' : '加载失败';

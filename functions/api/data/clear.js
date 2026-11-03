@@ -16,17 +16,17 @@ export async function onRequestPost(context) {
   }
 
   const names = await listDataTables(env);
-  const cleared = [];
-  const failed = [];
 
-  for (const name of names) {
-    try {
-      await env.DB.prepare(`DELETE FROM "${name}"`).run();
-      cleared.push(name);
-    } catch (_) {
-      failed.push(name);
-    }
+  // v0.5.47：全部 DELETE 放进同一个 batch 原子执行。此前循环逐表执行且吞错，
+  // 中途超时会留下"半清空"的库且无从回滚。要么全清，要么不动。
+  try {
+    await env.DB.batch(names.map((name) => env.DB.prepare(`DELETE FROM "${name}"`)));
+  } catch (e) {
+    console.error('clear batch', e && e.message);
+    return json({ error: '清空失败（未做任何改动，请重试）：' + (e && e.message ? e.message : '') }, 500);
   }
+  const cleared = names;
+  const failed = [];
 
   // 重置自增序列，让新数据从 1 开始（部分环境不允许写 sqlite_sequence，失败不影响结果）
   if (names.length) {

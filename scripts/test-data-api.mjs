@@ -55,6 +55,12 @@ function mockDB() {
       };
       return { bind: () => ({ all, first, run }), all, first, run };
     },
+    // v0.5.47：clear.js 改为 batch 原子清空，mock 同步实现（真实 D1 batch 为原子执行）
+    async batch(stmts) {
+      const out = [];
+      for (const st of stmts) out.push(await st.run());
+      return out;
+    },
   };
 }
 

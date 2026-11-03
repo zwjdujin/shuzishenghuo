@@ -41,12 +41,25 @@ export async function onRequestGet(context) {
   const commit = pick(env, 'CF_PAGES_COMMIT_SHA', '');
   const buildId = commit && commit !== '未配置' ? commit.slice(0, 12) : DEPLOY_ID;
 
+  // v0.5.47：前端错误真实统计（此前系统信息页「待同步/失败或冲突」两行是写死的占位）
+  let clientErr = { total: 0, last7d: 0, latest: null };
+  try {
+    const t = await env.DB.prepare('SELECT COUNT(*) c FROM client_logs').first();
+    const w = await env.DB.prepare("SELECT COUNT(*) c FROM client_logs WHERE created_at >= datetime('now', '-7 days')").first().catch(() => null);
+    const latest = await env.DB.prepare('SELECT created_at, level, message FROM client_logs ORDER BY id DESC LIMIT 1').first().catch(() => null);
+    clientErr = {
+      total: t ? Number(t.c) : 0,
+      last7d: w ? Number(w.c) : 0,
+      latest: latest ? { at: latest.created_at, level: latest.level, message: String(latest.message).slice(0, 120) } : null,
+    };
+  } catch (_) { /* 表未迁移时忽略 */ }
+
   return json({
     instance: {
-      version: pick(env, 'APP_VERSION', '0.5.46'),
+      version: pick(env, 'APP_VERSION', '0.5.47'),
       build: buildId,
       deployTime: DEPLOY_TIME,
-      dbVersion: DB_SCHEMA_VERSION,
+      dbVersion: '迁移 0015',
       dbBackend: DB_BACKEND,
       storage: STORAGE,
       platform: DEPLOY_PLATFORM,
@@ -64,5 +77,6 @@ export async function onRequestGet(context) {
       runtime: RUNTIME,
       timezone: 'UTC（Cloudflare 运行时）',
     },
+    clientErrors: clientErr,
   });
 }
