@@ -7,6 +7,10 @@ export async function onRequestPost(context) {
   let sub;
   try { sub = await request.json(); } catch (_) { return json({ error: 'bad body' }, 400); }
   if (!sub || !sub.endpoint) return json({ error: 'missing endpoint' }, 400);
+  // v0.5.48 限长：endpoint 是 URL（500 足够），密钥字段固定尺寸（API 直灌防膨胀）
+  const endpoint = String(sub.endpoint).slice(0, 500);
+  const p256dh = String((sub.keys && sub.keys.p256dh) || '').slice(0, 200);
+  const auth = String((sub.keys && sub.keys.auth) || '').slice(0, 200);
 
   try {
     await env.DB.prepare(
@@ -14,7 +18,7 @@ export async function onRequestPost(context) {
        VALUES (?, ?, ?, datetime('now'))
        ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth`
     )
-      .bind(sub.endpoint, (sub.keys && sub.keys.p256dh) || '', (sub.keys && sub.keys.auth) || '')
+      .bind(endpoint, p256dh, auth)
       .run();
     return json({ ok: true });
   } catch (e) {

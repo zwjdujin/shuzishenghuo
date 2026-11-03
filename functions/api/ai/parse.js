@@ -85,6 +85,7 @@ export async function onRequestPost(context) {
     drafts = extractDrafts(raw);
   } catch (e) {
     const msg = e && e.name === 'TimeoutError' ? '上游 60 秒未响应（已超时中断）' : (e && e.message ? e.message : e);
+    console.error('ai parse fail:', msg);
     return json({ error: '解析失败：' + msg }, 200);
   }
   if (!drafts) return json({ error: '模型未返回有效结果' }, 200);

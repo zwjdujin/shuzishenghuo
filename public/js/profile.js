@@ -209,6 +209,9 @@ function pfListSubtitle(p) {
 
 // ===== 档案视图 =====
 async function pfOpenProfile(id) {
+  // v0.5.48 竞态守卫：快速连续换人时只让最后一次请求落地（旧响应不再覆盖 PF.data/渲染）
+  PF.openSeq = (PF.openSeq || 0) + 1;
+  const mySeq = PF.openSeq;
   PF.pid = Number(id);
   PF.view = 'profile';
   PF.isSample = false;
@@ -229,7 +232,9 @@ async function pfOpenProfile(id) {
     const namesP = pfLoadNames();   // 姓名自动链接需要名单，与详情并行
     const filesP = pfEnsureFiles(); // 头像从附件图片引用
     const res = await api('/api/profile/detail?id=' + PF.pid);
-    PF.data = await res.json();
+    const detail = await res.json();
+    if (PF.openSeq !== mySeq) return;   // v0.5.48：期间已切换联系人/返回列表/打开示例，丢弃本次响应
+    PF.data = detail;
     await Promise.all([namesP, filesP]);
     pfRenderAll();
     markSynced();
@@ -243,6 +248,7 @@ async function pfOpenProfile(id) {
 }
 
 function pfBackToList() {
+  PF.openSeq = (PF.openSeq || 0) + 1;   // v0.5.48：在途的档案请求返回后不再落地
   PF.isSample = false;
   document.body.classList.remove('pf-sample');
   PF.view = 'list';
@@ -738,6 +744,7 @@ const PF_SAMPLE = {
 
 /** 打开内置示例档案（纯前端渲染，不占数据库） */
 function pfOpenSample() {
+  PF.openSeq = (PF.openSeq || 0) + 1;   // v0.5.48：在途的真实档案请求返回后不再落地
   PF.isSample = true;
   PF.pid = null;
   PF.view = 'profile';
@@ -1292,7 +1299,8 @@ function pfRenderIndex() {
 }
 
 // ===== v0.6.0：个人信息（尺码单值 + 身高表格 + 体重折线图） =====
-function pfToday() { return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10); }
+// v0.5.48：统一设备本地时区——此前 pfToday 硬编码 UTC+8，海外时区下体测/记录日期会差一天
+function pfToday() { return pfTodayLocal(); }
 
 /** 体重折线：纯 SVG，min/max 参考线 + 末值标注；单点/空数据有兜底 */
 function pfWeightSvg(recs) {

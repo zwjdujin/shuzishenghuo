@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.47
-const VERSION = '0.5.47';
+// 数字生活 · 前端逻辑 v0.5.48
+const VERSION = '0.5.48';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '前端排雷+CSP hash+编辑器统一原子+错误上报真数据+clear原子+home并行+文档卫生';
+const __BUILD_ID__ = '全站异步竞态守卫+写入校验收口+关键日志+pfToday时区统一';
 const __BUILD_TIME__ = '2026-11-03';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
@@ -1098,6 +1098,8 @@ function applyCalPicker() {
 // 加载当前视图范围的事件
 async function loadCalEvents() {
   initCalPicker();
+  // v0.5.48 竞态守卫：快速翻月/翻周时只让最后一次请求落地，旧响应不覆盖新视图
+  const mySeq = (calState.loadSeq = (calState.loadSeq || 0) + 1);
   const a = calState.anchor;
   let from, to;
   if (calState.view === 'week') {
@@ -1113,6 +1115,7 @@ async function loadCalEvents() {
   try {
     const res = await api(`/api/events?from=${from}&to=${to}`);
     const data = await res.json();
+    if (calState.loadSeq !== mySeq) return;   // 期间已切换视图/月份，丢弃本次响应
     calState.events = data.events || [];
     calState.periods = data.periods || [];       // v0.5.10 经期叠加（隐私开关关闭时后端直接不给）
     calState.prediction = data.prediction || null;
@@ -2199,10 +2202,13 @@ function ledCatClass(name, flow) {
 async function renderLedger() {
   const box = $('#ledgerStats');
   if (!box) return;
+  // v0.5.48 竞态守卫：快速翻月时只让最后一次请求落地
+  const mySeq = (ledgerState.loadSeq = (ledgerState.loadSeq || 0) + 1);
   $('#ledMonth').textContent = ledgerState.month.replace('-', '年') + '月';
   try {
     const res = await api(`/api/transactions?month=${ledgerState.month}`);
     const data = await res.json();
+    if (ledgerState.loadSeq !== mySeq) return;   // 期间已切换月份，丢弃本次响应
     ledgerData = {
       catStats: data.catStats || [],
       incomeCatStats: data.incomeCatStats || [],

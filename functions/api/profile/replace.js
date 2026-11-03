@@ -168,7 +168,12 @@ export async function onRequestPut(context) {
        ON CONFLICT(contact_id, sec_key) DO UPDATE SET data=excluded.data, updated_at=datetime('now','localtime')`
     ).bind(personId, s.key, s.dataStr)));
   }
-  await env.DB.batch(stmts);
+  try {
+    await env.DB.batch(stmts);
+  } catch (e) {
+    console.error('profile/replace batch fail:', e && e.message);
+    return json({ error: '保存失败（未做任何改动，请重试）：' + (e && e.message ? e.message : '') }, 500);
+  }
 
   // 词库沉淀与主电话同步（与单条接口行为一致；失败不影响已完成的保存）
   try {

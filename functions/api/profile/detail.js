@@ -240,8 +240,8 @@ export async function onRequestPost(context) {
 // PUT /api/profile/detail —— 更新基础信息（只更新传入字段）
 export async function onRequestPut(context) {
   const { env, request } = context;
-  let body = {};
-  try { body = await request.json(); } catch (_) {}
+  let body;
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
   const id = Number(body.id);
   if (!id) return json({ error: '缺少 id' }, 400);
   const existing = await env.DB.prepare('SELECT * FROM contacts WHERE id = ?').bind(id).first();

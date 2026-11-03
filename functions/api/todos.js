@@ -85,18 +85,24 @@ export async function onRequestGet(context) {
   return json({ todos, lists: LISTS, priorities: PRIORITIES, priorityMeta: PRIORITY_META, counts, today });
 }
 
+// 写入字段统一清洗（v0.5.48：长度与日期格式收口，此前 API 直灌可存任意长度/畸形日期）
+const cleanTitle = (s) => String(s || '').trim().slice(0, 60);
+const cleanNote = (s) => String(s || '').trim().slice(0, 200) || null;
+const cleanTime = (s) => (/^\d{1,2}:\d{2}$/.test(String(s || '').trim()) ? String(s).trim().slice(0, 5) : null);
+const cleanDate = (s, fallback) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || '').trim()) ? String(s).trim() : fallback);
+
 // POST /api/todos —— 新增待办（priority 可直接给 P0-P3，也可给 important/urgent）
 export async function onRequestPost(context) {
   const { env, request } = context;
-  let body = {};
-  try { body = await request.json(); } catch (_) {}
+  let body;
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
 
-  const title = String(body.title || '').trim();
+  const title = cleanTitle(body.title);
   if (!title) return json({ error: '请填写待办内容' }, 400);
-  const date = String(body.date || '').trim() || todayStr();
-  const time = String(body.time || '').trim() || null;
+  const date = cleanDate(body.date, todayStr());
+  const time = cleanTime(body.time);
   const list = LISTS.includes(body.list) ? body.list : '生活';
-  const note = String(body.note || '').trim() || null;
+  const note = cleanNote(body.note);
   const remind = body.remind ? 1 : 0;
 
   // 优先级：优先取重要/紧急两个维度推导；否则用传入的 P 级
@@ -120,11 +126,11 @@ export async function onRequestPost(context) {
 // PUT /api/todos —— 编辑待办
 export async function onRequestPut(context) {
   const { env, request } = context;
-  let body = {};
-  try { body = await request.json(); } catch (_) {}
+  let body;
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
   const id = Number(body.id);
   if (!id) return json({ error: '缺少待办 ID' }, 400);
-  const title = String(body.title || '').trim();
+  const title = cleanTitle(body.title);
   if (!title) return json({ error: '请填写待办内容' }, 400);
 
   let priority;
@@ -140,13 +146,13 @@ export async function onRequestPut(context) {
   )
     .bind(
       title,
-      String(body.date || '').trim() || todayStr(),
-      String(body.time || '').trim() || null,
+      cleanDate(body.date, todayStr()),
+      cleanTime(body.time),
       LISTS.includes(body.list) ? body.list : '生活',
       priority,
       meta.important,
       meta.urgent,
-      String(body.note || '').trim() || null,
+      cleanNote(body.note),
       body.remind ? 1 : 0,
       id
     )

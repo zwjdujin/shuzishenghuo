@@ -48,6 +48,7 @@ export async function onRequestPost(context) {
   const pass = String(body.pass || '');
   const ip = clientIp(request);
   if (tooManyFails(ip)) {
+    console.warn('login rate-limited:', ip);
     return json({ error: '尝试次数过多，请 15 分钟后再试' }, 429);
   }
 
@@ -56,6 +57,7 @@ export async function onRequestPost(context) {
   const passOk = await verifyAdminPassword(env, pass);
   if (user !== env.ADMIN_USER || !passOk) {
     recordFail(ip);
+    console.warn('login failed:', ip, user ? `user=${user.slice(0, 20)}` : '(空用户名)');
     return json({ error: '用户名或密码错误' }, 401);
   }
   loginFails.delete(ip);

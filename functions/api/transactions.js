@@ -274,8 +274,8 @@ export async function onRequestGet(context) {
 // POST /api/transactions —— 记一笔（支出 / 收入 / 转账）
 export async function onRequestPost(context) {
   const { env, request } = context;
-  let body = {};
-  try { body = await request.json(); } catch (_) {}
+  let body;
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
 
   const t = normalizeTxnBody(body);
   if (!t) return json({ error: '请填写有效金额' }, 400);

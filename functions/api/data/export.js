@@ -16,7 +16,8 @@ export async function onRequestGet(context) {
     try {
       const rows = (await env.DB.prepare(`SELECT * FROM "${name}"`).all()).results || [];
       tables[name] = rows;
-    } catch (_) {
+    } catch (e) {
+      console.warn('export skip table:', name, e && e.message);
       tables[name] = [];
     }
   }

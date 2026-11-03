@@ -73,23 +73,33 @@ export async function onRequestGet(context) {
   return json({ events, calendars: CALENDARS, periods, prediction, periodVisible });
 }
 
+// 写入字段统一清洗（v0.5.48：长度与时间格式收口）
+const cleanTitle = (s) => String(s || '').trim().slice(0, 80);
+const cleanText = (s, max) => String(s || '').trim().slice(0, max) || null;
+// events.start 存 'YYYY-MM-DD HH:MM'（历史数据兼容可带秒/带 T）
+const cleanStart = (s) => {
+  const m = /^(\d{4}-\d{2}-\d{2})([ T](\d{1,2}:\d{2})(:\d{2})?)?$/.exec(String(s || '').trim());
+  if (!m) return null;
+  return m[3] ? `${m[1]} ${m[3].padStart(5, '0')}` : m[1];
+};
+
 // POST /api/events —— 新增事件
 export async function onRequestPost(context) {
   const { env, request } = context;
-  let body = {};
-  try { body = await request.json(); } catch (_) {}
+  let body;
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
 
-  const title = String(body.title || '').trim();
+  const title = cleanTitle(body.title);
   if (!title) return json({ error: '请填写事件标题' }, 400);
-  const start = String(body.start || '').trim();
-  if (!start) return json({ error: '请选择开始时间' }, 400);
+  const start = cleanStart(body.start);
+  if (!start) return json({ error: '开始时间需为 YYYY-MM-DD 或 YYYY-MM-DD HH:MM' }, 400);
 
-  const end = String(body.end || '').trim() || null;
+  const end = cleanStart(body.end);
   const allDay = body.allDay ? 1 : 0;
   const calendar = CALENDARS.includes(body.calendar) ? body.calendar : '生活';
-  const color = String(body.color || '').trim() || null;
-  const location = String(body.location || '').trim() || null;
-  const note = String(body.note || '').trim() || null;
+  const color = cleanText(body.color, 20);
+  const location = cleanText(body.location, 60);
+  const note = cleanText(body.note, 200);
 
   const res = await env.DB.prepare(
     `INSERT INTO events(title, start, "end", all_day, calendar, color, location, note)
@@ -104,15 +114,15 @@ export async function onRequestPost(context) {
 // PUT /api/events —— 编辑事件
 export async function onRequestPut(context) {
   const { env, request } = context;
-  let body = {};
-  try { body = await request.json(); } catch (_) {}
+  let body;
+  try { body = await request.json(); } catch (_) { return json({ error: '请求格式不正确' }, 400); }
   const id = Number(body.id);
   if (!id) return json({ error: '缺少事件 ID' }, 400);
 
-  const title = String(body.title || '').trim();
+  const title = cleanTitle(body.title);
   if (!title) return json({ error: '请填写事件标题' }, 400);
-  const start = String(body.start || '').trim();
-  if (!start) return json({ error: '请选择开始时间' }, 400);
+  const start = cleanStart(body.start);
+  if (!start) return json({ error: '开始时间需为 YYYY-MM-DD 或 YYYY-MM-DD HH:MM' }, 400);
 
   await env.DB.prepare(
     `UPDATE events SET title=?, start=?, "end"=?, all_day=?, calendar=?, color=?, location=?, note=? WHERE id=?`
@@ -120,12 +130,12 @@ export async function onRequestPut(context) {
     .bind(
       title,
       start,
-      String(body.end || '').trim() || null,
+      cleanStart(body.end),
       body.allDay ? 1 : 0,
       CALENDARS.includes(body.calendar) ? body.calendar : '生活',
-      String(body.color || '').trim() || null,
-      String(body.location || '').trim() || null,
-      String(body.note || '').trim() || null,
+      cleanText(body.color, 20),
+      cleanText(body.location, 60),
+      cleanText(body.note, 200),
       id
     )
     .run();
