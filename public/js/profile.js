@@ -786,7 +786,10 @@ function pfEditIdentity() {
     + '<button type="button" class="btn ghost" data-se="bday" style="flex:1;text-align:left">' + pfEsc(b.birthdayType ? b.birthText : '点击选择生日') + '</button>'
     + '<label><input type="checkbox" data-se="lunar"' + (b.birthdayCalendar === 'lunar' ? ' checked' : '') + '>农历</label>');
   body.appendChild(bd);
-  body.appendChild(pfSeRow('<input type="text" class="sk" data-f="marriage" placeholder="婚姻状况" value="' + pfEsc(b.marriage || '') + '">'));
+  // v0.5.46：婚姻状况自由填写（无内置清单），datalist 提示自己用过的值
+  body.appendChild(pfSeRow('<input type="text" class="sk" data-f="marriage" placeholder="婚姻状况（自定义，如：已婚 / 离异）" list="pfMarriageList" value="' + pfEsc(b.marriage || '') + '">'));
+  const mArr = PF.options.marriages || [];
+  if (mArr.length) body.insertAdjacentHTML('beforeend', '<datalist id="pfMarriageList">' + mArr.map((m) => `<option value="${pfEsc(m)}"></option>`).join('') + '</datalist>');
   body.appendChild(pfSeRow('<input type="text" data-f="note" placeholder="备注" value="' + pfEsc(b.note || '') + '">'));
   const more = pfSeRow('<button type="button" class="btn ghost" data-se="full" style="flex:1">完整资料（生日提醒 / 标签 / 群组 / 引荐人 / 已逝）</button>');
   if (!PF.isSample) body.appendChild(more);

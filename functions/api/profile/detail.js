@@ -1,7 +1,6 @@
 import { json } from '../../_lib.js';
 import { parseBirthdayBody, nextBirthdayOf, ageOfContact, toLunar } from '../_profile.js';
 
-const MARRIAGES = ['已婚', '未婚', '离婚', '丧偶'];
 // 名字六字段：任选其一必填
 const NAME_FIELDS = [
   ['first_name', 'firstName'],
@@ -69,7 +68,8 @@ export async function mergeBase(env, body, existing) {
   if (body.isDeceased !== undefined) sets.is_deceased = body.isDeceased ? 1 : 0;
   if (body.tags !== undefined) sets.tags = csvOf(body.tags);
   if (body.groups !== undefined) sets.peer_groups = csvOf(body.groups);
-  if (body.marriage !== undefined) sets.marriage = MARRIAGES.includes(body.marriage) ? body.marriage : '';
+  // v0.5.46：婚姻状况自由填写（此前白名单外的值会被静默清空，如「离异」）
+  if (body.marriage !== undefined) sets.marriage = String(body.marriage || '').trim().slice(0, 20);
   if (body.note !== undefined) sets.note = String(body.note || '').trim() || null;
 
   // v0.6.0 个人信息 · 尺码：PUT {sizes:{clothing,shoe,ring,bracelet}} 局部更新（空串=清除）
@@ -187,7 +187,8 @@ export async function onRequestGet(context) {
     sections,
     meta: {
       genders: ['男', '女', '未知'],
-      marriages: MARRIAGES,
+      // v0.5.46：婚姻状况取消内置清单，备选项来自用户自己的数据（已用过的值）
+      marriages: (await env.DB.prepare("SELECT DISTINCT marriage m FROM contacts WHERE marriage IS NOT NULL AND marriage <> '' ORDER BY m").all()).results.map((r) => r.m),
       kins: await dict('rel_kin'),
       companies: await dict('rel_company'),
       positions: await dict('rel_position'),

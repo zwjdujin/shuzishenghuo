@@ -70,14 +70,15 @@ async function handle(env, request) {
   const inData = (k) => [...new Set(rows.map((r) => String(r[k] || '').split(',').map((x) => x.trim()).filter(Boolean)).flat())];
   const groups = [...new Set([...groupDict, ...inData('peer_groups')])];
   const tags = [...new Set([...tagDict, ...inData('tags')])];
+  // v0.5.46：婚姻状况取消内置清单，备选项来自实际数据中已用过的值
+  const marriages = [...new Set(rows.map((r) => r.marriage).filter(Boolean))].sort();
 
   return json({
     list,
     total: list.length,
     options: {
       genders: ['男', '女', '其他'],
-      groups, tags,
-      marriages: ['已婚', '未婚', '离婚', '丧偶'],
+      groups, tags, marriages,
     },
   });
 }
