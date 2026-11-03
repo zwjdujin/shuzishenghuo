@@ -38,11 +38,15 @@
 
   // ===== 工具 =====
   function esc(s) {
+    // v0.5.49：委托 app.js 的 escHtml（三份相同实现收敛为一份；本 IIFE 内调用均发生在运行时）
+    if (typeof window.escHtml === 'function') return window.escHtml(s);
     return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
     );
   }
   function toast(msg) {
+    // v0.5.49：委托 app.js 的 toast（此前是行为相同的第二份实现）
+    if (typeof window.toast === 'function') return window.toast(msg);
     const el = $('#toast');
     if (!el) return;
     el.textContent = msg;

@@ -1,23 +1,34 @@
-// 数字生活 · 前端逻辑 v0.5.40
-const VERSION = '0.5.40';
+// 数字生活 · 前端逻辑 v0.5.49
+const VERSION = '0.5.49';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '档案卷宗：家庭成员/宠物/兴趣爱好等列表行统一为键值行靠左样式；修复编辑模式键值行右侧误显 true；已添加行均可删除（✕）；大事记段落修复渲染';
-const __BUILD_TIME__ = '2026-11-01';
+const __BUILD_ID__ = '重复代码收敛+SW更新提示+focus trap+发版语法门禁+assets清理';
+const __BUILD_TIME__ = '2026-11-03';
 
-// 同步状态（数据实时写入云端 D1，无待同步队列）
+// 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
 let __SYNC_TIME__ = '尚未同步';
-let __PENDING__ = '0 项';
-let __CONFLICT__ = '0 项';
 // 每次成功调用写接口后更新「最近成功同步」
 function markSynced() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   __SYNC_TIME__ = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  __PENDING__ = '0 项';
 }
 
 // 全局错误兜底：任何未捕获错误都在页面顶部显示红条，避免“点了没反应”却毫无提示
+// v0.5.47：同步上报到 /api/client-log（系统信息页展示真实统计），线上故障不再只靠用户肉眼发现
+function reportError(msg) {
+  try {
+    if ((window.__errReported = (window.__errReported || 0)) >= 20) return;   // 防循环上报
+    window.__errReported++;
+    fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({ level: 'error', message: String(msg).slice(0, 500), url: location.hash || '/' }),
+    }).catch(() => {});
+  } catch (_) { /* 上报失败静默（显示红条本身优先） */ }
+}
 function fatal(msg) {
+  reportError(msg);
   let b = document.getElementById('fatalBanner');
   if (!b) {
     b = document.createElement('div');
@@ -43,9 +54,13 @@ function bind(sel, type, fn) {
 const escHtml = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+// v0.5.49：挂到 window 供 profile.js pfEsc / medicine.js esc 委托，收敛三份相同实现
+window.escHtml = escHtml;
 
 function money(n) {
-  return '¥' + Math.round(Number(n || 0)).toLocaleString('zh-CN');
+  // v0.5.47：保留两位小数（去尾零）——此前 Math.round 取整，录 12.34 显示 ¥12，与录入精度不一致
+  const v = Math.round(Number(n || 0) * 100) / 100;
+  return '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 function toast(msg) {
   const el = $('#toast');
@@ -100,6 +115,22 @@ document.addEventListener('keydown', (e) => {
   const closer = $('#' + id + 'Close') || $('#' + id.replace(/Modal$/, '') + 'Close');
   if (closer) closer.click();
   else closeModal(m);
+});
+
+// v0.5.49 Tab 焦点圈（无障碍）：弹窗打开时 Tab/Shift+Tab 循环在弹窗内部，焦点不再逃逸到背景页
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const open = $$('.modal-overlay:not([hidden])');
+  const m = open[open.length - 1];
+  if (!m) return;
+  const focusables = $$('button, [href], input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"])', m)
+    .filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (!m.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 
 // 自绘确认弹窗（替代 confirm()：TWA/WebView 里原生 confirm 不可靠且不可控）
@@ -1085,6 +1116,8 @@ function applyCalPicker() {
 // 加载当前视图范围的事件
 async function loadCalEvents() {
   initCalPicker();
+  // v0.5.48 竞态守卫：快速翻月/翻周时只让最后一次请求落地，旧响应不覆盖新视图
+  const mySeq = (calState.loadSeq = (calState.loadSeq || 0) + 1);
   const a = calState.anchor;
   let from, to;
   if (calState.view === 'week') {
@@ -1100,6 +1133,7 @@ async function loadCalEvents() {
   try {
     const res = await api(`/api/events?from=${from}&to=${to}`);
     const data = await res.json();
+    if (calState.loadSeq !== mySeq) return;   // 期间已切换视图/月份，丢弃本次响应
     calState.events = data.events || [];
     calState.periods = data.periods || [];       // v0.5.10 经期叠加（隐私开关关闭时后端直接不给）
     calState.prediction = data.prediction || null;
@@ -2119,6 +2153,7 @@ let ledgerState = { month: todayStrLocal().slice(0, 7), donutMode: 'expense', fl
 let ledgerData = {
   catStats: [], incomeCatStats: [], list: [], trend: [],
   accounts: ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'],
+  defaultAccount: '默认账户',
   payees: {}, linked: {}, budget: 0, summary: {}, social: { out: 0, in: 0, count: 0 },
 };
 // 分类树：{ expense: [{name, children:[name]}], income: [...] }（来自 txn_categories，空表回退默认）
@@ -2185,16 +2220,20 @@ function ledCatClass(name, flow) {
 async function renderLedger() {
   const box = $('#ledgerStats');
   if (!box) return;
+  // v0.5.48 竞态守卫：快速翻月时只让最后一次请求落地
+  const mySeq = (ledgerState.loadSeq = (ledgerState.loadSeq || 0) + 1);
   $('#ledMonth').textContent = ledgerState.month.replace('-', '年') + '月';
   try {
     const res = await api(`/api/transactions?month=${ledgerState.month}`);
     const data = await res.json();
+    if (ledgerState.loadSeq !== mySeq) return;   // 期间已切换月份，丢弃本次响应
     ledgerData = {
       catStats: data.catStats || [],
       incomeCatStats: data.incomeCatStats || [],
       list: data.list || [],
       trend: data.trend || [],
       accounts: (data.accounts && data.accounts.length) ? data.accounts : ['默认账户'],
+      defaultAccount: data.default_account || '默认账户',
       payees: data.payees || {},
       linked: data.linked || {},
       budget: Number(data.budget) || 0,
@@ -2762,7 +2801,9 @@ function openTxnModal(t) {
     txnDraft = {
       flow: 'expense', category: '', sub: '',
       date: todayStrLocal(), time: nowHM(),          // 默认添加时的当前时间
-      account: ledgerState.lastAccount || '默认账户', toAccount: '',
+      // 默认账户优先取上次使用的（仍存在时），否则取账户设置里的默认账户
+      account: (ledgerData.accounts || []).includes(ledgerState.lastAccount) ? ledgerState.lastAccount : (ledgerData.defaultAccount || '默认账户'),
+      toAccount: '',
       contact: null, item: '',
     };
     $('#txnAmount').value = '';
@@ -3226,7 +3267,11 @@ async function ensureAccountOptions() {
   try {
     const res = await api('/api/transactions?meta=accounts');
     const d = await res.json();
-    if (d.accounts && d.accounts.length) { ledgerData.accounts = d.accounts; accountsLoaded = true; }
+    if (d.accounts && d.accounts.length) {
+      ledgerData.accounts = d.accounts;
+      ledgerData.defaultAccount = d.default_account || '默认账户';
+      accountsLoaded = true;
+    }
   } catch (_) { /* 失败时仍可用预置账户列表 */ }
 }
 
@@ -3262,13 +3307,29 @@ function renderAcctPick() {
   } else {
     grp('付款账户', txnDraft.account, (a) => { txnDraft.account = a; $('#acctPickModal').hidden = true; });
   }
+  // v0.5.45：账户不够用时入口直达「账本设置 · 账户设置」
+  const mgr = document.createElement('button');
+  mgr.type = 'button';
+  mgr.className = 'btn ghost full';
+  mgr.style.marginTop = '10px';
+  mgr.textContent = '管理账户（账本设置）';
+  mgr.onclick = () => {
+    $('#acctPickModal').hidden = true;
+    ledset.tab = 'accounts';
+    switchView('ledgerset');
+  };
+  body.appendChild(mgr);
 }
 
 /* ---------- 联系人选择（来自人际关系，选中即关联） ---------- */
 let contactCache = null;
 // profile.js 增删改联系人成功后调用，避免「记一笔→联系人」仍是旧名单
-window.invalidateContacts = function () { contactCache = null; };
+// v0.5.47 修复：下面那行 PF.allNames 清空此前错位到模块顶层，只在加载时执行一次（恒无效），
+// 导致增删改联系人后档案页姓名自动链接一直用旧名单
+window.invalidateContacts = function () {
+  contactCache = null;
   if (window.PF) PF.allNames = [];   // v0.5.34：姓名链接名单同步失效
+};
 async function openContactPicker() {
   const m = $('#contactPickModal');
   if (!m) return;
@@ -3320,10 +3381,24 @@ function renderContactPick(q) {
   });
 }
 
-/* ---------- 记账设置 · 分类管理（两级 + 拖动排序） ---------- */
-let ledset = { flow: 'expense', tree: null, expanded: new Set() };
+/* ---------- 账本设置（v0.5.45：分类管理 + 账户设置 两个类目） ---------- */
+let ledset = { tab: 'cats', flow: 'expense', tree: null, expanded: new Set() };
 
 async function renderLedgerSet() {
+  $$('#view-ledgerset [data-lstab]').forEach((b) =>
+    b.classList.toggle('active', b.dataset.lstab === ledset.tab)
+  );
+  const catsPanel = $('#ledsetCatsPanel');
+  const acctPanel = $('#ledsetAcctPanel');
+  if (catsPanel) catsPanel.hidden = ledset.tab !== 'cats';
+  if (acctPanel) acctPanel.hidden = ledset.tab !== 'accounts';
+  const pageTitle = $('#ledsetPageTitle');
+  if (pageTitle) pageTitle.textContent = ledset.tab === 'accounts' ? '账户设置' : '分类管理';
+  if (ledset.tab === 'accounts') return renderLedgerAccts();
+  return renderLedgerCats();
+}
+
+async function renderLedgerCats() {
   const box = $('#ledsetList');
   if (!box) return;
   $('#ledsetFlowTitle').textContent = ledset.flow === 'income' ? '收入分类' : '支出分类';
@@ -3456,13 +3531,14 @@ function ledsetRow(cat, level, opt = {}) {
   return row;
 }
 
-/** 指针拖动排序（鼠标 / 触屏通用）：拖起时绝对定位跟随指针，其余行让位，松手写回顺序 */
-function bindLedgerDrag(handle, row, level, parentId) {
+/** 指针拖动排序（鼠标 / 触屏通用）：拖起时绝对定位跟随指针，其余行让位，松手写回顺序。
+ *  writeBack(ids) 传入时由调用方决定持久化（账户排序复用本交互）；缺省为分类排序。 */
+function bindLedgerDrag(handle, row, level, parentId, writeBack) {
   handle.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     try { handle.setPointerCapture(e.pointerId); } catch (_) { /* 合成事件无活动指针时忽略 */ }
     const isTop = level === 'top';
-    const scope = isTop ? row.closest('.ledset-list') : row.closest('.ls-kids');
+    const scope = isTop ? row.closest('.ledset-list') : row.closest(writeBack ? '.ledset-list' : '.ls-kids');
     if (!scope) return;
     // 参与排序的行：top 层取每块的 .ls-row.top，sub 层取本 .ls-kids 里的 .ls-row.sub
     const rows = Array.from(scope.children)
@@ -3512,10 +3588,11 @@ function bindLedgerDrag(handle, row, level, parentId) {
         .filter((el) => el.classList.contains(isTop ? 'ls-item' : 'ls-row'))
         .map((b) => Number((isTop ? b.querySelector('.ls-row.top') : b).dataset.id))
         .filter(Boolean);
-      api('/api/txn-categories', {
+      const put = writeBack || ((list) => api('/api/txn-categories', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids }),
-      }).then((res) => {
+        body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids: list }),
+      }));
+      put(ids).then((res) => {
         if (res.ok) { toast('排序已保存'); markSynced(); renderLedgerSet(); }
         else toast('排序保存失败');
       }).catch(() => {});
@@ -3523,6 +3600,95 @@ function bindLedgerDrag(handle, row, level, parentId) {
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
   });
+}
+
+/* ---------- 账本设置 · 账户管理（v0.5.45：txn_accounts 表） ---------- */
+async function renderLedgerAccts() {
+  const box = $('#ledsetAcctList');
+  if (!box) return;
+  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  let rows = [];
+  try {
+    const res = await api('/api/txn-accounts');
+    rows = (await res.json()).accounts || [];
+  } catch (err) {
+    if (String(err.message).includes('unauthorized')) return;
+  }
+  // 同步到「记一笔」的账户清单与默认账户
+  if (rows.length) {
+    ledgerData.accounts = rows.map((r) => r.name);
+    ledgerData.defaultAccount = (rows.find((r) => r.is_default) || rows[0]).name;
+    accountsLoaded = !!rows[0].id;
+  }
+  box.innerHTML = '';
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty-hint">还没有账户，在上方输入名称添加一个吧。</div>';
+    return;
+  }
+  rows.forEach((a) => box.appendChild(acctRow(a)));
+}
+
+function acctRow(a) {
+  const row = document.createElement('div');
+  row.className = 'ls-row sub';
+  row.dataset.id = a.id || '';
+  row.dataset.name = a.name;
+  const locked = a.name === '人情往来';
+  row.innerHTML = `
+    <span class="ls-handle" title="拖动排序" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="ls-name">${escHtml(a.name)}${a.is_default ? '<span class="cat-tag">默认</span>' : ''}</span>
+    ${locked
+      ? '<span class="ls-cnt">人际专用</span>'
+      : `<button class="ls-cnt" type="button" title="设为默认账户（记一笔默认选中）">${a.is_default ? '★ 默认账户' : '☆ 设为默认'}</button>`}
+    <span class="ls-actions">
+      ${locked
+        ? '<span title="人际归并专用，不可改名或删除">🔒</span>'
+        : '<button class="icon-btn edit" title="重命名（历史流水同步更新）" aria-label="重命名"><svg><use href="#i-edit"/></svg></button><button class="icon-btn del" title="删除" aria-label="删除"><svg><use href="#i-trash"/></svg></button>'}
+    </span>`;
+  if (!a.id) {
+    // 未迁移（账户表为空回退预置）时不可管理，只展示
+    row.querySelector('.ls-handle').style.visibility = 'hidden';
+    row.querySelectorAll('.ls-actions .icon-btn, button.ls-cnt').forEach((b) => { b.style.visibility = 'hidden'; });
+    return row;
+  }
+  const after = () => { renderLedgerAccts(); if (currentView === 'ledger') renderLedger(); };
+  const defBtn = row.querySelector('button.ls-cnt');
+  if (defBtn) defBtn.onclick = async () => {
+    if (a.is_default) return;
+    const res = await api(`/api/txn-accounts/${a.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_default: true }),
+    });
+    if (res.ok) { toast(`默认账户已设为「${a.name}」`); markSynced(); after(); }
+    else toast((await res.json().catch(() => ({}))).error || '设置失败');
+  };
+  const editBtn = row.querySelector('.ls-actions .edit');
+  if (editBtn) editBtn.onclick = async () => {
+    const v = await askText({ title: '修改账户名称', value: a.name, maxlen: 12 });
+    if (v === null) return;
+    if (!v) { toast('名称不能为空'); return; }
+    const res = await api(`/api/txn-accounts/${a.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: v }),
+    });
+    if (res.ok) { toast('已重命名，历史流水同步更新'); markSynced(); after(); }
+    else toast((await res.json().catch(() => ({}))).error || '修改失败');
+  };
+  const delBtn = row.querySelector('.ls-actions .del');
+  if (delBtn) delBtn.onclick = async () => {
+    if (!(await confirmModal(`删除账户「${a.name}」？其历史流水会归并到默认账户。`))) return;
+    const res = await api(`/api/txn-accounts/${a.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast(d.merged_to ? `已删除，历史流水归并到「${d.merged_to}」` : '已删除');
+      markSynced(); after();
+    } else toast((await res.json().catch(() => ({}))).error || '删除失败');
+  };
+  // 同一套拖动排序交互，写回账户排序
+  bindLedgerDrag(row.querySelector('.ls-handle'), row, 'sub', null, (ids) =>
+    api('/api/txn-accounts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
+  );
+  return row;
 }
 
 // ===== 人际关系 =====
@@ -4234,7 +4400,9 @@ async function submitPassChange() {
     if (res.ok && d.ok) {
       closePassModal();
       setPassHint(true);
-      toast(d.revoked ? `密码已修改，已登出其它 ${d.revoked} 台设备` : '密码已修改');
+      toast(d.revoked
+        ? `密码已修改，已登出其它 ${d.revoked} 台设备${d.tokensRevoked ? '，并吊销 ' + d.tokensRevoked + ' 个访问令牌' : ''}`
+        : '密码已修改');
       await renderSessions();
     } else {
       passError(d.error || '修改失败，请稍后重试');
@@ -4397,12 +4565,16 @@ async function renderTokens() {
       const label = (AI_SCOPE_KEYS.find(([kk]) => kk === k) || [])[1] || k;
       return `${label}${v.write ? '读写' : '读'}`;
     }).join(' · ');
+    // v0.5.46 生命周期展示：过期令牌标红徽标（仍显示在列表里，便于辨认后重新生成）
+    const expText = t.expiresAt
+      ? ` · ${t.expired ? '<b style="color:var(--red)">已过期（' + escHtml(String(t.expiresAt)) + '）</b>' : '有效期至 ' + escHtml(String(t.expiresAt))}`
+      : ' · 永不过期';
     return `
     <div class="token-row" data-id="${t.id}">
       <div class="token-info">
         <b>${escHtml(t.name)} <code>${escHtml(t.prefix)}</code></b>
         <small>${escHtml(sc || '无权限')}</small>
-        <small class="muted">创建 ${escHtml(String(t.createdAt || '').slice(0, 16))}${t.lastUsedAt ? ' · 最近使用 ' + escHtml(String(t.lastUsedAt).slice(5, 16)) : ' · 未使用过'}</small>
+        <small class="muted">创建 ${escHtml(String(t.createdAt || '').slice(0, 16))}${t.lastUsedAt ? ' · 最近使用 ' + escHtml(String(t.lastUsedAt).slice(5, 16)) : ' · 未使用过'}${expText}</small>
       </div>
       <div class="ai-model-ops">
         <button class="icon-btn" data-tk="del" data-id="${t.id}" data-name="${escHtml(t.name)}" title="吊销"><svg><use href="#i-x"/></svg></button>
@@ -4455,7 +4627,7 @@ async function submitToken(e) {
   });
   try {
     const res = await api('/api/settings/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name.value.trim(), scopes }) });
+      body: JSON.stringify({ name: form.name.value.trim(), scopes, expiresDays: Number(form.expiresDays.value) }) });
     const d = await res.json().catch(() => ({}));
     if (res.status === 201 && d.token) {
       form.hidden = true;
@@ -4668,8 +4840,11 @@ async function renderSysInfo() {
       ['实例连接状况', health.ok ? '● 正常' : '○ ' + (health.note || '异常')],
       ['健康检查耗时', `${health.ms ?? rtt} ms（服务端） · ${rtt} ms（往返）`],
       ['最近成功同步', __SYNC_TIME__],
-      ['待同步', __PENDING__],
-      ['失败或冲突', __CONFLICT__],
+      // v0.5.47：前端错误真实统计（数据实时入云，无待同步队列；错误来自 fatal 全局上报）
+      ['近 7 天前端错误', `${(data.clientErrors && data.clientErrors.last7d) || 0} 次（累计 ${(data.clientErrors && data.clientErrors.total) || 0}）`],
+      ['最近一次错误', data.clientErrors && data.clientErrors.latest
+        ? `${data.clientErrors.latest.at} · ${escHtml(String(data.clientErrors.latest.message)).slice(0, 60)}`
+        : '暂无'],
     ]);
   } catch (err) {
     const msg = String(err.message).includes('unauthorized') ? '未登录' : '加载失败';
@@ -5135,6 +5310,31 @@ bind('#ledsetAddBtn', 'click', async () => {
 });
 bind('#ledsetName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAddBtn').click(); } });
 
+// 账本设置 · 类目切换（分类管理 / 账户设置）
+$$('[data-lstab]').forEach((b) => {
+  b.onclick = () => { ledset.tab = b.dataset.lstab; renderLedgerSet(); };
+});
+// 账户管理：新增账户
+bind('#ledsetAcctAddBtn', 'click', async () => {
+  const inp = $('#ledsetAcctName');
+  const name = (inp.value || '').trim();
+  if (!name) { toast('请填写账户名称'); return; }
+  const res = await api('/api/txn-accounts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); renderLedgerAccts(); }
+  else toast((await res.json().catch(() => ({}))).error || '添加失败');
+});
+bind('#ledsetAcctName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAcctAddBtn').click(); } });
+// 记一笔 · 账户选择弹窗底部的管理入口
+bind('#acctPickManage', 'click', () => {
+  const m = $('#acctPickModal');
+  if (m) m.hidden = true;
+  ledset.tab = 'accounts';
+  switchView('ledgerset');
+});
+
 // 快捷金额
 $$('#quickAmt button').forEach((b) => {
   b.onclick = () => {
@@ -5185,7 +5385,20 @@ bind('#bgCancelBtn', 'click', () => closeModal($('#budgetModal')));
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      // v0.5.49：新版本安装完成时提示（skipWaiting 立即生效，刷新即用上全新资源）
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', () => {
+          if (w.state === 'installed' && navigator.serviceWorker.controller) {
+            toast('新版本已就绪，刷新页面即可更新');
+          }
+        });
+      });
+    }).catch(() => {});
+  });
 }
 
 // 人物档案模块（v0.3.1）事件绑定

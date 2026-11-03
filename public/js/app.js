@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.48
-const VERSION = '0.5.48';
+// 数字生活 · 前端逻辑 v0.5.49
+const VERSION = '0.5.49';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '全站异步竞态守卫+写入校验收口+关键日志+pfToday时区统一';
+const __BUILD_ID__ = '重复代码收敛+SW更新提示+focus trap+发版语法门禁+assets清理';
 const __BUILD_TIME__ = '2026-11-03';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
@@ -54,6 +54,8 @@ function bind(sel, type, fn) {
 const escHtml = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+// v0.5.49：挂到 window 供 profile.js pfEsc / medicine.js esc 委托，收敛三份相同实现
+window.escHtml = escHtml;
 
 function money(n) {
   // v0.5.47：保留两位小数（去尾零）——此前 Math.round 取整，录 12.34 显示 ¥12，与录入精度不一致
@@ -113,6 +115,22 @@ document.addEventListener('keydown', (e) => {
   const closer = $('#' + id + 'Close') || $('#' + id.replace(/Modal$/, '') + 'Close');
   if (closer) closer.click();
   else closeModal(m);
+});
+
+// v0.5.49 Tab 焦点圈（无障碍）：弹窗打开时 Tab/Shift+Tab 循环在弹窗内部，焦点不再逃逸到背景页
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const open = $$('.modal-overlay:not([hidden])');
+  const m = open[open.length - 1];
+  if (!m) return;
+  const focusables = $$('button, [href], input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"])', m)
+    .filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (!m.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 });
 
 // 自绘确认弹窗（替代 confirm()：TWA/WebView 里原生 confirm 不可靠且不可控）
@@ -5367,7 +5385,20 @@ bind('#bgCancelBtn', 'click', () => closeModal($('#budgetModal')));
 // sw.js 必须放在站点根目录注册：放在 /js/ 下时默认作用域只有 /js/，
 // 整站的离线缓存策略永远不会生效（v0.3.14 及以前的问题）。
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      // v0.5.49：新版本安装完成时提示（skipWaiting 立即生效，刷新即用上全新资源）
+      reg.addEventListener('updatefound', () => {
+        const w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', () => {
+          if (w.state === 'installed' && navigator.serviceWorker.controller) {
+            toast('新版本已就绪，刷新页面即可更新');
+          }
+        });
+      });
+    }).catch(() => {});
+  });
 }
 
 // 人物档案模块（v0.3.1）事件绑定

@@ -12,7 +12,8 @@
 // 配合 public/_headers（index/sw no-cache、assets immutable）即获得确定性缓存语义。
 // ============================================================
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -205,5 +206,28 @@ self.addEventListener('notificationclick', (e) => {
 });
 `);
 
+// ---------- 5. 发版门禁（v0.5.49）：语法检查自动执行，不过不发 ----------
+// 此前只在末尾"建议"提交前手跑 node --check，门禁为零；现在发版即自动检查全部 JS。
+const CHECK_FILES = [
+  'public/js/app.js', 'public/js/profile.js', 'public/js/medicine.js', 'public/js/lunar.js', 'public/sw.js',
+];
+const walkJs = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+  const p = join(dir, e.name);
+  return e.isDirectory() ? walkJs(p) : (p.endsWith('.js') ? [p] : []);
+});
+CHECK_FILES.push(...walkJs('functions'), ...walkJs('worker/src'));
+let gateFailed = false;
+for (const f of CHECK_FILES) {
+  const r = spawnSync(process.execPath, ['--check', join(ROOT, f)], { stdio: 'pipe' });
+  if (r.status !== 0) {
+    gateFailed = true;
+    console.error(`  ✗ 语法检查失败：${f}\n${String(r.stderr || '')}`);
+  }
+}
+if (gateFailed) {
+  console.error('\n❌ 发版中止：语法门禁未通过（产物已生成但请先修复，勿提交）');
+  process.exit(1);
+}
+console.log(`   语法门禁：${CHECK_FILES.length} 个文件全部通过`);
+
 console.log(`\n✅ v${version} 发布产物就绪：sw.js CACHE=${cacheTag}`);
-console.log('   提交前请跑：node --check public/js/*.js && node --check public/sw.js');

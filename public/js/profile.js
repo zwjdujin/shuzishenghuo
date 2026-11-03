@@ -19,6 +19,8 @@ const PF = {
 
 function pfEl(id) { return document.getElementById(id); }
 function pfEsc(s) {
+  // v0.5.49：委托 app.js 的 escHtml（三份相同实现收敛为一份；调用均发生在运行时，app.js 已加载）
+  if (typeof window.escHtml === 'function') return window.escHtml(s);
   return String(s === null || s === undefined ? '' : s)
     .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -2169,9 +2171,8 @@ async function relsetAdd() {
   else toast((await res.json().catch(() => ({}))).error || '添加失败');
 }
 
-/** 同级拖动排序（与账本分类管理同一套交互）：松手写回 sort_order */
-function bindRelsetDrag() {
-  const scope = pfEl('relsetList');
+/** 同级拖动排序通用实现（v0.5.49 合并词库/档案目录两份逐行相同副本；与账本分类管理同一套交互） */
+function pfBindSortable(scope, onOrder) {
   if (!scope || scope.dataset.dragBound) return;
   scope.dataset.dragBound = '1';
   scope.addEventListener('pointerdown', (e) => {
@@ -2213,17 +2214,22 @@ function bindRelsetDrag() {
       holder.parentElement.insertBefore(row, holder);
       holder.remove();
       row.style.cssText = '';
-      const order = Array.from(scope.querySelectorAll('.ls-row')).map((r) => r.dataset.word);
-      api('/api/vocab', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: relset.kind, order }),
-      }).then((res) => {
-        if (res.ok) { toast('排序已保存'); markSynced(); }
-        else toast('排序保存失败');
-      }).catch(() => {});
+      if (onOrder) onOrder(Array.from(scope.querySelectorAll('.ls-row')).map((r) => r.dataset.word || r.dataset.mod));
     };
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);
+  });
+}
+
+function bindRelsetDrag() {
+  pfBindSortable(pfEl('relsetList'), (order) => {
+    api('/api/vocab', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: relset.kind, order }),
+    }).then((res) => {
+      if (res.ok) { toast('排序已保存'); markSynced(); }
+      else toast('排序保存失败');
+    }).catch(() => {});
   });
 }
 window.renderRelSet = renderRelSet;
@@ -2246,52 +2252,7 @@ function renderDossierOrder() {
   pfBindDossierDrag();
 }
 function pfBindDossierDrag() {
-  const scope = pfEl('dossierOrderList');
-  if (!scope || scope.dataset.dragBound) return;
-  scope.dataset.dragBound = '1';
-  scope.addEventListener('pointerdown', (e) => {
-    const handle = e.target.closest('.ls-handle');
-    if (!handle) return;
-    e.preventDefault();
-    try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-    const row = handle.closest('.ls-row');
-    if (!row) return;
-    const rows = Array.from(scope.children).filter((el) => el.classList.contains('ls-row'));
-    const rect = row.getBoundingClientRect();
-    const holder = document.createElement('div');
-    holder.className = 'ls-holder';
-    holder.style.height = rect.height + 'px';
-    row.parentElement.insertBefore(holder, row);
-    Object.assign(row.style, {
-      position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
-      width: rect.width + 'px', zIndex: 60, pointerEvents: 'none',
-    });
-    const grabDy = e.clientY - rect.top;
-    const moveTo = (y) => {
-      row.style.top = (y - grabDy) + 'px';
-      for (const r of rows) {
-        if (r === row) continue;
-        const rr = r.getBoundingClientRect();
-        if (y < rr.top + rr.height / 2) {
-          if (holder.nextElementSibling !== r) r.parentElement.insertBefore(holder, r);
-          return;
-        }
-      }
-      const last = rows[rows.length - 1];
-      if (last !== row && last.nextElementSibling !== holder) last.parentElement.insertBefore(holder, last.nextElementSibling);
-    };
-    moveTo(e.clientY);
-    const onMove = (ev) => moveTo(ev.clientY);
-    const onUp = () => {
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      holder.parentElement.insertBefore(row, holder);
-      holder.remove();
-      row.style.cssText = '';
-    };
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
-  });
+  pfBindSortable(pfEl('dossierOrderList'), null);   // 目录顺序由「保存排序」按钮统一写回，拖动即改即存不需要
 }
 
 window.pfLoadList = pfLoadList;
