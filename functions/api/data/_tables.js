@@ -10,6 +10,7 @@ export const TABLE_LABELS = {
   checklist_items: '待办清单 · 条目',
   transactions: '我的账本',
   txn_categories: '我的账本 · 分类',
+  txn_accounts: '我的账本 · 账户',
   budgets: '我的账本 · 分类预算',
   recurring: '我的账本 · 周期账单',
   memos: '随手记 · 备忘',

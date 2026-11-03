@@ -8,6 +8,9 @@ import { json } from '../../_lib.js';
 // DELETE /api/profile/files?id=1&fid=5     → 删 DB 行 + R2 对象
 
 const MAX_FILE = 50 * 1024 * 1024; // 单文件 50MB 上限
+// v0.5.46 inline 白名单：仅确定性安全的类型允许浏览器内联打开（同源存储型 XSS 面）。
+// SVG/HTML/XML 等可携带脚本的类型一律 application/octet-stream + attachment 强制下载。
+const INLINE_MIME = /^(image\/(png|jpe?g|gif|webp|bmp|avif|heic)|video\/[\w.+-]+|audio\/[\w.+-]+|application\/pdf|text\/plain)\s*$/i;
 // R2 键只允许安全字符：目录穿越 / 斜杠 / 控制字符一律去掉
 const safeSeg = (s) => String(s || '').replace(/[\\/:*?"<>|\r\n\t]/g, '').trim().slice(0, 60);
 const safeName = (s) => String(s || '文件').replace(/[\\/:*?"<>|\r\n\t]/g, '_').trim().slice(0, 100) || '文件';
@@ -40,10 +43,13 @@ export async function onRequestGet(context) {
     if (!row) return json({ error: '附件不存在' }, 404);
     const obj = await env.BUCKET.get(row.file_key);
     if (!obj) return json({ error: '文件已丢失（R2 无此对象）' }, 404);
+    // v0.5.46：白名单内且未显式要下载 → inline 原类型；其余一律 octet-stream + attachment
+    const inline = !url.searchParams.get('dl') && INLINE_MIME.test(String(row.mime || ''));
     const headers = {
-      'Content-Type': row.mime || 'application/octet-stream',
+      'Content-Type': inline ? (row.mime || 'application/octet-stream') : 'application/octet-stream',
       'Cache-Control': 'private, max-age=3600',
-      'Content-Disposition': `${url.searchParams.get('dl') ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(row.file_name)}`,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.file_name)}`,
     };
     return new Response(obj.body, { headers });
   }

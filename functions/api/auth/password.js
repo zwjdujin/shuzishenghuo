@@ -8,7 +8,9 @@ const MAX_LEN = 64;
 
 // POST /api/auth/password —— 修改管理员密码
 // body: { oldPass, newPass }
-// 成功后：写入 app_settings.admin_pass_hash，并踢除「除当前设备外」的所有登录会话。
+// 成功后：写入 app_settings.admin_pass_hash，并踢除「除当前设备外」的所有登录会话；
+// v0.5.46 起同时吊销全部外部访问令牌（api_tokens）——怀疑密码泄露时改密，
+// 已分发的 szsh_ 令牌不能再永久有效，需要的人在「智能管理」重新生成。
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -55,5 +57,14 @@ export async function onRequestPost(context) {
     // 会话表异常不应影响改密结果
   }
 
-  return json({ ok: true, revoked, minLen: MIN_LEN });
+  // v0.5.46：改密吊销全部外部访问令牌（ext / MCP 立即失效）
+  let tokensRevoked = 0;
+  try {
+    const r = await env.DB.prepare('DELETE FROM api_tokens').run();
+    tokensRevoked = (r && r.meta && Number(r.meta.changes)) || 0;
+  } catch (_) {
+    // 令牌表未迁移时忽略，不影响改密结果
+  }
+
+  return json({ ok: true, revoked, tokensRevoked, minLen: MIN_LEN });
 }

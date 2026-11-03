@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.45
-const VERSION = '0.5.45';
+// 数字生活 · 前端逻辑 v0.5.46
+const VERSION = '0.5.46';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '账本设置改版 —— 分类管理升级为账本设置页（分类管理/账户设置两个类目）；新增账户设置：自定义添加/重命名(联动历史流水)/删除(流水归并默认账户)/拖动排序/设默认账户；记一笔默认账户与选择弹窗联动，弹窗新增管理入口；迁移0013 txn_accounts';
+const __BUILD_ID__ = '令牌生命周期+安全收尾+服药扣库存/周期账单防双记';
 const __BUILD_TIME__ = '2026-11-03';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列）
@@ -4359,7 +4359,9 @@ async function submitPassChange() {
     if (res.ok && d.ok) {
       closePassModal();
       setPassHint(true);
-      toast(d.revoked ? `密码已修改，已登出其它 ${d.revoked} 台设备` : '密码已修改');
+      toast(d.revoked
+        ? `密码已修改，已登出其它 ${d.revoked} 台设备${d.tokensRevoked ? '，并吊销 ' + d.tokensRevoked + ' 个访问令牌' : ''}`
+        : '密码已修改');
       await renderSessions();
     } else {
       passError(d.error || '修改失败，请稍后重试');
@@ -4522,12 +4524,16 @@ async function renderTokens() {
       const label = (AI_SCOPE_KEYS.find(([kk]) => kk === k) || [])[1] || k;
       return `${label}${v.write ? '读写' : '读'}`;
     }).join(' · ');
+    // v0.5.46 生命周期展示：过期令牌标红徽标（仍显示在列表里，便于辨认后重新生成）
+    const expText = t.expiresAt
+      ? ` · ${t.expired ? '<b style="color:var(--red)">已过期（' + escHtml(String(t.expiresAt)) + '）</b>' : '有效期至 ' + escHtml(String(t.expiresAt))}`
+      : ' · 永不过期';
     return `
     <div class="token-row" data-id="${t.id}">
       <div class="token-info">
         <b>${escHtml(t.name)} <code>${escHtml(t.prefix)}</code></b>
         <small>${escHtml(sc || '无权限')}</small>
-        <small class="muted">创建 ${escHtml(String(t.createdAt || '').slice(0, 16))}${t.lastUsedAt ? ' · 最近使用 ' + escHtml(String(t.lastUsedAt).slice(5, 16)) : ' · 未使用过'}</small>
+        <small class="muted">创建 ${escHtml(String(t.createdAt || '').slice(0, 16))}${t.lastUsedAt ? ' · 最近使用 ' + escHtml(String(t.lastUsedAt).slice(5, 16)) : ' · 未使用过'}${expText}</small>
       </div>
       <div class="ai-model-ops">
         <button class="icon-btn" data-tk="del" data-id="${t.id}" data-name="${escHtml(t.name)}" title="吊销"><svg><use href="#i-x"/></svg></button>
@@ -4580,7 +4586,7 @@ async function submitToken(e) {
   });
   try {
     const res = await api('/api/settings/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name.value.trim(), scopes }) });
+      body: JSON.stringify({ name: form.name.value.trim(), scopes, expiresDays: Number(form.expiresDays.value) }) });
     const d = await res.json().catch(() => ({}));
     if (res.status === 201 && d.token) {
       form.hidden = true;

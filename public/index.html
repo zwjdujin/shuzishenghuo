@@ -1376,6 +1376,13 @@
         <div class="field"><span>功能权限（勾选读 / 写）</span>
           <div class="scope-grid" id="scopeGrid"></div>
         </div>
+        <label class="field"><span>有效期（到期后 MCP/Agent 将无法访问，需重新生成）</span>
+          <select name="expiresDays">
+            <option value="365" selected>365 天（推荐，定期轮换）</option>
+            <option value="90">90 天</option>
+            <option value="30">30 天</option>
+            <option value="0">永不过期</option>
+          </select></label>
         <button class="btn primary full" type="submit" id="tokenSubmit">生成令牌</button>
         <p class="login-error" id="tokenError" hidden></p>
       </form>
@@ -1431,6 +1438,6 @@
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/81702485/js/profile.js"></script>
   <script src="./assets/d5aa57e2/js/medicine.js"></script>
-  <script src="./assets/8c456b1c/js/app.js"></script>
+  <script src="./assets/96cb3684/js/app.js"></script>
 </body>
 </html>

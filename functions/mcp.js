@@ -70,7 +70,8 @@ const keyResource = { ledger: 'transactions', todos: 'todos', calendar: 'events'
 /** 以同一 Bearer 头转发到 /api/ext（scope 校验复用，不重复实现） */
 async function proxyExt(request, resource, args, write = false) {
   const url = new URL('/api/ext/' + resource, request.url);
-  if (!write && args && args.limit) url.searchParams.set('limit', String(Math.min(Number(args.limit) || 50, 200)));
+  // v0.5.46 钳下限（与 /api/ext 一致）：limit=-1 会绕过 200 上限拉全表
+  if (!write && args && args.limit) url.searchParams.set('limit', String(Math.min(Math.max(1, Number(args.limit) || 50), 200)));
   const res = await fetch(url, {
     method: write ? 'POST' : 'GET',
     headers: {

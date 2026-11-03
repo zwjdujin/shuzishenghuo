@@ -32,7 +32,8 @@ async function handle(context, write) {
   const denied = scopeDenied(token.scopes, def.scope, write);
   if (denied) return denied;
 
-  const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 200);
+  // v0.5.46 钳下限：此前 limit=-1 会绕过 200 上限拉全表（SQLite LIMIT -1 即无限制）
+  const limit = Math.min(Math.max(1, Number(url.searchParams.get('limit')) || 50), 200);
 
   if (!write) {
     const rows = (await env.DB.prepare(def.sql).bind(limit).all()).results || [];

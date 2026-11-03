@@ -9,21 +9,25 @@ export async function generateDue(env) {
   ).bind(today).all().catch(() => ({ results: [] }))).results || [];
   if (!due.length) return 0;
 
+  // v0.5.46 防双记：先乐观锁抢占（仅当 next_date 仍是读到的值时才推进），
+  // 抢到才算本次生成——两个并发 GET 只会有一个真正入账。先推进后插入：
+  // 若推进与插入之间进程中断，该期跳过（优于双记），下期照常。
   const stmts = [];
+  let claimed = 0;
   for (const r of due) {
+    const mod = r.freq === 'weekly' ? "'+7 days'" : r.freq === 'daily' ? "'+1 day'" : "'+1 month'";
+    const claim = await env.DB.prepare(
+      `UPDATE recurring SET next_date = date(next_date, ${mod}) WHERE id = ? AND next_date = ?`
+    ).bind(r.id, r.next_date).run();
+    if (!claim.meta || !claim.meta.changes) continue;
+    claimed++;
     stmts.push(env.DB.prepare(
       `INSERT INTO transactions(flow, amount, category, sub_category, txn_date, txn_time, account, note)
        VALUES (?,?,?,?,?,NULL,?,?)`
     ).bind(r.flow, r.amount, r.category || '其他', r.sub_category || null, r.next_date, r.account || '默认账户', r.note || ''));
-    // 推进 next_date：monthly +1月 / weekly +7天 / daily +1天（按 SQLite 日期函数）
-    const mod = r.freq === 'weekly' ? "'+7 days'" : r.freq === 'daily' ? "'+1 day'" : "'+1 month'";
-    stmts.push(env.DB.prepare(
-      `UPDATE recurring SET next_date = date(next_date, ${mod}) WHERE id = ?`
-    ).bind(r.id));
   }
-  // 循环推进到未来（跨多期欠账一次补齐）：再跑两轮最多前进 3 期，极端欠账由下次打开继续补
-  await env.DB.batch(stmts);
-  return due.length;
+  if (stmts.length) await env.DB.batch(stmts);
+  return claimed;
 }
 
 // GET /api/recurring —— 清单（顺带懒生成到期账单，返回本次自动记了几笔）

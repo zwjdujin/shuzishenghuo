@@ -1,6 +1,8 @@
 // v0.5.9 外部访问令牌：生成 / 校验（/api/settings/tokens、/api/ext/*、/mcp 共用）
 // 明文令牌形如 szsh_<64hex>，只在生成响应里出现一次；库里存 sha256。
+// v0.5.46：expires_at（YYYY-MM-DD，NULL=永不过期）过期即拒，与生成/列表/改密吊销共同构成令牌生命周期。
 // 下划线前缀不会被当作路由。
+import { todayStr } from '../_lib.js';
 
 export const SCOPE_KEYS = [
   ['ledger', '账本'], ['todos', '待办'], ['calendar', '日历'], ['habits', '习惯'],
@@ -41,6 +43,8 @@ export async function resolveToken(env, request) {
     row = await env.DB.prepare('SELECT * FROM api_tokens WHERE token_hash=?').bind(hash).first();
   } catch (_) { return null; }
   if (!row) return null;
+  // v0.5.46 生命周期：已过期的令牌视同不存在（不改名不删行，便于列表里看到它已过期）
+  if (row.expires_at && todayStr() > String(row.expires_at)) return null;
   // 异步刷新最后使用时间（失败不影响请求）
   env.DB.prepare("UPDATE api_tokens SET last_used_at=datetime('now','localtime') WHERE id=?").bind(row.id).run().catch(() => {});
   let scopes = {};
