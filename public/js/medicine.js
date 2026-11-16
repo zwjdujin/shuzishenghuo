@@ -360,11 +360,12 @@
   // ===== v0.6.0：服药计划（到点提醒 → 确认服药 → 扣库存） =====
   async function loadMedPlans() {
     try {
-      const res = await api('/api/med-plans');
-      const d = await res.json();
-      state.plans = d.list || [];
-    } catch (_) { state.plans = []; }
-    renderMedPlans();
+      await apiSWR('/api/med-plans', (d, stale) => {
+        state.plans = d.list || [];
+        if (!stale) markSynced();
+        renderMedPlans();
+      });
+    } catch (_) { state.plans = []; renderMedPlans(); }
   }
   function renderMedPlans() {
     const panel = $('#medTodayPanel');
@@ -401,6 +402,8 @@
           if (res.ok) {
             toast(b.dataset.st === 'taken' ? '已确认服药，库存 -1' : '已跳过');
             markSynced();
+            cacheDel('/api/medicines');
+            cacheDel('/api/med-plans');
             renderMedicine();
           }
         } catch (_) { /* 401 已处理 */ }
@@ -446,9 +449,7 @@
   async function renderMedicine() {
     const listBox = $('#medList');
     if (!listBox) return;
-    try {
-      const res = await api('/api/medicines');
-      const data = await res.json();
+    const apply = (data, stale) => {
       state.all = data.all || [];
       state.expiring = data.expiring || [];
       state.expired = data.expired || [];
@@ -460,11 +461,16 @@
       renderMainList();
       renderSoon();
       renderExpired();
-      loadMedPlans();
       renderCatChart(data.categories);
       renderLocList(data.byLocation);
       renderChecklist();
-      markSynced();
+      if (!stale) {
+        loadMedPlans();
+        markSynced();
+      }
+    };
+    try {
+      await apiSWR('/api/medicines', apply);
     } catch (err) {
       if (String(err.message).includes('unauthorized')) return;
       const msg = '<div class="empty-hint">药箱数据加载失败，请稍后重试</div>';
@@ -747,7 +753,7 @@
           if (!(await confirmModal(`确定删除「${item.name}」吗？此操作不可撤销。`))) return;
           try {
             const res = await api(`/api/medicines/${id}`, { method: 'DELETE' });
-            if (res.ok) { toast('已删除'); markSynced(); renderMedicine(); }
+            if (res.ok) { toast('已删除'); markSynced(); cacheDel('/api/medicines'); renderMedicine(); }
           } catch (_) { /* 401 已处理 */ }
         }
       });
@@ -820,6 +826,8 @@
             window.__aiSavedJustNow = false;
             toast(editing ? '已更新' : '已入库');
             markSynced();
+            cacheDel('/api/medicines');
+            cacheDel('/api/med-plans');
             renderMedicine();
             if (window.aiSaveHookRun) window.aiSaveHookRun();   // v0.5.27：AI 队列继续
           }

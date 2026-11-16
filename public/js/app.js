@@ -1,8 +1,8 @@
-// 数字生活 · 前端逻辑 v0.5.46
-const VERSION = '0.5.46';
+// 数字生活 · 前端逻辑 v0.5.50
+const VERSION = '0.5.50';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '婚姻状况自由填写 —— 取消内置白名单（此前白名单外的值如「离异」被服务端静默清空），改为自定义文本（≤20字）；备选项来自用户已用过的值（datalist 提示），不再内置固定词语';
-const __BUILD_TIME__ = '2026-11-03';
+const __BUILD_ID__ = '本地缓存秒开（SWR）—— 新增 apiSWR 读缓存层：进入账本/人际关系/待办/清单/日历/药箱/打卡/账本设置各页先用 localStorage 缓存立即渲染，后台照常拉最新无缝重渲染；写路径不变（仍即时同步云端），写后重渲染前定向失效对应缓存防闪回旧数据；缓存条目带版本号发版自动作废，白名单控制（经期数据不落盘），上限 40 条自动淘汰；断网时已有缓存页面可看数据并提示；登录/登出/清空数据时清空缓存';
+const __BUILD_TIME__ = '2026-11-16';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
 let __SYNC_TIME__ = '尚未同步';
@@ -76,6 +76,99 @@ async function api(path, opts = {}) {
     throw new Error('unauthorized');
   }
   return res;
+}
+
+// ===== 本地数据缓存（SWR：进页面先渲染缓存秒开，后台拉最新后无缝重渲染） =====
+// 键 szh_cache_v1:<完整请求路径含查询串>，值 { v: 前端版本, t: 时间戳, d: 数据 }。
+// 只缓存 CACHE_ALLOW 白名单内的 GET 响应（写接口与经期数据一律不落盘）；条目带版本号，
+// 发版后旧缓存自动作废，避免新旧数据结构错配；读写全程 try/catch 静默降级，
+// 缓存出现任何故障（配额满/隐私模式）都不影响正常功能。
+const CACHE_NS = 'szh_cache_v1:';
+const CACHE_MAX = 40;   // 缓存条目上限，超量按时间戳淘汰最旧
+const CACHE_ALLOW = [
+  '/api/home', '/api/transactions?', '/api/todos?', '/api/checklists', '/api/events?',
+  '/api/profile/list', '/api/profile/detail?', '/api/medicines', '/api/med-plans',
+  '/api/habits', '/api/txn-categories', '/api/txn-accounts',
+];
+function cacheAllowed(p) { return CACHE_ALLOW.some((k) => p === k || p.startsWith(k)); }
+function cacheGet(p) {
+  try {
+    const raw = localStorage.getItem(CACHE_NS + p);
+    if (!raw) return null;
+    const rec = JSON.parse(raw);
+    return rec && rec.v === VERSION && rec.d != null ? rec.d : null;   // 版本不符（发版后）按未命中
+  } catch (_) { return null; }
+}
+function cachePut(p, d) {
+  if (d == null || !cacheAllowed(p)) return;
+  try {
+    localStorage.setItem(CACHE_NS + p, JSON.stringify({ v: VERSION, t: Date.now(), d }));
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(CACHE_NS)) keys.push(k);
+    }
+    if (keys.length > CACHE_MAX) {   // 容量护栏：淘汰最旧的条目
+      keys.map((k) => { try { return [k, JSON.parse(localStorage.getItem(k)).t || 0]; } catch (_) { return [k, 0]; } })
+        .sort((a, b) => a[1] - b[1])
+        .slice(0, keys.length - CACHE_MAX)
+        .forEach(([k]) => localStorage.removeItem(k));
+    }
+  } catch (_) { /* 配额满/隐私模式：放弃缓存 */ }
+}
+function cacheDel(prefix) {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(CACHE_NS) && k.slice(CACHE_NS.length).startsWith(prefix))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch (_) {}
+}
+function cacheClear() {
+  try {
+    Object.keys(localStorage).filter((k) => k.startsWith(CACHE_NS)).forEach((k) => localStorage.removeItem(k));
+  } catch (_) {}
+}
+// SWR 取数：有缓存立即以 (data, true) 渲染（约定该跳不 markSynced、不 toast），
+// 网络返回后以 (data, false) 再渲染并刷新缓存。网络失败但已渲染过缓存 → 保留内容
+// 并提示（弱网/断网也能看数据）；无缓存或 fresh 渲染出错则照旧上抛给调用方的错误分支。
+let __swrToastAt = 0;
+async function apiSWR(path, onData) {
+  const cached = cacheGet(path);
+  if (cached != null) {
+    try { await onData(cached, true); }
+    catch (_) { /* 缓存跳渲染失败：丢弃本次缓存渲染，继续走网络跳 */ }
+  }
+  let res;
+  try {
+    res = await api(path);
+  } catch (err) {
+    // 401 必须上抛（api 内已弹登录）；有缓存兜底的网络失败转为静默 + 提示
+    if (String(err.message).includes('unauthorized') || cached == null) throw err;
+    if (Date.now() - __swrToastAt > 10000) {
+      __swrToastAt = Date.now();
+      toast('网络异常，正在显示缓存数据');
+    }
+    return null;
+  }
+  if (!res.ok) {
+    // 服务端报错：无缓存照旧上抛让调用方显示错误；有缓存则保留缓存内容
+    if (cached == null) throw new Error('HTTP ' + res.status);
+    return null;
+  }
+  let d;
+  try { d = await res.json(); } catch (err) {
+    if (cached == null) throw err;
+    return null;
+  }
+  cachePut(path, d);
+  await onData(d, false);
+  return res;
+}
+// 分类/账户变更会同时影响账本响应里的 catTree/accounts，一并失效
+function ledgerDictBust() {
+  cacheDel('/api/txn-categories');
+  cacheDel('/api/txn-accounts');
+  cacheDel('/api/transactions?');
 }
 
 // ===== 弹窗统一管理（v0.5.5）=====
@@ -601,6 +694,7 @@ bind('#loginForm', 'submit', async (e) => {
     // 登录成功：进入主界面
     $('#loginOverlay').hidden = true;
     $('#appShell').hidden = false;
+    cacheClear();      // 防串号：清掉可能残留的其他会话缓存
     routeFromHash();   // 登录前若带了深链（#/ledger 等），登录后直达
     try {
       await loadHome();
@@ -619,6 +713,7 @@ bind('#loginForm', 'submit', async (e) => {
 // 退出登录（入口在「个人中心」）
 async function doLogout() {
   await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  cacheClear();   // 本地数据缓存不跨会话残留
   showLogin();
 }
 
@@ -655,10 +750,10 @@ bind('#bootRetryBtn', 'click', boot);
 
 // ===== 加载首页数据 =====
 async function loadHome() {
-  const res = await api('/api/home');
-  const data = await res.json();
-  markSynced();
-  renderHome(data);
+  await apiSWR('/api/home', (d, stale) => {
+    if (!stale) markSynced();
+    renderHome(d);
+  });
 }
 
 // 十二时辰 → 循行经络（子午流注）
@@ -909,7 +1004,7 @@ function renderP3(p3) {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ status: b.dataset.st }),
             });
-            if (res.ok) { toast(b.dataset.st === 'taken' ? '已确认服药，库存 -1' : '已跳过'); markSynced(); loadHome(); }
+            if (res.ok) { toast(b.dataset.st === 'taken' ? '已确认服药，库存 -1' : '已跳过'); markSynced(); cacheDel('/api/home'); loadHome(); }
           } catch (_) { /* 401 已处理 */ }
         };
       });
@@ -1116,7 +1211,7 @@ function applyCalPicker() {
 // 加载当前视图范围的事件
 async function loadCalEvents() {
   initCalPicker();
-  // v0.5.48 竞态守卫：快速翻月/翻周时只让最后一次请求落地，旧响应不覆盖新视图
+  // v0.5.48 竞态守卫：快速翻月/翻周时只让最后一次请求落地，旧响应不覆盖新视图（缓存跳同步执行无竞态）
   const mySeq = (calState.loadSeq = (calState.loadSeq || 0) + 1);
   const a = calState.anchor;
   let from, to;
@@ -1130,10 +1225,8 @@ async function loadCalEvents() {
     from = ymd(s);
     to = ymd(e);
   }
-  try {
-    const res = await api(`/api/events?from=${from}&to=${to}`);
-    const data = await res.json();
-    if (calState.loadSeq !== mySeq) return;   // 期间已切换视图/月份，丢弃本次响应
+  const apply = async (data, stale) => {
+    if (!stale && calState.loadSeq !== mySeq) return;   // 期间已切换视图/月份，丢弃本次响应
     calState.events = data.events || [];
     calState.periods = data.periods || [];       // v0.5.10 经期叠加（隐私开关关闭时后端直接不给）
     calState.prediction = data.prediction || null;
@@ -1142,7 +1235,10 @@ async function loadCalEvents() {
     // 合并勾选了「在日历中显示」的联系人生日
     await mergeBirthdays(from, to);
     renderCalView();
-    markSynced();
+    if (!stale) markSynced();
+  };
+  try {
+    await apiSWR(`/api/events?from=${from}&to=${to}`, apply);
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) {
       $('#calViewBox').innerHTML = '<div class="empty-hint">加载日程失败</div>';
@@ -1824,14 +1920,13 @@ let todoFilter = { priority: [], list: '' };
 async function renderTodos() {
   const box = $('#todoList');
   if (!box) return;
-  box.innerHTML = '<div class="empty-hint">加载中…</div>';
   const qs = new URLSearchParams();
   qs.set('scope', 'today');
   if (todoFilter.priority.length) qs.set('priority', todoFilter.priority.join(','));
   if (todoFilter.list) qs.set('list', todoFilter.list);
-  try {
-    const res = await api('/api/todos?' + qs.toString());
-    const data = await res.json();
+  const path = '/api/todos?' + qs.toString();
+  if (!cacheGet(path)) box.innerHTML = '<div class="empty-hint">加载中…</div>';   // 有缓存则直接秒开，不闪加载中
+  const apply = (data, stale) => {
     todoLists = data.lists || todoLists;
     fillCalendarSel('#todoListSel', todoLists);
     renderTodoFilters(data.counts || {});
@@ -1876,7 +1971,10 @@ async function renderTodos() {
       }
       box.appendChild(row);
     });
-    markSynced();
+    if (!stale) markSynced();
+  };
+  try {
+    await apiSWR(path, apply);
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载待办失败</div>';
   }
@@ -1917,14 +2015,14 @@ function renderTodoFilters(counts) {
 async function finishTodo(id) {
   try {
     const res = await api(`/api/todos/${id}/done`, { method: 'POST' });
-    if (res.ok) { toast('已完成，干得漂亮'); markSynced(); await renderTodos(); }
+    if (res.ok) { toast('已完成，干得漂亮'); markSynced(); cacheDel('/api/todos?'); await renderTodos(); }
   } catch { /* 401 已处理 */ }
 }
 async function removeTodo(id, title) {
   if (!(await confirmModal(`确定删除待办「${title}」？`))) return;
   try {
     const res = await api(`/api/todos/${id}/delete`, { method: 'DELETE' });
-    if (res.ok) { toast('已删除'); markSynced(); await renderTodos(); }
+    if (res.ok) { toast('已删除'); markSynced(); cacheDel('/api/todos?'); await renderTodos(); }
   } catch { /* 401 已处理 */ }
 }
 
@@ -1934,58 +2032,63 @@ let ckExpanded = new Set();   // 展开的清单 id；默认全部收缩，点�
 async function renderChecklists() {
   const box = $('#ckListBox');
   if (!box) return;
+  const renderCk = () => {
+    const cnt = $('#ckCount');
+    const pending = ckData.reduce((s, g) => s + g.items.filter((i) => !i.done).length, 0);
+    if (cnt) cnt.textContent = ckData.length ? `${ckData.length} 份清单 · 待备齐 ${pending} 项` : '';
+    if (!ckData.length) {
+      box.innerHTML = '<div class="empty-hint">还没有清单，点右上角「新建清单」开始（如：徒步出行装备清单）。</div>';
+      return;
+    }
+    box.innerHTML = ckData.map((g) => {
+      const doneN = g.items.filter((i) => i.done).length;
+      const folded = !ckExpanded.has(g.id);
+      return `
+      <div class="ck-card${folded ? ' folded' : ''}" data-gid="${g.id}">
+        <div class="ck-head">
+          <span class="ck-caret">${folded ? '▸' : '▾'}</span>
+          <b class="ck-name" title="点击展开 / 收起">${escHtml(g.name)}</b>
+          <span class="muted">${doneN}/${g.items.length}</span>
+          <span class="ck-ops">
+            <button class="icon-btn" data-ck-grename="${g.id}" title="重命名 / 重置" aria-label="重命名清单"><svg><use href="#i-edit"/></svg></button>
+            <button class="icon-btn del" data-ck-gdel="${g.id}" title="删除清单" aria-label="删除清单"><svg><use href="#i-x"/></svg></button>
+          </span>
+        </div>
+        <div class="ck-body">
+          <div class="ck-items">
+          ${g.items.map((i) => `
+          <div class="ck-item${i.done ? ' done' : ''}">
+            <button class="ck-check" data-ck-toggle="${i.id}" data-done="${i.done ? 1 : 0}" title="${i.done ? '取消勾选' : '标记备齐'}" aria-label="${i.done ? '取消勾选' : '标记备齐'}"><svg><use href="#i-check"/></svg></button>
+            <span class="ck-text">${escHtml(i.content)}</span>
+            <button class="icon-btn del" data-ck-idel="${i.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
+          </div>`).join('') || '<div class="empty-hint">还没有条目，在下面添加。</div>'}
+          </div>
+          <div class="ck-add">
+            <input class="inp" maxlength="60" placeholder="添加物品或事项，回车确认">
+            <button class="btn ghost" data-ck-iadd="${g.id}" type="button">添加</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  };
   try {
-    const res = await api('/api/checklists');
-    ckData = (await res.json()).groups || [];
+    await apiSWR('/api/checklists', (d, stale) => {
+      ckData = d.groups || [];
+      renderCk();
+      if (!stale) markSynced();
+    });
   } catch (err) {
     if (String(err.message).includes('unauthorized')) return;
     box.innerHTML = '<div class="empty-hint">加载清单失败</div>';
     return;
   }
-  const cnt = $('#ckCount');
-  const pending = ckData.reduce((s, g) => s + g.items.filter((i) => !i.done).length, 0);
-  if (cnt) cnt.textContent = ckData.length ? `${ckData.length} 份清单 · 待备齐 ${pending} 项` : '';
-  if (!ckData.length) {
-    box.innerHTML = '<div class="empty-hint">还没有清单，点右上角「新建清单」开始（如：徒步出行装备清单）。</div>';
-    return;
-  }
-  box.innerHTML = ckData.map((g) => {
-    const doneN = g.items.filter((i) => i.done).length;
-    const folded = !ckExpanded.has(g.id);
-    return `
-    <div class="ck-card${folded ? ' folded' : ''}" data-gid="${g.id}">
-      <div class="ck-head">
-        <span class="ck-caret">${folded ? '▸' : '▾'}</span>
-        <b class="ck-name" title="点击展开 / 收起">${escHtml(g.name)}</b>
-        <span class="muted">${doneN}/${g.items.length}</span>
-        <span class="ck-ops">
-          <button class="icon-btn" data-ck-grename="${g.id}" title="重命名 / 重置" aria-label="重命名清单"><svg><use href="#i-edit"/></svg></button>
-          <button class="icon-btn del" data-ck-gdel="${g.id}" title="删除清单" aria-label="删除清单"><svg><use href="#i-x"/></svg></button>
-        </span>
-      </div>
-      <div class="ck-body">
-        <div class="ck-items">
-        ${g.items.map((i) => `
-        <div class="ck-item${i.done ? ' done' : ''}">
-          <button class="ck-check" data-ck-toggle="${i.id}" data-done="${i.done ? 1 : 0}" title="${i.done ? '取消勾选' : '标记备齐'}" aria-label="${i.done ? '取消勾选' : '标记备齐'}"><svg><use href="#i-check"/></svg></button>
-          <span class="ck-text">${escHtml(i.content)}</span>
-          <button class="icon-btn del" data-ck-idel="${i.id}" title="删除" aria-label="删除"><svg><use href="#i-x"/></svg></button>
-        </div>`).join('') || '<div class="empty-hint">还没有条目，在下面添加。</div>'}
-        </div>
-        <div class="ck-add">
-          <input class="inp" maxlength="60" placeholder="添加物品或事项，回车确认">
-          <button class="btn ghost" data-ck-iadd="${g.id}" type="button">添加</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-  markSynced();
 }
 
 async function ckCall(path, opts) {
   const res = await api(path, opts).catch(() => null);
   if (!res || !res.ok) { toast('操作失败，请重试'); return false; }
   markSynced();
+  cacheDel('/api/checklists');   // 写后重拉不走缓存跳，避免闪回旧数据
   return true;
 }
 
@@ -2220,13 +2323,11 @@ function ledCatClass(name, flow) {
 async function renderLedger() {
   const box = $('#ledgerStats');
   if (!box) return;
-  // v0.5.48 竞态守卫：快速翻月时只让最后一次请求落地
+  // v0.5.48 竞态守卫：快速翻月时只让最后一次请求落地（缓存跳同步执行无竞态，只守网络跳）
   const mySeq = (ledgerState.loadSeq = (ledgerState.loadSeq || 0) + 1);
   $('#ledMonth').textContent = ledgerState.month.replace('-', '年') + '月';
-  try {
-    const res = await api(`/api/transactions?month=${ledgerState.month}`);
-    const data = await res.json();
-    if (ledgerState.loadSeq !== mySeq) return;   // 期间已切换月份，丢弃本次响应
+  const apply = (data, stale) => {
+    if (!stale && ledgerState.loadSeq !== mySeq) return;   // 期间已切换月份，丢弃本次响应
     ledgerData = {
       catStats: data.catStats || [],
       incomeCatStats: data.incomeCatStats || [],
@@ -2241,14 +2342,19 @@ async function renderLedger() {
       summary: data.summary || {},
       social: data.social || { out: 0, in: 0, count: 0 },
     };
-    if (data.recurringGenerated > 0) toast(`已自动记入 ${data.recurringGenerated} 笔周期账单`);
-    if (data.catTree) catTree = data.catTree;
+    if (!stale) {
+      if (data.recurringGenerated > 0) toast(`已自动记入 ${data.recurringGenerated} 笔周期账单`);
+      if (data.catTree) catTree = data.catTree;
+      markSynced();
+    }
     renderLedgerStats();
     renderBudget();
     renderTrend();
     renderDonut();
     renderTxnList();
-    markSynced();
+  };
+  try {
+    await apiSWR(`/api/transactions?month=${ledgerState.month}`, apply);
   } catch (err) {
     if (!String(err.message).includes('unauthorized')) box.innerHTML = '<div class="empty-hint">加载账本失败</div>';
   }
@@ -2352,6 +2458,7 @@ async function saveBudgetModal() {
       closeModal($('#budgetModal'));
       toast(amount > 0 ? '预算已保存' : '已取消该分类预算');
       markSynced();
+      cacheDel('/api/transactions?');
       await renderLedger();
     } else toast('保存失败');
   } catch (_) { /* 401 已处理 */ }
@@ -2440,6 +2547,7 @@ async function saveLedgerBudget(v) {
     if (res.ok) {
       toast(v > 0 ? '预算已保存' : '已清除预算');
       markSynced();
+      cacheDel('/api/transactions?');
       await renderLedger();
     }
   } catch { /* 401 已处理 */ }
@@ -2681,7 +2789,7 @@ async function removeTxn(id) {
   if (!(await confirmModal('确定删除这笔记录？'))) return;
   try {
     const res = await api(`/api/transactions/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast('已删除'); markSynced(); await renderLedger(); }
+    if (res.ok) { toast('已删除'); markSynced(); cacheDel('/api/transactions?'); await renderLedger(); }
   } catch { /* 401 已处理 */ }
 }
 
@@ -2967,6 +3075,7 @@ async function submitTxn(e) {
       closeTxnModal();
       toast(id ? '已保存修改' : '已记账');
       markSynced();
+      cacheDel('/api/transactions?');
       await renderLedger();
       window.aiSaveHookRun();   // v0.5.27：随手记 AI 多笔时，保存一笔后续笔继续确认
     } else {
@@ -3405,21 +3514,27 @@ async function renderLedgerCats() {
   $$('#view-ledgerset [data-lsflow]').forEach((b) =>
     b.classList.toggle('active', b.dataset.lsflow === ledset.flow)
   );
-  box.innerHTML = '<div class="empty-hint">加载中…</div>';
+  if (!cacheGet('/api/txn-categories')) box.innerHTML = '<div class="empty-hint">加载中…</div>';   // 有缓存秒开
+  const renderCats = () => {
+    const tops = (ledset.tree && ledset.tree[ledset.flow]) || [];
+    box.innerHTML = '';
+    if (!tops.length) {
+      box.innerHTML = '<div class="empty-hint">还没有分类，在上方输入名称添加一个吧。</div>';
+      return;
+    }
+    tops.forEach((c) => box.appendChild(ledsetItem(c)));
+  };
   try {
-    const res = await api('/api/txn-categories');
-    ledset.tree = await res.json();
+    await apiSWR('/api/txn-categories', (d, stale) => {
+      ledset.tree = d;
+      renderCats();
+      if (!stale) markSynced();
+    });
   } catch (err) {
     if (String(err.message).includes('unauthorized')) return;
     ledset.tree = null;
+    renderCats();
   }
-  const tops = (ledset.tree && ledset.tree[ledset.flow]) || [];
-  box.innerHTML = '';
-  if (!tops.length) {
-    box.innerHTML = '<div class="empty-hint">还没有分类，在上方输入名称添加一个吧。</div>';
-    return;
-  }
-  tops.forEach((c) => box.appendChild(ledsetItem(c)));
 }
 
 /** 一个一级分类块：分类行 + 可展开的二级列表 + 二级添加行 */
@@ -3453,7 +3568,7 @@ function ledsetItem(cat) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ flow: ledset.flow, name, parent_id: cat.id }),
     });
-    if (res.ok) { toast('已添加'); markSynced(); renderLedgerSet(); }
+    if (res.ok) { toast('已添加'); markSynced(); ledgerDictBust(); renderLedgerSet(); }
     else toast((await res.json().catch(() => ({}))).error || '添加失败');
   };
   addRow.querySelector('button').onclick = addSub;
@@ -3500,6 +3615,7 @@ function ledsetRow(cat, level, opt = {}) {
     if (res.ok) {
       toast(cat.hidden ? `「${cat.name}」已恢复显示` : `「${cat.name}」已隐藏，不再出现在记一笔`);
       markSynced();
+      ledgerDictBust();
       renderLedgerSet();
       renderLedger();
     } else toast('设置失败');
@@ -3512,7 +3628,7 @@ function ledsetRow(cat, level, opt = {}) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: v }),
     });
-    if (res.ok) { toast('已重命名'); markSynced(); renderLedgerSet(); }
+    if (res.ok) { toast('已重命名'); markSynced(); ledgerDictBust(); renderLedgerSet(); }
     else toast((await res.json().catch(() => ({}))).error || '修改失败');
   };
   row.querySelector('.del').onclick = async () => {
@@ -3521,7 +3637,7 @@ function ledsetRow(cat, level, opt = {}) {
       : `删除二级分类「${cat.name}」？`;
     if (!(await confirmModal(tip))) return;
     const res = await api(`/api/txn-categories/${cat.id}`, { method: 'DELETE' });
-    if (res.ok) { toast('已删除'); markSynced(); renderLedgerSet(); }
+    if (res.ok) { toast('已删除'); markSynced(); ledgerDictBust(); renderLedgerSet(); }
     else toast((await res.json().catch(() => ({}))).error || '删除失败');
   };
 
@@ -3593,7 +3709,7 @@ function bindLedgerDrag(handle, row, level, parentId, writeBack) {
         body: JSON.stringify({ flow: ledset.flow, parent_id: parentId, ids: list }),
       }));
       put(ids).then((res) => {
-        if (res.ok) { toast('排序已保存'); markSynced(); renderLedgerSet(); }
+        if (res.ok) { toast('排序已保存'); markSynced(); ledgerDictBust(); renderLedgerSet(); }
         else toast('排序保存失败');
       }).catch(() => {});
     };
@@ -3606,26 +3722,27 @@ function bindLedgerDrag(handle, row, level, parentId, writeBack) {
 async function renderLedgerAccts() {
   const box = $('#ledsetAcctList');
   if (!box) return;
-  box.innerHTML = '<div class="empty-hint">加载中…</div>';
-  let rows = [];
+  if (!cacheGet('/api/txn-accounts')) box.innerHTML = '<div class="empty-hint">加载中…</div>';   // 有缓存秒开
+  const renderAccts = (rows) => {
+    // 同步到「记一笔」的账户清单与默认账户
+    if (rows.length) {
+      ledgerData.accounts = rows.map((r) => r.name);
+      ledgerData.defaultAccount = (rows.find((r) => r.is_default) || rows[0]).name;
+      accountsLoaded = !!rows[0].id;
+    }
+    box.innerHTML = '';
+    if (!rows.length) {
+      box.innerHTML = '<div class="empty-hint">还没有账户，在上方输入名称添加一个吧。</div>';
+      return;
+    }
+    rows.forEach((a) => box.appendChild(acctRow(a)));
+  };
   try {
-    const res = await api('/api/txn-accounts');
-    rows = (await res.json()).accounts || [];
+    await apiSWR('/api/txn-accounts', (d, stale) => renderAccts(d.accounts || []));
   } catch (err) {
     if (String(err.message).includes('unauthorized')) return;
+    renderAccts([]);
   }
-  // 同步到「记一笔」的账户清单与默认账户
-  if (rows.length) {
-    ledgerData.accounts = rows.map((r) => r.name);
-    ledgerData.defaultAccount = (rows.find((r) => r.is_default) || rows[0]).name;
-    accountsLoaded = !!rows[0].id;
-  }
-  box.innerHTML = '';
-  if (!rows.length) {
-    box.innerHTML = '<div class="empty-hint">还没有账户，在上方输入名称添加一个吧。</div>';
-    return;
-  }
-  rows.forEach((a) => box.appendChild(acctRow(a)));
 }
 
 function acctRow(a) {
@@ -3659,7 +3776,7 @@ function acctRow(a) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_default: true }),
     });
-    if (res.ok) { toast(`默认账户已设为「${a.name}」`); markSynced(); after(); }
+    if (res.ok) { toast(`默认账户已设为「${a.name}」`); markSynced(); ledgerDictBust(); after(); }
     else toast((await res.json().catch(() => ({}))).error || '设置失败');
   };
   const editBtn = row.querySelector('.ls-actions .edit');
@@ -3671,7 +3788,7 @@ function acctRow(a) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: v }),
     });
-    if (res.ok) { toast('已重命名，历史流水同步更新'); markSynced(); after(); }
+    if (res.ok) { toast('已重命名，历史流水同步更新'); markSynced(); ledgerDictBust(); after(); }
     else toast((await res.json().catch(() => ({}))).error || '修改失败');
   };
   const delBtn = row.querySelector('.ls-actions .del');
@@ -3681,7 +3798,7 @@ function acctRow(a) {
     if (res.ok) {
       const d = await res.json().catch(() => ({}));
       toast(d.merged_to ? `已删除，历史流水归并到「${d.merged_to}」` : '已删除');
-      markSynced(); after();
+      markSynced(); ledgerDictBust(); after();
     } else toast((await res.json().catch(() => ({}))).error || '删除失败');
   };
   // 同一套拖动排序交互，写回账户排序
@@ -3811,17 +3928,18 @@ function syncMethodUI(method, preferred) {
 }
 
 async function renderGrowth() {
+  const applyHabits = (d, stale) => {
+    window.__habits = d.habits || [];
+    renderCheckin(window.__habits);
+    renderHabitGrid(window.__habits);
+    if (!stale) markSynced();
+  };
+  const applyHeat = (d) => renderHeatmap(d);
   try {
-    const [hRes, hmRes] = await Promise.all([
-      api('/api/habits'),
-      api('/api/habits/heatmap?days=60'),
+    await Promise.all([
+      apiSWR('/api/habits', applyHabits),
+      apiSWR('/api/habits/heatmap?days=60', applyHeat),
     ]);
-    const habits = (await hRes.json()).habits || [];
-    window.__habits = habits;
-    const heat = await hmRes.json();
-    renderCheckin(habits);
-    renderHabitGrid(habits);
-    renderHeatmap(heat);
   } catch (err) {
     if (String(err.message).includes('unauthorized')) return;
     $('#growthToday').innerHTML = '<div class="empty-hint">加载失败：' + (err && err.message ? err.message : err) + '</div>';
@@ -3970,6 +4088,7 @@ async function checkHabit(id, field, value) {
     if (res.ok) {
       toast('已记录 ✓');
       markSynced();
+      cacheDel('/api/habits');
       await renderGrowth();
     }
   } catch { /* 401 已处理 */ }
@@ -4012,7 +4131,7 @@ async function deleteHabit(id, name) {
   if (!(await confirmModal(`确定删除习惯「${name}」？其打卡记录也会一并清除。`))) return;
   try {
     const res = await api(`/api/habits/${id}`, { method: 'DELETE' });
-    if (res.ok) { toast('已删除'); markSynced(); await renderGrowth(); }
+    if (res.ok) { toast('已删除'); markSynced(); cacheDel('/api/habits'); await renderGrowth(); }
   } catch { /* 401 已处理 */ }
 }
 
@@ -4193,6 +4312,7 @@ bind('#habitForm', 'submit', async (e) => {
       closeHabitModal();
       toast(editingId ? '已更新习惯' : '已新增习惯');
       markSynced();
+      cacheDel('/api/habits');
       await renderGrowth();
     } else {
       const d = await res.json().catch(() => ({}));
@@ -4712,6 +4832,7 @@ async function confirmClearData() {
     const cb = $('#clearDataBtn');
     if (cb) cb.disabled = true;
     toast(`已清空 ${(d.cleared || []).length} 张数据表`);
+    cacheClear();             // 本地缓存同步清空，避免显示已删除的数据
     await loadHome();         // 首页统计归零
     await renderDataPage();   // 统计数据刷新
   } catch (e) {
@@ -5090,6 +5211,7 @@ bind('#eventForm', 'submit', async (e) => {
       closeEventModal();
       toast(editingEventId ? '已更新日程' : '已新增日程');
       markSynced();
+      cacheDel('/api/events?');
       await loadCalEvents();
     }
   } catch (err) {
@@ -5103,7 +5225,7 @@ bind('#eventDeleteBtn', 'click', async () => {
   if (!editingEventId) return;
   if (!(await confirmModal('确定删除该日程？'))) return;
   const res = await api(`/api/events?id=${editingEventId}`, { method: 'DELETE' }).catch(() => null);
-  if (res && res.ok) { closeEventModal(); toast('已删除'); markSynced(); loadCalEvents(); }
+  if (res && res.ok) { closeEventModal(); toast('已删除'); markSynced(); cacheDel('/api/events?'); loadCalEvents(); }
 });
 // 双击事件块也能删除
 document.addEventListener('dblclick', async (e) => {
@@ -5112,7 +5234,7 @@ document.addEventListener('dblclick', async (e) => {
   const id = Number(ev.dataset.evid);
   if (!(await confirmModal('确定删除该日程？'))) return;
   api(`/api/events?id=${id}`, { method: 'DELETE' }).then((r) => {
-    if (r.ok) { toast('已删除'); markSynced(); loadCalEvents(); }
+    if (r.ok) { toast('已删除'); markSynced(); cacheDel('/api/events?'); loadCalEvents(); }
   }).catch(() => {});
 });
 
@@ -5146,7 +5268,7 @@ bind('#todoForm', 'submit', async (e) => {
         note: fd.get('note'), remind: e.target.remind.checked,
       }),
     });
-    if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); await renderTodos(); if (window.aiSaveHookRun) window.aiSaveHookRun(); }
+    if (res.ok) { $('#todoModal').hidden = true; toast('已添加待办'); markSynced(); cacheDel('/api/todos?'); await renderTodos(); if (window.aiSaveHookRun) window.aiSaveHookRun(); }
   } catch { /* 401 已处理 */ } finally { if (btn) btn.disabled = false; }
 });
 
@@ -5305,7 +5427,7 @@ bind('#ledsetAddBtn', 'click', async () => {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ flow: ledset.flow, name }),
   });
-  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); renderLedgerSet(); }
+  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); ledgerDictBust(); renderLedgerSet(); }
   else toast((await res.json().catch(() => ({}))).error || '添加失败');
 });
 bind('#ledsetName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAddBtn').click(); } });
@@ -5323,7 +5445,7 @@ bind('#ledsetAcctAddBtn', 'click', async () => {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); renderLedgerAccts(); }
+  if (res.ok) { inp.value = ''; toast('已添加'); markSynced(); ledgerDictBust(); renderLedgerAccts(); }
   else toast((await res.json().catch(() => ({}))).error || '添加失败');
 });
 bind('#ledsetAcctName', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#ledsetAcctAddBtn').click(); } });

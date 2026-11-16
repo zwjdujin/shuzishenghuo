@@ -79,27 +79,30 @@ function pfRememberVocab(kind, word) {
 // ===== 列表视图 =====
 async function pfLoadList() {
   const box = pfEl('relList');
-  if (box) box.innerHTML = '<div class="empty-hint">加载中…</div>';
   const f = PF.filters;
   const qs = new URLSearchParams();
   Object.keys(f).forEach((k) => { if (f[k]) qs.set(k, f[k]); });
-  try {
-    await pfLoadListFields();   // 列表行小字字段随设置走
-    const res = await api('/api/profile/list?' + qs.toString());
-    const d = await res.json();
+  const path = '/api/profile/list?' + qs.toString();
+  const cached = typeof cacheGet === 'function' ? cacheGet(path) : null;
+  if (cached == null && box) box.innerHTML = '<div class="empty-hint">加载中…</div>';   // 有缓存秒开，不闪加载中
+  const apply = async (d, stale) => {
+    if (!stale) await pfLoadListFields();   // fresh 渲染前确保列表行小字字段就绪（缓存跳先用上次的）
     PF.list = d.list || [];
     PF.options = d.options || {};
     pfRenderFilters();
     pfRenderList();
-    markSynced();
     // 无筛选时列表接口返回的已是全量，直接复用，省一次相同请求（v0.5.5 前这里会重复拉一遍）
     if (!qs.toString()) {
       PF.allNames = PF.list.map((p) => ({ id: p.id, name: p.name }));
     } else {
       pfLoadNames();
     }
+    if (!stale) markSynced();
+  };
+  try {
+    await apiSWR(path, apply);
   } catch (err) {
-    if (!String(err.message).includes('unauthorized') && box) box.innerHTML = '<div class="empty-hint">加载联系人失败</div>';
+    if (!String(err.message).includes('unauthorized') && box && cached == null) box.innerHTML = '<div class="empty-hint">加载联系人失败</div>';
     pfLoadNames();
   }
 }
@@ -226,23 +229,34 @@ async function pfOpenProfile(id) {
   if (location.hash !== '#/relations/' + PF.pid) location.hash = '#/relations/' + PF.pid;
   pfEl('relListView').hidden = true;
   pfEl('relProfileView').hidden = false;
-  ['pfHero', 'pfBasic', 'pfSocial', 'pfMethods', 'pfRelatives', 'pfWork', 'pfEdu', 'pfPets', 'pfBody', 'pfFiles']
-    .forEach((k) => { const el = pfEl(k); if (el) el.innerHTML = '<div class="empty-hint">加载中…</div>'; });
-  if (pfEl('pfFinance')) pfEl('pfFinance').innerHTML = '<div class="empty-hint">加载中…</div>';
+  const path = '/api/profile/detail?id=' + PF.pid;
+  const cached = typeof cacheGet === 'function' ? cacheGet(path) : null;
+  if (cached == null) {   // 有缓存直接渲染秒开；无缓存才摆「加载中…」
+    ['pfHero', 'pfBasic', 'pfSocial', 'pfMethods', 'pfRelatives', 'pfWork', 'pfEdu', 'pfPets', 'pfBody', 'pfFiles']
+      .forEach((k) => { const el = pfEl(k); if (el) el.innerHTML = '<div class="empty-hint">加载中…</div>'; });
+    if (pfEl('pfFinance')) pfEl('pfFinance').innerHTML = '<div class="empty-hint">加载中…</div>';
+  }
   pfRenderFinance();
+  const namesP = pfLoadNames();   // 姓名自动链接需要名单，与详情并行
+  const filesP = pfEnsureFiles(); // 头像从附件图片引用
   try {
-    const namesP = pfLoadNames();   // 姓名自动链接需要名单，与详情并行
-    const filesP = pfEnsureFiles(); // 头像从附件图片引用
-    const res = await api('/api/profile/detail?id=' + PF.pid);
-    const detail = await res.json();
-    if (PF.openSeq !== mySeq) return;   // v0.5.48：期间已切换联系人/返回列表/打开示例，丢弃本次响应
-    PF.data = detail;
-    await Promise.all([namesP, filesP]);
-    pfRenderAll();
-    markSynced();
-    pfLoadDossierOrder().then(() => { pfApplyOrder(); pfRenderIndex(); });   // 设置可能中途改过，回填一次
+    const res = await apiSWR(path, async (detail, stale) => {
+      if (!stale && PF.openSeq !== mySeq) return;   // v0.5.48：期间已切换联系人/返回列表/打开示例，丢弃本次响应
+      PF.data = detail;
+      // 缓存跳立即渲染（allNames/filesData 均空值安全），头像随网络跳补上；网络跳与原逻辑一致等名单/附件
+      if (!stale) await Promise.all([namesP, filesP]);
+      pfRenderAll();
+      if (!stale) {
+        markSynced();
+        pfLoadDossierOrder().then(() => { pfApplyOrder(); pfRenderIndex(); });   // 设置可能中途改过，回填一次
+      }
+    });
+    if (res && !res.ok && cached == null) {   // 服务器报错（如联系人已被删除）
+      const el = pfEl('pfHero');
+      if (el) el.innerHTML = '<div class="empty-hint">加载档案失败</div>';
+    }
   } catch (err) {
-    if (!String(err.message).includes('unauthorized')) {
+    if (!String(err.message).includes('unauthorized') && cached == null) {
       const el = pfEl('pfHero');
       if (el) el.innerHTML = '<div class="empty-hint">加载档案失败</div>';
     }
@@ -691,7 +705,11 @@ async function pfRefreshDetail() {
   if (!PF.pid) return;
   try {
     const res = await api('/api/profile/detail?id=' + PF.pid);
-    PF.data = await res.json();
+    if (!res.ok) return;
+    const d = await res.json();
+    PF.data = d;
+    cachePut('/api/profile/detail?id=' + PF.pid, d);   // 编辑后的回源顺手刷新缓存
+    cacheDel('/api/profile/list');   // 模块改动可能影响列表小字字段，列表回场时重拉
   } catch (_) { return; }
   pfRenderAll();
 }
@@ -1211,6 +1229,7 @@ async function pfSaveSection() {
     pfCloseSectionEditor();
     toast('本段已保存');
     markSynced();
+    cachePut('/api/profile/detail?id=' + PF.pid, PF.data);   // 本地已更新，直接刷新详情缓存
     pfRenderJsonSection(key);
     pfApplyOrder(); pfRenderIndex();
   } finally {
@@ -1888,6 +1907,7 @@ async function pfSubmitEdit(e) {
     toast(PF.editingId ? '已保存' : '已添加联系人');
     markSynced();
     if (window.invalidateContacts) window.invalidateContacts(); // 「记一笔→联系人」名单同步失效
+    cacheDel('/api/profile/list');   // 名称/标签可能已变，列表回场时重拉
     if (PF.editingId) await pfOpenProfile(PF.editingId);
     else { PF.view = 'list'; await pfLoadList(); }
     window.__aiSavedJustNow = false;
@@ -1910,6 +1930,8 @@ async function pfDeletePerson() {
     toast(`已删除「${d.name || ''}」`);
     markSynced();
     if (window.invalidateContacts) window.invalidateContacts();
+    cacheDel('/api/profile/list');          // 防止列表缓存里还躺着已删除的人
+    cacheDel('/api/profile/detail');
     pfBackToList();
   } else {
     toast('删除失败，请重试');
