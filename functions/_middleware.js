@@ -10,6 +10,24 @@ export async function onRequest(context) {
 
   // 静态资源 / 页面直接放行
   if (!path.startsWith('/api/')) return next();
+
+  // ===== 写请求的跨站防护（v0.5.56，纵深防御） =====
+  // 会话 Cookie 是 SameSite=Lax：跨站的「顶层导航 GET」仍会带上 Cookie，仅凭 Cookie 无法区分
+  // 「用户自己发起」和「被第三方页面带过来」。浏览器（Chromium 76+ / Firefox 90+ / Safari 16.4+）
+  // 对每个请求都带 Sec-Fetch-Site，这里把非同源发起的写请求（POST/PUT/PATCH/DELETE…）一律拒绝，
+  // 一次覆盖全部 /api/*（含公开的登录与错误上报，顺带防「登录 CSRF」）。
+  // 不带该头的是非浏览器客户端（curl / MCP / 安卓壳原生请求），没有 Cookie 环境，不在此列；
+  // GET/HEAD 只读，不限制。放在 PUBLIC 放行之前，公开接口同样受保护。
+  const method = String(request.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const site = request.headers.get('Sec-Fetch-Site');
+    if (site && site !== 'same-origin' && site !== 'none') {
+      return new Response(JSON.stringify({ error: 'cross_site_request_rejected', message: '跨站发起的写请求已被拒绝' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
   // 公开接口放行
   if (PUBLIC.some((p) => path === p || path.startsWith(p + '/'))) return next();
   // /api/ext/*：外部访问接口，由其自身用 Bearer 令牌鉴权（见 api/ext/[resource].js），

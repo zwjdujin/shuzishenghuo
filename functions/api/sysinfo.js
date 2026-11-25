@@ -56,10 +56,10 @@ export async function onRequestGet(context) {
 
   return json({
     instance: {
-      version: pick(env, 'APP_VERSION', '0.5.55'),
+      version: pick(env, 'APP_VERSION', '0.5.56'),
       build: buildId,
       deployTime: DEPLOY_TIME,
-      dbVersion: '迁移 0015',
+      dbVersion: '迁移 0017',
       dbBackend: DB_BACKEND,
       storage: STORAGE,
       platform: DEPLOY_PLATFORM,

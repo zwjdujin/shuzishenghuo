@@ -52,6 +52,12 @@ export async function onRequestPut(context) {
   if (body.name !== undefined) {
     const name = nameOf(body.name);
     if (!name) return json({ error: '请填写清单名称' }, 400);
+    // v0.5.56（审计 P2-16）：默认清单「生活」不可重命名——它是新建待办、AI 解析、ext/MCP 写入与
+    // 「删除清单归并」的兜底值（代码里按名字硬编码）。改名后这些入口仍写入「生活」，
+    // 那些待办不在任何清单里，会从所有清单视图中消失。
+    if (row.name === DEFAULT_LIST && name !== DEFAULT_LIST) {
+      return json({ error: `「${DEFAULT_LIST}」是默认清单，不能重命名` }, 400);
+    }
     const dup = await env.DB.prepare('SELECT id FROM todo_lists WHERE name=? AND id!=?').bind(name, id).first();
     if (dup) return json({ error: '已有同名清单' }, 400);
     sets.push('name=?');

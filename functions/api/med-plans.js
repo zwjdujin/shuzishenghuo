@@ -1,11 +1,13 @@
 import { json, todayStr } from '../_lib.js';
+import { cleanTime } from './_validate.js';
 
 // GET /api/med-plans —— 全部服药计划 + 今日执行状态（药箱页「今日服药」卡片用）
 export async function onRequestGet(context) {
   const { env } = context;
   const today = todayStr();
-  // 今天周几：1=周一…7=周日（与 days 字段口径一致，按北京时间）
-  const dow = String(((new Date(today + 'T00:00:00+08:00').getUTCDay() + 6) % 7) + 1);
+  // 今天周几：1=周一…7=周日（与 days 字段口径一致，按纯日期算；
+  // v0.5.56：此前 '+08:00' 解析再取 UTC 星期会差一天，「今日服药」按错周几过滤）
+  const dow = String(((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7) + 1);
 
   const rows = (await env.DB.prepare(
     `SELECT p.id, p.medicine_id, p.dose, p.time_of_day, p.days, p.active,
@@ -44,9 +46,12 @@ export async function onRequestPost(context) {
   let body = {};
   try { body = await request.json(); } catch (_) {}
   const medicineId = Number(body.medicineId);
-  const time = String(body.time || '').trim();
   if (!medicineId) return json({ error: '缺少药品' }, 400);
-  if (!/^\d{1,2}:\d{2}$/.test(time)) return json({ error: '时间格式应为 HH:MM' }, 400);
+  // v0.5.56：时间做范围校验并补零（此前 '25:99' 也能入库）；药品不存在回 404（此前 500）
+  const time = cleanTime(body.time);
+  if (!time) return json({ error: '时间需为有效时间（HH:MM）' }, 400);
+  const med = await env.DB.prepare('SELECT id FROM medicines WHERE id=?').bind(medicineId).first();
+  if (!med) return json({ error: '药品不存在' }, 404);
   let days = Array.isArray(body.days) ? body.days.map(Number).filter((d) => d >= 1 && d <= 7) : [];
   if (!days.length) days = [1, 2, 3, 4, 5, 6, 7];
   days = [...new Set(days)].sort().join(',');

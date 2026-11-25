@@ -2,6 +2,7 @@ import { json, todayStr } from '../_lib.js';
 import { loadCatTree } from './txn-categories.js';
 import { generateDue } from './recurring.js';
 import { listTxnAccountRows } from './txn-accounts.js';
+import { cleanAmount, cleanTime, dateArg, cleanMonth } from './_validate.js';
 
 // 默认账户（v0.5.45 起预置清单只作 txn_accounts 表缺失时的回退）
 export const ACCOUNTS = ['默认账户', '现金', '微信', '支付宝', '银行卡', '信用卡', '医保卡', '人情往来'];
@@ -20,11 +21,12 @@ function monthRange(month) {
 }
 
 // 记账字段统一清洗（POST / PUT 共用）
-// 返回 null 表示金额无效
+// 返回 null 表示金额无效；返回 { error } 表示其它入参不合法
 export function normalizeTxnBody(body) {
   const flow = ['income', 'expense', 'transfer'].includes(body.flow) ? body.flow : 'expense';
-  const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) return null;
+  // v0.5.56：金额加 1e12 上限（此前 1e308 入库后求和溢出成 Infinity → JSON 里变 null）
+  const amount = cleanAmount(body.amount);
+  if (amount === null) return null;
   let account = String(body.account || '').trim() || '默认账户';
   let toAccount = String(body.to_account || '').trim() || null;
   if (flow === 'transfer') {
@@ -34,13 +36,16 @@ export function normalizeTxnBody(body) {
   } else {
     toAccount = null;
   }
+  // v0.5.56：日期此前完全不校验（乱日期流水不落任何月份区间）、时间只 slice(0,5)（'25:99' 入库）
+  const d = dateArg(body.date, todayStr());
+  if (d.error) return { error: d.error };
   return {
     flow,
     amount,
     category: flow === 'transfer' ? '转账' : (String(body.category || '').trim() || '其他'),
     subCategory: flow === 'transfer' ? null : (String(body.sub_category || '').trim() || null),
-    date: String(body.date || '').trim() || todayStr(),
-    time: String(body.time || '').trim().slice(0, 5) || null,
+    date: d.date,
+    time: cleanTime(body.time),
     account,
     toAccount,
     contactId: Number(body.contact_id) || null,
@@ -90,7 +95,7 @@ export async function onRequestGet(context) {
   }
   const contactId = Number(url.searchParams.get('contact_id')) || null;
   let month = url.searchParams.get('month') || todayStr().slice(0, 7);
-  if (!/^\d{4}-\d{2}$/.test(month)) month = todayStr().slice(0, 7);   // 乱值会使日均/趋势变 NaN
+  if (!cleanMonth(month)) month = todayStr().slice(0, 7);   // 乱值会使日均/趋势变 NaN
 
   // ---- 周期账单懒生成（房租/工资等到期自动入账，幂等；仅月度明细模式）----
   let recurringGenerated = 0;

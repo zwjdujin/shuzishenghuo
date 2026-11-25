@@ -31,8 +31,13 @@ export async function onRequestGet(context) {
     return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
   })();
   const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
-  const dow = ((new Date(today + 'T00:00:00+08:00').getUTCDay() + 6) % 7) + 1;
+  // v0.5.56：星期几从纯日期算（'T00:00:00Z'）。此前写成 '+08:00'——北京日期零点取 UTC 星期
+  // 会落在前一天，「今日服药」按周几过滤会差一天。与 med-plans.js 同步修正。
+  const dow = ((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7) + 1;
   const monday = new Date(Date.parse(today + 'T00:00:00Z') - (dow - 1) * 86400000).toISOString().slice(0, 10);
+  // v0.5.56（审计 P2-11）：打卡日志窗口从「本周一起」扩到 30 天——每 N 天一次的习惯周期最长
+  // 30 天（freq_value 上限 30），周一起的窗口会在每周一把它们误判成未完成。
+  const since30 = new Date(Date.parse(today + 'T00:00:00Z') - 29 * 86400000).toISOString().slice(0, 10);
   const md = today.slice(5);
 
   // ===== v0.5.47：15+ 次串行 D1 往返改为一批并发（登录后首屏延迟的主要来源） =====
@@ -45,7 +50,7 @@ export async function onRequestGet(context) {
     db.prepare('SELECT key, value FROM app_settings').all().catch(() => ({ results: [] })),
     db.prepare('SELECT * FROM habits').all().catch(() => ({ results: [] })),
     db.prepare('SELECT habit_id, log_date, done, done_bed, done_rise, done_nap FROM habit_logs WHERE log_date >= ?')
-      .bind(monday).all().catch(() => ({ results: [] })),
+      .bind(since30).all().catch(() => ({ results: [] })),
     db.prepare('SELECT birthday_type, birthday_calendar, birth_year, birth_month, birth_day, is_deceased FROM contacts')
       .all().catch(() => ({ results: [] })),
     cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date < ?", today),
@@ -93,7 +98,7 @@ export async function onRequestGet(context) {
     gap_x: settings.gap_x || '',
   };
 
-  // 习惯今日完成情况（按目标值判定是否完成）
+  // 习惯今日完成情况（按目标值判定是否完成）；日志为近 30 天（今日/每周/每 N 天三种口径共用）
   const habitList = allHabitsRes.results || [];
   const weekLogs = weekLogsRes.results || [];
   const hlMap = {};
@@ -109,16 +114,20 @@ export async function onRequestGet(context) {
     const freq = h.freq_type || 'daily';
     const fval = Number(h.freq_value) || 1;
     if (freq === 'weekly') {
-      // 本周累计次数（当日完成度折算）达到 N 次即视为「完成」
+      // 本周累计次数（当日完成度折算）达到 N 次即视为「完成」；只统计本周（周一以后）的日志
       let occ = 0;
-      (wlMap[h.id] || []).forEach((l) => { occ += Math.min(1, (Number(l.done) || 0) / target); });
+      (wlMap[h.id] || []).forEach((l) => {
+        if (l.log_date < monday) return;
+        occ += Math.min(1, (Number(l.done) || 0) / target);
+      });
       return occ >= fval;
     }
     if (freq === 'interval') {
-      // 距最近一次打卡不足 N 天 → 本次周期已完成
-      const logs = wlMap[h.id] || [];
+      // v0.5.56：从 30 天窗口里找「有效打卡」（done >= target，撤销后残留的 done=0 行不算），
+      // 距最近一次有效打卡不足 N 天 → 本周期已完成
+      const logs = (wlMap[h.id] || []).filter((l) => l.log_date <= today && (Number(l.done) || 0) >= target);
       let last = null;
-      logs.forEach((l) => { if (l.log_date <= today && (!last || l.log_date > last)) last = l.log_date; });
+      logs.forEach((l) => { if (!last || l.log_date > last) last = l.log_date; });
       if (!last) return false;
       return Math.round((Date.parse(today) - Date.parse(last)) / 86400000) < fval;
     }
@@ -181,6 +190,8 @@ export async function onRequestGet(context) {
     }));
 
   const now = cnNow();
+  // v0.5.56：todayLabel/weekday 不再传 now 给 weekdayCN——cnNow 已 +8，weekdayCN 内部还会再 +8
+  // （二次 +8），北京时间 16:00 后「星期X」会显示成第二天。
 
   // ===== v0.6.0 P3 聚合：随手记 / 今日服药 / 那年今天（数据已在上方并行取得） =====
   const memos = (memosRes.results || []).map((r) => ({ id: r.id, content: r.content, date: r.memo_date }));
@@ -200,12 +211,12 @@ export async function onRequestGet(context) {
   }
 
   return json({
-    version: '0.5.55',
+    version: '0.5.56',
     brand,
     appearance,
     today,
-    todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN(now)}`,
-    weekday: weekdayCN(now),
+    todayLabel: `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdayCN()}`,
+    weekday: weekdayCN(),
     stats,
     todayTasks,
     pendingHabits,

@@ -24,7 +24,10 @@ jobs:
           done
 
       - name: 本地 D1 应用迁移（同时验证 migrations 可从零建库）
-        run: npx --yes wrangler@latest d1 migrations apply shuzishenghuo --local
+        run: npx --yes wrangler@4.112.0 d1 migrations apply shuzishenghuo --local
+
+      - name: 农历一致性测试（纯 node，不需服务：前后端两份实现对拍 + 锚点）
+        run: node scripts/test-lunar-parity.mjs
 
       - name: 启动本地服务并等待就绪
         env:
@@ -32,14 +35,14 @@ jobs:
           ADMIN_PASS: test-pass-123
           SESSION_SECRET: ci-secret-not-for-prod
         run: |
-          npx --yes wrangler@latest pages dev ./public --port 8799 &
+          npx --yes wrangler@4.112.0 pages dev ./public --port 8799 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:8799/api/health >/dev/null && break
             sleep 2
           done
           curl -sf http://127.0.0.1:8799/api/health
 
-      - name: 端到端测试（API；data-api 会清库故放最后）
+      - name: 端到端测试（API；data-api 会清库放后面，audit-fixes 会清库+锁登录 15 分钟故放最后）
         run: |
           node scripts/test-relations-v4.mjs
           node scripts/test-medicines.mjs
@@ -48,6 +51,7 @@ jobs:
           node scripts/test-profile-ext.mjs
           node scripts/test-smart-mgmt.mjs
           node scripts/test-data-api.mjs
+          node scripts/test-audit-fixes.mjs
 
       - name: 端到端测试（UI 主题对比度）
         run: node scripts/test-theme.mjs

@@ -1,4 +1,5 @@
 import { json, todayStr } from '../_lib.js';
+import { cleanTime, dateArg } from './_validate.js';
 
 const DEFAULT_LIST = '生活';
 const REPEAT_RE = /^(daily|weekdays|weekly:[1-7](,[1-7])*|monthly:([1-9]|[12]\d|3[01])|yearly:\d{4}|every:[1-9]\d*d)$/;
@@ -233,12 +234,17 @@ export async function onRequestGet(context) {
   });
 }
 
-// 写入字段统一清洗（v0.5.48：长度与日期格式收口）
+// 写入字段统一清洗（v0.5.48：长度与日期格式收口；v0.5.56：日期/时间改做语义校验，见 _validate.js）
 const cleanTitle = (s) => String(s || '').trim().slice(0, 60);
 const cleanNote = (s) => String(s || '').trim().slice(0, 200) || null;
-const cleanTime = (s) => (/^\d{1,2}:\d{2}$/.test(String(s || '').trim()) ? String(s).trim().slice(0, 5) : null);
-const cleanDate = (s, fallback) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || '').trim()) ? String(s).trim() : fallback);
 const cleanRepeat = (s) => (REPEAT_RE.test(String(s || '').trim()) ? String(s).trim() : '');
+
+// 日期入参：没传 → 今天；传了但不是有效日历日（如 2026-13-45）→ 回 400。
+// v0.5.56 之前只做正则，非法日期会入库并让重复任务链静默中断。
+function todoDate(body) {
+  const d = dateArg(body.date, todayStr());
+  return d.error ? { error: d.error } : { date: d.date };
+}
 
 // 清单名合法性：必须存在于 todo_lists（防止 ext/手写请求造出孤儿清单值）
 async function validList(env, lists, v) {
@@ -259,7 +265,9 @@ export async function onRequestPost(context) {
   const lists = await getLists(env);
   const list = await validList(env, lists, body.list);
   if (list === null) return json({ error: '清单不存在' }, 400);
-  const date = cleanDate(body.date, todayStr());
+  const td = todoDate(body);
+  if (td.error) return json({ error: td.error }, 400);
+  const date = td.date;
   const time = cleanTime(body.time);
   const note = cleanNote(body.note);
   const remind = body.remind ? 1 : 0;
@@ -300,6 +308,8 @@ export async function onRequestPut(context) {
   const lists = await getLists(env);
   const list = await validList(env, lists, body.list);
   if (list === null) return json({ error: '清单不存在' }, 400);
+  const td = todoDate(body);
+  if (td.error) return json({ error: td.error }, 400);
 
   let priority;
   if (body.important !== undefined || body.urgent !== undefined) {
@@ -314,7 +324,7 @@ export async function onRequestPut(context) {
   )
     .bind(
       title,
-      cleanDate(body.date, todayStr()),
+      td.date,
       cleanTime(body.time),
       list,
       priority,

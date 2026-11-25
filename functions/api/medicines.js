@@ -1,4 +1,5 @@
 import { json, todayStr } from '../_lib.js';
+import { isYmd } from './_validate.js';
 
 // 家庭药箱 · 字典（v0.5.13 起存于词库 vocab：med_category / med_form / med_location，
 // 可在「药箱设置」中管理；此处仅保留适用人群为静态清单）
@@ -75,17 +76,23 @@ function shape(r, today) {
 export function parseMedBody(body) {
   const name = String(body.name || '').trim().slice(0, 40);
   if (!name) return { error: '请填写药品名称' };
+  // v0.5.56：日期改用日历有效性校验（'2026-02-30' 此前能过正则，且被 expiryStatus 判成 safe）
   const expiry = String(body.expiry || '').trim();
-  if (expiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) return { error: '有效期格式不正确' };
+  if (expiry && !isYmd(expiry)) return { error: '有效期格式不正确' };
   const openDate = String(body.openDate || body.open_date || '').trim();
-  if (openDate && !/^\d{4}-\d{2}-\d{2}$/.test(openDate)) return { error: '开封日期格式不正确' };
+  if (openDate && !isYmd(openDate)) return { error: '开封日期格式不正确' };
   // 数字字段：非法输入回退默认值，负数按 0 处理（库存没有负数语义，NaN 直接绑库会报错）
+  // v0.5.56：加上限 1e6（此前超大值照单全收）；价格不允许负数
   const num = (v, d) => {
     if (v === undefined || v === null || v === '') return d;
     const n = Number(v);
-    return Number.isFinite(n) ? Math.max(0, n) : d;
+    return Number.isFinite(n) ? Math.min(Math.max(0, n), 1e6) : d;
   };
-  const price = body.price === undefined || body.price === null || body.price === '' ? null : Number(body.price);
+  const priceRaw = body.price === undefined || body.price === null || body.price === '' ? null : Number(body.price);
+  if (priceRaw !== null && (!Number.isFinite(priceRaw) || priceRaw < 0 || priceRaw > 1e9)) {
+    return { error: '价格无效' };
+  }
+  const price = priceRaw;
   return {
     data: {
       name,
@@ -104,7 +111,7 @@ export function parseMedBody(body) {
       rx: body.rx ? 1 : 0,
       external: body.external ? 1 : 0,
       openDate: openDate || null,
-      price: Number.isFinite(price) ? price : null,
+      price: price === null ? null : Number(price),
       note: String(body.note || '').trim().slice(0, 200),
     },
   };

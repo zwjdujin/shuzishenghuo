@@ -20,6 +20,13 @@ const assetsDir = join(ROOT, 'public/assets');
 let removed = 0;
 let bytes = 0;
 
+// v0.5.56（审计 P3）：安全检查必须在删除循环之前——此前 refs 为空（正则失配/文件异常）时，
+// 循环会先删光所有当前资产，末尾才警告「未删除任何内容」，警告与事实相反。
+if (!refs.size) {
+  console.error('✗ index.html 未解析到任何 assets 引用（正则失配或文件异常）：拒绝清理，退出');
+  process.exit(1);
+}
+
 for (const d of readdirSync(assetsDir)) {
   if (refs.has(d) || /^v[\d.]+$/.test(d)) continue;   // 当前引用 + 版本化历史永久保留
   const dir = join(assetsDir, d);
@@ -36,4 +43,3 @@ for (const d of readdirSync(assetsDir)) {
 }
 
 console.log(`\n${dry ? '[dry] 将' : '已'}清理 ${removed} 个孤儿目录，共 ${(bytes / 1024 / 1024).toFixed(1)} MB${dry ? '（加实跑去掉 --dry）' : ''}`);
-if (!refs.size) console.warn('⚠ index.html 未解析到任何引用，疑似异常，未删除任何内容');

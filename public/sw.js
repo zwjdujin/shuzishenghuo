@@ -1,9 +1,9 @@
 // 数字生活 · Service Worker（由 scripts/release.mjs 自动生成，勿手改）
 // 策略：除 /api/ 外静态资源网络优先、离线回退缓存；install 时预缓存版本化资源。
 // 文件名固定为 sw.js（_headers 对其 no-cache）；内容变化 → 字节变化 → 浏览器自动更新。
-const CACHE = 'shuzishenghuo-fbf446cc';
+const CACHE = 'shuzishenghuo-26e1a64c';
 
-const PRECACHE = ['./', './index.html', './manifest.webmanifest', './assets/fce02c80/css/style.css', './assets/c5cb3fe4/js/lunar.js', './assets/f27ea80c/js/profile.js', './assets/73393a67/js/medicine.js', './assets/3ae592a8/js/app.js'];
+const PRECACHE = ['./', './index.html', './manifest.webmanifest', './assets/fce02c80/css/style.css', './assets/d40af4ef/js/lunar.js', './assets/f27ea80c/js/profile.js', './assets/7038a657/js/medicine.js', './assets/e1e7d64a/js/app.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -28,8 +28,12 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
+        // v0.5.56：只缓存 2xx 或 opaque（跨域 no-cors，如 jsDelivr 字体 CSS，status 恒为 0）。
+        // 此前未校验，404/500 的错误页也被塞进缓存，之后离线时会把错误页当正常内容返回。
+        if (res.ok || res.type === 'opaque') {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
         return res;
       })
       .catch(() => caches.match(req).then((r) => r || caches.match('./index.html')))
@@ -51,13 +55,21 @@ self.addEventListener('push', (e) => {
   );
 });
 
-// 点击通知 → 聚焦或打开应用
+// 点击通知 → 聚焦已开窗口并跳到通知指向的深链，或新开应用
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const target = (e.notification.data && e.notification.data.url) || './';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) { if ('focus' in w) return w.focus(); }
+      // v0.5.56：点通知跳深链（此前只 focus 不导航，点「待办提醒」永远停在当前页）。
+      // target 是相对路径（如 ./#/todos），换算成绝对地址再与窗口当前地址比对。
+      const abs = new URL(target, self.registration.scope).href;
+      for (const w of wins) {
+        if ('focus' in w) {
+          if (w.navigate && w.url !== abs) return w.navigate(abs).catch(() => w.focus());
+          return w.focus();
+        }
+      }
       if (clients.openWindow) return clients.openWindow(target);
     })
   );

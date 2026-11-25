@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>隐私政策 · 数字生活</title>
-<meta name="description" content="数字生活隐私政策：官网不收集任何数据；自托管应用的全部数据 100% 存在你自己的 Cloudflare 账号（D1 + R2），无广告、无追踪、无遥测；AI 与推送等第三方数据流仅在自行启用时发生。">
+<meta name="description" content="数字生活隐私政策：官网不收集任何数据；自托管应用的全部数据 100% 存在你自己的 Cloudflare 账号（D1 + R2），无广告、无追踪；AI 与推送等第三方数据流仅在自行启用时发生。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2333e0ff'/%3E%3Cstop offset='1' stop-color='%237c5cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%2304070f' font-family='serif' font-weight='700'%3E数%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/style.css">
 </head>
@@ -53,9 +53,9 @@
       <ul>
         <li><strong>本官网不收集任何数据</strong>：纯静态页面，无 Cookie、无统计、无追踪、无广告。</li>
         <li><strong>应用数据 100% 在你自己手里</strong>：自托管的数字生活把全部数据存在你自己的 Cloudflare 账号（D1 数据库 + R2 存储），项目开发者不运营任何服务器，也收不到你的任何数据。</li>
-        <li><strong>无遥测</strong>：应用前端与后端均无埋点、无上报、无第三方统计脚本。</li>
+        <li><strong>无第三方统计</strong>：应用前端与后端均无埋点、无第三方统计脚本。唯一的第一方自上报是前端错误日志：页面出错时把错误摘要（消息 / 页面 / UA，均截断）写入你自己实例数据库的 <code>client_logs</code> 表，滚动只保留最近 200 条、不上传给任何第三方，可在站内「系统信息」页查看、随实例删除。</li>
         <li><strong>仅有的第三方数据流都由你主动开启</strong>：AI 速记（发送到你自己配置的模型服务商）、Web Push（经浏览器厂商推送通道）、可选的文楷字体（从 jsDelivr 加载）。</li>
-        <li><strong>随时带走</strong>：站内一键下载全量 JSON 备份，或清空重建——数据生命周期完全由你掌控。</li>
+        <li><strong>随时带走</strong>：站内一键下载全量 JSON 备份，或从备份一键恢复、清空重建——数据生命周期完全由你掌控。</li>
       </ul>
     </section>
 
@@ -86,7 +86,7 @@
           <tr><td>联系人附件（照片 / 视频 / 文档）</td><td><strong>你自己的 Cloudflare R2 存储桶</strong></td><td>不使用任何第三方图床或对象存储</td></tr>
           <tr><td>AI 模型配置（接口地址、API Key、模型名）</td><td>你的 D1（app_settings 表）</td><td>仅你登录后可见，不随备份以外的方式离开你的账号</td></tr>
           <tr><td>Web Push 订阅（endpoint、加密密钥）</td><td>你的 D1（push_subscriptions 表）</td><td>仅用于向你自己的设备推送提醒</td></tr>
-          <tr><td>界面偏好（主题、字体、隐私开关等）</td><td>你浏览器的 localStorage</td><td>不包含个人数据，不上传</td></tr>
+          <tr><td>界面偏好 + 离线秒开缓存（主题、字体、隐私开关，以及首页统计、账本流水、待办、清单、日历事件（不含经期数据）、联系人列表与档案、药品与服药计划、打卡等接口响应）</td><td>你浏览器的 localStorage</td><td>含个人业务数据，仅存本机、不上传；登录 / 退出 / 清空数据 / 恢复备份时整体清除；发版后旧缓存自动作废</td></tr>
         </tbody>
       </table>
       <p>项目开发者（本仓库维护者）<strong>不运营任何用于数字生活的服务器，不持有任何实例的密钥，也不接收、备份或查看任何实例的数据</strong>。Cloudflare D1 与 R2 的数据处理行为，受你与 Cloudflare 之间的服务条款与隐私政策约束。</p>
@@ -177,7 +177,7 @@
       <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/README.md" target="_blank" rel="noopener">README</a>
       <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/DEPLOY.md" target="_blank" rel="noopener">部署指南</a>
       <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/PUSH_SETUP.md" target="_blank" rel="noopener">推送提醒</a>
-      <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/TWA_BUILD.md" target="_blank" rel="noopener">安卓 APP 打包</a>
+      <a href="https://github.com/zwjdujin/shuzishenghuo/blob/main/APP_BUILD.md" target="_blank" rel="noopener">安卓 APP 打包</a>
     </div>
     <div class="footer-col">
       <b>仓库</b>

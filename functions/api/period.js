@@ -1,4 +1,5 @@
 import { json, todayStr } from '../_lib.js';
+import { isYmd } from './_validate.js';
 
 // ===== v0.5.11 经期记录（日历中心 · 经期标签页） =====
 // GET    /api/period                  → {logs, stats, visible}
@@ -14,7 +15,8 @@ const BLOOD_TEXTURES = [1, 2, 3];              // 稀薄/正常/粘稠
 export const PAIN_TYPES = ['胀痛', '刺痛', '冷痛', '绞痛', '坠痛', '不知道啥痛就是痛'];
 export const SYMPTOMS = ['乳房胀痛', '头痛', '身痛', '失眠', '情绪异常', '泄泻', '浮肿', '口腔溃疡', '吐血/流鼻血', '发热', '起疹子'];
 
-const cleanDate = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) ? String(s) : '');
+// v0.5.56：日期改用日历有效性校验（此前 '2026-02-30' 也能过正则入库）
+const cleanDate = (s) => (isYmd(String(s || '')) ? String(s) : '');
 const diffDays = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / 86400000);
 /** 多选清洗：只留允许值（词内不会出现逗号），CSV 存储 */
 const csvPick = (input, allowed) => {
@@ -153,6 +155,8 @@ export async function onRequestPut(context) {
   const end = b.end_date !== undefined ? (cleanDate(b.end_date) || null) : row.end_date;
   if (!start) return json({ error: '开始日期无效' }, 400);
   if (end && end < start) return json({ error: '结束日期不能早于开始日期' }, 400);
+  // v0.5.56：与 POST 同样限制一次经期的天数上限（此前 PUT 缺这道校验）
+  if (end && diffDays(start, end) > 30) return json({ error: '一次经期不会超过 30 天，请检查日期' }, 400);
   if (start !== row.start_date) {
     const dup = await env.DB.prepare('SELECT id FROM period_logs WHERE start_date=? AND id<>?').bind(start, id).first();
     if (dup) return json({ error: '该日期已有经期记录' }, 409);

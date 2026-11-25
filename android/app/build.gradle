@@ -2,6 +2,24 @@ plugins {
     id 'com.android.application'
 }
 
+// v0.5.56 安全修复（审计 P1-1）：签名密钥库与口令不再入库。
+// 历史提交里的 release.keystore 与口令视为已泄露作废——任何拿到旧仓库的人都能用同一签名
+// 构建同包名（com.shuzishenghuo.twa）的恶意 APK，对已安装用户做覆盖升级安装并继承 WebView 数据。
+// 现在从 android/keystore.properties 读取（已 gitignore；模板见 keystore.properties.example）：
+//   storeFile=app/release.keystore   （相对 android/ 目录）
+//   storePassword=…  keyAlias=…  keyPassword=…
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def ksFile = keystoreProps['storeFile'] ? rootProject.file(keystoreProps['storeFile']) : null
+if (ksFile == null || !ksFile.exists()) {
+    logger.warn('数字生活：未找到 android/keystore.properties（或其中 storeFile 指向的密钥库）。' +
+            '发布签名未配置，assembleRelease 将产出未签名 APK。' +
+            '生成新密钥库与配置文件的方法见 APP_BUILD.md「签名密钥」。')
+}
+
 android {
     namespace 'com.shuzishenghuo.twa'
     compileSdk 35
@@ -10,18 +28,22 @@ android {
         applicationId "com.shuzishenghuo.twa"
         minSdk 23
         targetSdk 35
-        // 与 package.json 保持一致，发版时同步更新（versionCode = 去掉点的三段数字）
-        versionCode 555
-        versionName "0.5.55"
+        // 与 package.json 保持一致，发版时由 scripts/release.mjs 自动同步。
+        // v0.5.56 起 versionCode = major*10000 + minor*100 + patch（单调递增；
+        // 旧的去点拼接会在 0.6.0 → 60 时相对 0.5.55 → 555 倒退，导致无法覆盖安装）
+        versionCode 556
+        versionName "0.5.56"
     }
 
     signingConfigs {
         release {
-            // 侧载自用签名密钥，随仓库保存以便可复现构建（见 android/README.md）
-            storeFile file('release.keystore')
-            storePassword '84aa47b05fd23d9acd00'
-            keyAlias 'szsh'
-            keyPassword '84aa47b05fd23d9acd00'
+            // v0.5.56：凭据来自 gitignore 的 keystore.properties（见文件顶部说明）
+            if (ksFile != null && ksFile.exists()) {
+                storeFile ksFile
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
         }
     }
 

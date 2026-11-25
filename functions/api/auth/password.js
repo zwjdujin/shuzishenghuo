@@ -3,8 +3,21 @@ import {
 } from '../../_lib.js';
 
 // 密码长度区间（与前端提示保持一致）
-const MIN_LEN = 6;
+// v0.5.56（审计 P2-17）：下限 6 → 10 位。这是全站唯一的管理员口令，6 位字典密码在
+// 每天可尝试次数面前太短；下限只约束「新设密码」，已有密码不受影响。
+const MIN_LEN = 10;
 const MAX_LEN = 64;
+
+/**
+ * 简单强度：至少 10 位，且「字母 / 数字 / 其它字符」中满足两类以上。
+ * 例外：长度 ≥ 16 视为长口令（如中文短语），不再要求字符种类。
+ */
+function strengthError(p) {
+  if (p.length < MIN_LEN) return `新密码至少 ${MIN_LEN} 位`;
+  if (p.length >= 16) return '';
+  const kinds = [/[A-Za-z]/, /\d/, /[^A-Za-z\d]/].filter((re) => re.test(p)).length;
+  return kinds >= 2 ? '' : '新密码需至少包含字母、数字、符号中的两类（或使用 16 位以上的长口令）';
+}
 
 // POST /api/auth/password —— 修改管理员密码
 // body: { oldPass, newPass }
@@ -24,7 +37,8 @@ export async function onRequestPost(context) {
 
   if (!oldPass) return json({ error: '请输入当前密码' }, 400);
   if (!newPass) return json({ error: '请输入新密码' }, 400);
-  if (newPass.length < MIN_LEN) return json({ error: `新密码至少 ${MIN_LEN} 位` }, 400);
+  const weak = strengthError(newPass);
+  if (weak) return json({ error: weak }, 400);
   if (newPass.length > MAX_LEN) return json({ error: `新密码不能超过 ${MAX_LEN} 位` }, 400);
   if (newPass !== confirm) return json({ error: '两次输入的新密码不一致' }, 400);
 

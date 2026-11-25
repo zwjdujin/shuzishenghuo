@@ -6,6 +6,7 @@
 //     每日自动备份（v0.5.44：D1 快照 → R2 backup/d1/，R2 附件镜像 → backup/files/）
 // 推送 payload 的 url 使用 hash 路由，点通知直达对应页面。
 import webpush from 'web-push';
+import { toLunarOf, lunarMD } from './lunar.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 const WK_CN = ['日', '一', '二', '三', '四', '五', '六'];
@@ -70,12 +71,23 @@ export default {
         lastDaily = row ? row.value : '';
       } catch (_) {}
       if (lastDaily !== today) {
-        await dailyJobs(env, today, dowCN, pushes);
+        // v0.5.56（审计 P2-4）：先写幂等标记再跑日检。此前是跑完再写、写入失败被 catch 吞掉——
+        // 标记写不进去时，当天 06:00 之后每一分钟都会重跑 dailyJobs，生日/药箱推送每分钟重发一次。
+        // 现在标记写不进去就本轮放弃（宁可当天少一次日检，也不连续骚扰）；日检内部再自带 try/catch。
+        let marked = false;
         try {
           await env.DB.prepare(
             "INSERT INTO app_settings(key, value) VALUES ('last_daily_run', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
           ).bind(today).run();
-        } catch (_) {}
+          marked = true;
+        } catch (e) {
+          console.error('daily marker write failed:', e && e.message);
+        }
+        if (marked) {
+          try {
+            await dailyJobs(env, today, dowCN, pushes);
+          } catch (e) { console.error('daily jobs', e && e.message); }
+        }
       }
     }
 
@@ -188,59 +200,60 @@ async function dailyBackup(env, today) {
 }
 
 // ===== 日检任务：生日 / 药品库存与临期 =====
+// v0.5.56（审计 P2-4）：
+//   1) 生日只推 D-0 / D-1 / D-3 / D-7 各一次（此前 for i in 0..7 连推 8 天，同一个生日每天一条）；
+//   2) 农历生日按天换算精确匹配（此前把农历月日当公历月日匹配，差一两个月是常态）；
+const BIRTHDAY_DAYS = [0, 1, 3, 7];
 async function dailyJobs(env, today, dowCN, pushes) {
   const addDays = (base, n) => {
     const d = new Date(Date.parse(base + 'T00:00:00Z') + n * 86400000);
     return d.toISOString().slice(0, 10);
   };
 
-  // 生日：未来 7 天内（含今天）有生日的联系人（含农历换算，逐日扫 7 天）
+  // 生日：未来 D-0/D-1/D-3/D-7 各检查一次（阳历按公历月日匹配；农历逐日换算后匹配，闰月不当作同月）
   try {
     const contacts = (await env.DB.prepare(
       'SELECT name, birthday_type, birthday_calendar, birth_month, birth_day FROM contacts '
       + "WHERE birthday_type != '' AND is_deceased = 0 AND birthday_remind = 1"
     ).all()).results || [];
-    const solar = contacts.filter((c) => c.birthday_calendar !== 'lunar');
     const hits = [];
-    for (let i = 0; i <= 7; i++) {
+    for (const i of BIRTHDAY_DAYS) {
       const d = addDays(today, i);
       const mmdd = d.slice(5);
-      solar.forEach((c) => {
-        if (pad(c.birth_month) + '-' + pad(c.birth_day) === mmdd) {
+      const lunar = toLunarOf(d);
+      contacts.forEach((c) => {
+        if (c.birthday_calendar === 'lunar') {
+          if (lunar && !lunar.isLeap && lunar.month === c.birth_month && lunar.day === c.birth_day) {
+            hits.push({ name: c.name, date: d, days: i, lunar: true, text: `农历${lunarMD(c.birth_month, c.birth_day)}` });
+          }
+        } else if (pad(c.birth_month) + '-' + pad(c.birth_day) === mmdd) {
           hits.push({ name: c.name, date: d, days: i });
-        }
-      });
-    }
-    // 农历生日：用农历月日匹配公历换算（worker 侧内置轻量换算表成本高，
-    // 采用近似策略：按公历月日提醒，正文标注「生日」；精确农历推送待 lunar 表引入）
-    const lunar = contacts.filter((c) => c.birthday_calendar === 'lunar');
-    for (let i = 0; i <= 7; i++) {
-      const d = addDays(today, i);
-      const mmdd = d.slice(5);
-      lunar.forEach((c) => {
-        if (pad(c.birth_month) + '-' + pad(c.birth_day) === mmdd) {
-          hits.push({ name: c.name, date: d, days: i, lunarGuess: true });
         }
       });
     }
     if (hits.length) {
       pushes.push({
         title: `🎂 生日提醒 · ${hits.length} 位`,
-        body: hits.slice(0, 6).map((h) =>
-          `${h.name}：${h.days === 0 ? '就是今天' : h.date.slice(5).replace('-', '月') + '日（' + h.days + '天后）'}${h.lunarGuess ? '（农历生日按公历近似）' : ''}`
-        ).join('\n'),
+        body: hits.slice(0, 6).map((h) => {
+          const when = h.days === 0 ? '就是今天'
+            : h.days === 1 ? '明天'
+            : `${h.days} 天后（${h.date.slice(5).replace('-', '月')}日）`;
+          return `${h.name}：${when}${h.lunar ? `（${h.text}）` : ''}`;
+        }).join('\n'),
         tag: 'szsh-bday', url: './#/relations',
       });
     }
   } catch (e) { console.error('birthday scan', e && e.message); }
 
-  // 药品：低库存 + 30 天内临期
+  // 药品：低库存 + 30 天内临期 + 已过期（v0.5.56 新增：过期药品此前完全不再提醒，健康相关）
   try {
     const meds = (await env.DB.prepare('SELECT name, stock, stock_min, expiry FROM medicines').all()).results || [];
     const low = meds.filter((m) => m.stock != null && m.stock <= (m.stock_min || 0));
     const exp = meds.filter((m) => m.expiry && m.expiry >= today && m.expiry <= addDays(today, 30));
+    const expired = meds.filter((m) => m.expiry && /^\d{4}-\d{2}-\d{2}$/.test(String(m.expiry)) && m.expiry < today);
     const parts = [];
     if (low.length) parts.push('库存不足：' + low.map((m) => m.name).join('、'));
+    if (expired.length) parts.push(`已过期 ${expired.length} 件，请清理：` + expired.slice(0, 8).map((m) => `${m.name}（${m.expiry}）`).join('、'));
     if (exp.length) parts.push('即将过期：' + exp.map((m) => `${m.name}（${m.expiry}）`).join('、'));
     if (parts.length) {
       pushes.push({ title: '💊 药箱提醒', body: parts.join('\n'), tag: 'szsh-med-daily', url: './#/medicine' });

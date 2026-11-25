@@ -1,5 +1,6 @@
 import { resolveToken, scopeDenied } from '../_tokens.js';
 import { todayStr } from '../../_lib.js';
+import { cleanAmount, cleanDate, cleanTime } from '../_validate.js';
 
 // ===== v0.5.9 外部数据接口（AI Agent / 脚本用，Bearer Token 鉴权） =====
 // GET  /api/ext/{transactions|todos|events|habits|medicines|contacts|memos}[?limit=50]
@@ -48,8 +49,12 @@ async function handle(context, write) {
   if (name === 'todos') {
     const title = String(b.title || '').trim().slice(0, 60);
     if (!title) return J({ error: '缺少 title' }, 400);
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : today;
-    const time = /^\d{2}:\d{2}$/.test(b.time || '') ? b.time : null;
+    // v0.5.56：日期/时间做语义校验（此前 '2026-13-45' 能过正则入库，且让重复链静默中断）
+    if (b.date !== undefined && b.date !== '' && !cleanDate(b.date)) {
+      return J({ error: 'date 需为有效日期（YYYY-MM-DD）' }, 400);
+    }
+    const date = cleanDate(b.date) || today;
+    const time = cleanTime(b.time);
     // 优先级三种口径都收：high/mid/low/urgent 或 P0-P3（v0.5.53 补 P0）
     const MAP = { high: 'P1', mid: 'P2', low: 'P3', urgent: 'P0' };
     const pr = /^P[0-3]$/.test(b.priority || '') ? b.priority : (MAP[b.priority] || 'P3');
@@ -77,13 +82,17 @@ async function handle(context, write) {
 
   if (name === 'transactions') {
     const flow = ['income', 'expense'].includes(b.flow) ? b.flow : 'expense';
-    const amount = Number(b.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return J({ error: 'amount 需为正数' }, 400);
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : today;
+    // v0.5.56：金额加上限、日期/时间做语义校验（此前 '2026-13-45' 与 1e308 都能入库）
+    const amount = cleanAmount(b.amount);
+    if (amount === null) return J({ error: 'amount 需为正数且不超过 1e12' }, 400);
+    if (b.date !== undefined && b.date !== '' && !cleanDate(b.date)) {
+      return J({ error: 'date 需为有效日期（YYYY-MM-DD）' }, 400);
+    }
+    const date = cleanDate(b.date) || today;
     const res = await env.DB.prepare(
       'INSERT INTO transactions(flow, amount, category, txn_date, txn_time, account, item, note) VALUES (?,?,?,?,?,?,?,?)'
     ).bind(flow, amount, String(b.category || '其他').slice(0, 20), date,
-      /^\d{2}:\d{2}$/.test(b.time || '') ? b.time : null,
+      cleanTime(b.time),
       String(b.account || '默认账户').slice(0, 20),
       String(b.item || '').slice(0, 40) || null,
       String(b.note || '').slice(0, 60) || null).run();

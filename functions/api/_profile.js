@@ -58,6 +58,7 @@ export function toLunar(date) {
   const y = date.getUTCFullYear();
   if (y < 1900 || y > 2100) return null;
   let off = Math.floor((Date.UTC(y, date.getUTCMonth(), date.getUTCDate()) - Date.UTC(1900, 0, 31)) / 86400000);
+  if (off < 0) return null;   // v0.5.56：早于基准点 1900-01-31 的 1900 年 1 月会推出负天数乱码（月历能翻到）
   let ly = 1900, tmp = 0;
   for (; ly < 2101 && off > 0; ly++) { tmp = _yearDays(ly); off -= tmp; }
   if (off < 0) { off += tmp; ly--; }
@@ -141,8 +142,11 @@ export function nextBirthdayOf(c) {
   const days = Math.round((nextMs - today) / 86400000);
   const age = (c.birthday_type === 'full' && c.birth_year)
     ? nd.getUTCFullYear() - c.birth_year : null;
+  // v0.5.56（审计 P2-3）：date 统一用换算后的公历日 nd 格式化。此前农历分支拼的是农历月日
+  // （`p2(M)-p2(D)`）——农历八月十五的生日会把日历事件画到公历 8 月 15 日（当年中秋实际是
+  // 9 月 25 日），首页「快过生日了」与日历上的生日不在同一天。days 本来就是按 nextMs 算的，是对的。
   return {
-    date: `${nd.getUTCFullYear()}-${p2(M)}-${p2(D)}`,
+    date: `${nd.getUTCFullYear()}-${p2(nd.getUTCMonth() + 1)}-${p2(nd.getUTCDate())}`,
     days, age,
     calendar: c.birthday_calendar || 'solar',
     text: c.birthday_calendar === 'lunar'

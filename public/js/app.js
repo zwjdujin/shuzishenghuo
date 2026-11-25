@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.55
-const VERSION = '0.5.55';
+// 数字生活 · 前端逻辑 v0.5.56
+const VERSION = '0.5.56';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '待办中心微软 To Do 式优化收尾版（内容同 v0.5.52-54 三批：正式清单/四视图/星标/步骤/编辑/重复/排序/搜索/ext 同步/首页联动）';
+const __BUILD_ID__ = '审计修复：P1 全部 5 项 + P2 可核验 15 项 + 深审补全（农历三实现对拍/HKO 节气/官网隐私声明）';
 const __BUILD_TIME__ = '2026-11-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
@@ -75,6 +75,14 @@ async function api(path, opts = {}) {
     showLogin();
     throw new Error('unauthorized');
   }
+  // v0.5.56（C 报告 F-06 最小修法）：任何写请求都可能改变首页统计（删备忘、完成待办、打卡……）。
+  // 此前 app.js 里没有任何一处写入口失效 /api/home 缓存，改主题后缓存跳闪旧主题、删备忘后首页复活。
+  // 统一在写成功时失效一次，免去了 30+ 个写入口逐个补 cacheDel；
+  // 经期写操作（记录/结束/开关/删除/编辑）会改变日历叠加，一并失效 /api/events 缓存。
+  if (String((opts.method || 'GET')).toUpperCase() !== 'GET' && res.ok) {
+    cacheDel('/api/home');
+    if (typeof path === 'string' && path.indexOf('/api/period') === 0) cacheDel('/api/events?');
+  }
   return res;
 }
 
@@ -96,11 +104,19 @@ function cacheGet(p) {
     const raw = localStorage.getItem(CACHE_NS + p);
     if (!raw) return null;
     const rec = JSON.parse(raw);
-    return rec && rec.v === VERSION && rec.d != null ? rec.d : null;   // 版本不符（发版后）按未命中
+    if (rec && rec.v === VERSION && rec.d != null) return rec.d;   // 版本不符（发版后）按未命中
+    localStorage.removeItem(CACHE_NS + p);   // v0.5.56：版本不符的旧条目顺手删除（此前永久残留占配额）
+    return null;
   } catch (_) { return null; }
 }
 function cachePut(p, d) {
   if (d == null || !cacheAllowed(p)) return;
+  // v0.5.56（审计 P2-8）：经期数据不落盘——与 v0.5.50「经期数据不落盘」的设计声明保持一致。
+  // /api/events 响应里的 periods/prediction 写入 localStorage 前剔除；此前整响应落盘，
+  // 隐私开关关闭后，弱网/离线打开日历仍会先闪出缓存里的经期标记。
+  if (typeof p === 'string' && p.indexOf('/api/events') === 0) {
+    d = { ...d, periods: undefined, prediction: undefined };
+  }
   try {
     localStorage.setItem(CACHE_NS + p, JSON.stringify({ v: VERSION, t: Date.now(), d }));
     const keys = [];
@@ -628,6 +644,13 @@ function buildLayoutOpts() {
 let lxgwInjected = false;
 function ensureLxgwLink() {
   if (lxgwInjected || document.querySelector('link[data-lxgw]')) { lxgwInjected = true; return; }
+  // v0.5.56：preconnect 与字体同步按需建立（此前 index.html 每页无条件 preconnect，
+  // 未选字体的访客也向 jsDelivr 泄漏连接与 IP）
+  const pc = document.createElement('link');
+  pc.rel = 'preconnect';
+  pc.setAttribute('crossorigin', '');
+  pc.href = 'https://cdn.jsdelivr.net';
+  document.head.appendChild(pc);
   const l = document.createElement('link');
   l.rel = 'stylesheet';
   l.setAttribute('data-lxgw', '1');
@@ -749,8 +772,12 @@ async function boot() {
 bind('#bootRetryBtn', 'click', boot);
 
 // ===== 加载首页数据 =====
+// v0.5.56（审计 P2-9）：首页同样加请求序号守卫，避免旧响应覆盖新视图
+let homeLoadSeq = 0;
 async function loadHome() {
+  const mySeq = (homeLoadSeq = homeLoadSeq + 1);
   await apiSWR('/api/home', (d, stale) => {
+    if (homeLoadSeq !== mySeq) return;
     if (!stale) markSynced();
     renderHome(d);
   });
@@ -2320,9 +2347,14 @@ function renderTodoList(box, list, today) {
   if (todoView.kind === 'list') bindTodoDrag(box);
 }
 
+// v0.5.56（审计 P2-9）：待办列表请求序号守卫（与日历/账本同款）。极速连点视图/筛选/搜索时
+// 只让最后一次请求落地；写操作后重拉会递增序号，旧响应不再把「已完成」的待办改回未完成。
+let todoLoadSeq = 0;
+
 async function renderTodos() {
   const box = $('#todoList');
   if (!box) return;
+  const mySeq = (todoLoadSeq = todoLoadSeq + 1);
   const qs = new URLSearchParams();
   const q = todoSearch.trim();
   if (q) {
@@ -2337,6 +2369,7 @@ async function renderTodos() {
   const path = '/api/todos?' + qs.toString();
   if (!cacheGet(path)) box.innerHTML = '<div class="empty-hint">加载中…</div>';   // 有缓存则直接秒开
   const apply = (data, stale) => {
+    if (todoLoadSeq !== mySeq) return;   // 期间已切换视图/筛选/再搜索，丢弃本次响应
     if (Array.isArray(data.listsFull)) todoListsFull = data.listsFull;
     renderTodoListSel();
     renderTodoNav(data.nav || {});
@@ -3367,9 +3400,13 @@ function openTxnModal(t) {
   if (window.innerWidth > 860) setTimeout(() => { const a = $('#txnAmount'); if (a) a.focus(); }, 40);
 }
 
-function closeTxnModal() {
+function closeTxnModal(cancelPendingAi) {
   const m = $('#txnModal');
   if (m) m.hidden = true;
+  // v0.5.56（审计 P2-12）：非保存路径关闭（关闭钮/点背板/Esc）时取消待确认的 AI 队列。
+  // 此前队列不随取消终止：用户关掉弹窗后，任何一次手动记账成功都会把被取消的 AI 草稿再弹出来。
+  // 保存路径传 false：保存后仍由 aiSaveHookRun 续发剩余笔。
+  if (cancelPendingAi !== false) window.aiQueueCancel();
 }
 
 // ===== v0.5.23 随手记 AI → 记一笔表单 =====
@@ -3455,17 +3492,19 @@ async function drainAiQueue() {
 window.drainAiQueue = drainAiQueue;
 window.aiQueueCancel = () => { aiQueue = []; aiSaveHook = null; };
 window.aiSaveHookRun = () => { const h = aiSaveHook; aiSaveHook = null; if (h) h(); };
-/** v0.5.27：AI 识别的详细待办 → 新增待办弹窗预填 */
-function openTodoFromAi(d) {
+/** v0.5.27：AI 识别的详细待办 → 新增待办弹窗预填
+ *  v0.5.56（审计 P1-4）：改走 openTodoModal(null) 后再预填。此前只 f.reset()，不重置编辑态——
+ *  同一页面会话里先「编辑」过某条待办（保存或取消都会留下 todoEditingId），再让随手记被 AI
+ *  解析成待办、在弹窗里点提交，会把那条旧待办整体覆盖（PUT 全字段覆盖：标题/日期/清单回落、
+ *  备注清空、星标取消），而 AI 这条不会新建；弹窗标题还显示「编辑待办」，用户难以察觉。 */
+async function openTodoFromAi(d) {
+  await openTodoModal(null);
   const f = $('#todoForm');
   if (!f) return;
-  f.reset();
   f.title.value = String(d.title || '').slice(0, 30);
   f.date.value = /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') ? d.date : todayStrLocal();
   f.time.value = /^\d{2}:\d{2}$/.test(d.time || '') ? d.time : '';
   window.syncDtBtns(f);
-  $('#todoFormError').hidden = true;
-  $('#todoModal').hidden = false;
 }
 
 function syncTxnHint() {
@@ -3513,7 +3552,7 @@ async function submitTxn(e) {
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      closeTxnModal();
+      closeTxnModal(false);
       toast(id ? '已保存修改' : '已记账');
       markSynced();
       cacheDel('/api/transactions?');
@@ -4904,7 +4943,8 @@ async function revokeSession(sid) {
 // ===== 修改密码 =====
 // 密码存在服务端（app_settings.admin_pass_hash，PBKDF2-SHA256 哈希，不存明文），因此多端一致；
 // 改密成功后服务端会清掉「除当前设备外」的会话。
-const PASS_MIN = 6;
+// v0.5.56（审计 P2-17）：下限 6 → 10 位（与后端 MIN_LEN 同步），与登录限流配套。
+const PASS_MIN = 10;
 
 function setPassHint(custom) {
   const el = $('#passStateHint');
@@ -4947,6 +4987,11 @@ async function submitPassChange() {
   if (!newPass || newPass.length < PASS_MIN) return passError(`新密码至少 ${PASS_MIN} 位`);
   if (newPass !== confirmPass) return passError('两次输入的新密码不一致');
   if (newPass === oldPass) return passError('新密码不能与当前密码相同');
+  // v0.5.56：与服务端同款强度校验（字母/数字/符号满足两类，或 16 位以上长口令）
+  if (newPass.length < 16) {
+    const kinds = [/[A-Za-z]/, /\d/, /[^A-Za-z\d]/].filter((re) => re.test(newPass)).length;
+    if (kinds < 2) return passError('新密码需至少包含字母、数字、符号中的两类（或使用 16 位以上的长口令）');
+  }
 
   passError('');
   const btn = $('#passSubmitBtn');
@@ -5231,6 +5276,74 @@ async function copyText(txt, tip) {
   } catch (err) {
     toast('备份下载失败，请检查网络后重试');
   } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ===== v0.5.56 备份恢复导入（审计 P1-5：此前备份只能导出，没有任何恢复入口） =====
+let restorePayloadCache = null;
+function closeRestoreModal() {
+  const modal = $('#restoreModal');
+  if (modal) modal.hidden = true;
+}
+async function onRestoreFileChosen() {
+  const input = $('#restoreFileInput');
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 64 * 1024 * 1024) { toast('备份文件过大（> 64MB），请确认选对了文件'); return; }
+    let data;
+    try { data = JSON.parse(await file.text()); } catch (_) { toast('文件不是有效的 JSON 备份'); return; }
+    const res = await api('/api/data/restore?mode=preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(d.error || '备份文件校验失败'); return; }
+    restorePayloadCache = data;
+    const pv = $('#restorePreview');
+    if (pv) {
+      pv.innerHTML = (d.preview || []).map((t) => `
+        <div class="data-stat${t.rows ? '' : ' zero'}">
+          <span title="${escHtml(t.label)}">${escHtml(t.label)}${t.missing ? '（备份缺失）' : ''}</span><b>${t.rows}</b>
+        </div>`).join('') || '<div class="empty-hint">备份里没有可恢复的数据</div>';
+    }
+    const warn = $('#restoreWarn');
+    if (warn) {
+      warn.hidden = !(d.warnings || []).length;
+      warn.textContent = (d.warnings || []).slice(0, 4).join('；') || '';
+    }
+    const ci = $('#restoreConfirmInput');
+    if (ci) ci.value = '';
+    const cb = $('#restoreConfirmBtn');
+    if (cb) cb.disabled = true;
+    const err = $('#restoreError');
+    if (err) { err.hidden = true; err.textContent = ''; }
+    const modal = $('#restoreModal');
+    if (modal) modal.hidden = false;
+  } catch { /* 401 已处理 */ } finally {
+    input.value = '';   // 同一文件再次选择也能触发 change
+  }
+}
+async function confirmRestore() {
+  if (!restorePayloadCache) { closeRestoreModal(); return; }
+  const btn = $('#restoreConfirmBtn');
+  const err = $('#restoreError');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api('/api/data/restore?mode=confirm&confirm=RESTORE_DATA', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(restorePayloadCache),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) {
+      restorePayloadCache = null;
+      toast(`已恢复 ${d.total || 0} 条数据，正在刷新…`);
+      cacheClear();   // 本地缓存全部作废（防串号）
+      setTimeout(() => location.reload(), 900);
+    } else if (err) {
+      err.textContent = d.error || '恢复失败，请重试';
+      err.hidden = false;
+    }
+  } catch { /* 401 已处理 */ } finally {
     if (btn) btn.disabled = false;
   }
 }
@@ -5557,6 +5670,18 @@ bind('#clearConfirmInput', 'input', (e) => {
   if (cb) cb.disabled = e.target.value.trim() !== '清空';
 });
 bind('#clearConfirmBtn', 'click', confirmClearData);
+
+// ===== v0.5.56 备份恢复交互 =====
+bind('#restoreDataBtn', 'click', () => { const i = $('#restoreFileInput'); if (i) i.click(); });
+bind('#restoreFileInput', 'change', onRestoreFileChosen);
+bind('#restoreModalClose', 'click', closeRestoreModal);
+bind('#restoreCancelBtn', 'click', closeRestoreModal);
+bind('#restoreModal', 'click', (e) => { if (e.target === $('#restoreModal')) closeRestoreModal(); });
+bind('#restoreConfirmInput', 'input', (e) => {
+  const cb = $('#restoreConfirmBtn');
+  if (cb) cb.disabled = e.target.value.trim() !== '恢复';
+});
+bind('#restoreConfirmBtn', 'click', confirmRestore);
 
 // ===== 个人中心子菜单（唯一入口） =====
 // 记住当前选中的子页，从子菜单进入时不被 switchView 重置

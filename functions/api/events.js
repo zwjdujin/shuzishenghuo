@@ -1,4 +1,5 @@
 import { json, todayStr } from '../_lib.js';
+import { isYmd } from './_validate.js';
 
 const CALENDARS = ['工作', '生活', '家庭', '健康'];
 
@@ -10,8 +11,10 @@ export async function onRequestGet(context) {
   const from = url.searchParams.get('from') || '';
   const to = url.searchParams.get('to') || '';
   if (!from || !to) return json({ error: '缺少 from / to 参数' }, 400);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    return json({ error: 'from / to 需为 YYYY-MM-DD' }, 400);
+  if (!isYmd(from) || !isYmd(to)) {
+    // v0.5.56：改做日历有效性校验——'2026-13-45' 此前能过正则，随后 Date.parse 得到 Invalid Date，
+    // toISOString() 抛 RangeError → 500
+    return json({ error: 'from / to 需为有效日期（YYYY-MM-DD）' }, 400);
   }
   // start 存的是 'YYYY-MM-DD HH:MM'，用列边界比较（可走 idx_events_start）替代 date(start) 包列；
   // 上界取「to 的次日 0 点」即字符串 to+1day，含 to 当天全部时刻
@@ -77,10 +80,13 @@ export async function onRequestGet(context) {
 const cleanTitle = (s) => String(s || '').trim().slice(0, 80);
 const cleanText = (s, max) => String(s || '').trim().slice(0, max) || null;
 // events.start 存 'YYYY-MM-DD HH:MM'（历史数据兼容可带秒/带 T）
+// v0.5.56：日期做日历有效性校验、时间做范围校验（此前 2026-13-45 25:99 也能过正则入库）
 const cleanStart = (s) => {
-  const m = /^(\d{4}-\d{2}-\d{2})([ T](\d{1,2}:\d{2})(:\d{2})?)?$/.exec(String(s || '').trim());
-  if (!m) return null;
-  return m[3] ? `${m[1]} ${m[3].padStart(5, '0')}` : m[1];
+  const m = /^(\d{4}-\d{2}-\d{2})([ T](\d{1,2}):(\d{2})(:\d{2})?)?$/.exec(String(s || '').trim());
+  if (!m || !isYmd(m[1])) return null;
+  if (!m[3]) return m[1];
+  if (Number(m[3]) > 23 || Number(m[4]) > 59) return null;
+  return `${m[1]} ${m[3].padStart(5, '0')}`;
 };
 
 // POST /api/events —— 新增事件

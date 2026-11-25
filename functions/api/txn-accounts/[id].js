@@ -34,10 +34,12 @@ async function update(env, id, request) {
     const dup = await env.DB.prepare('SELECT id FROM txn_accounts WHERE name = ? AND id <> ?').bind(name, id).first();
     if (dup) return json({ error: '已有同名账户' }, 409);
     // 重命名同步历史流水（付款账户与转账转入账户两列）
+    // v0.5.56（审计 P2-15）：周期账单也按账户名引用，一并联动，否则之后自动入账会生成「幽灵账户」流水
     await env.DB.batch([
       env.DB.prepare('UPDATE txn_accounts SET name = ? WHERE id = ?').bind(name, id),
       env.DB.prepare('UPDATE transactions SET account = ? WHERE account = ?').bind(name, row.name),
       env.DB.prepare('UPDATE transactions SET to_account = ? WHERE to_account = ?').bind(name, row.name),
+      env.DB.prepare('UPDATE recurring SET account = ? WHERE account = ?').bind(name, row.name),
     ]);
   }
   if (hasDef && body.is_default) {
@@ -64,6 +66,8 @@ async function remove(env, id) {
   await env.DB.batch([
     env.DB.prepare('UPDATE transactions SET account = ? WHERE account = ?').bind(mergeTo, row.name),
     env.DB.prepare('UPDATE transactions SET to_account = ? WHERE to_account = ?').bind(mergeTo, row.name),
+    // v0.5.56（审计 P2-15）：周期账单同步归并到承接账户
+    env.DB.prepare('UPDATE recurring SET account = ? WHERE account = ?').bind(mergeTo, row.name),
     env.DB.prepare('DELETE FROM txn_accounts WHERE id = ?').bind(id),
     ...(row.is_default ? [env.DB.prepare('UPDATE txn_accounts SET is_default = 1 WHERE name = ?').bind(mergeTo)] : []),
   ]);

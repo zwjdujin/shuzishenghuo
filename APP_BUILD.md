@@ -31,9 +31,10 @@
 ```
 android/
 ├── settings.gradle / build.gradle / gradle.properties
+├── keystore.properties.example    # 签名配置模板（复制为 keystore.properties，已 gitignore）
 ├── app/
-│   ├── build.gradle                    # 版本号在这里（与根 package.json 同步）
-│   ├── release.keystore                # 侧载签名密钥（密码见下）
+│   ├── build.gradle                    # 版本号在这里（与根 package.json 同步，发版脚本自动注入）
+│   ├── release.keystore                # 侧载签名密钥（本地文件，已 gitignore；不再随仓库分发）
 │   └── src/main/
 │       ├── AndroidManifest.xml         # MainActivity（LAUNCHER）+ FileProvider
 │       ├── java/com/shuzishenghuo/twa/MainActivity.java
@@ -42,10 +43,13 @@ android/
 ```
 
 - 包名 `com.shuzishenghuo.twa`；`minSdk 23`（Android 6.0+）、`targetSdk 35`。
-- **版本号约定**：发版时把根目录 `package.json` 的版本同步到 `android/app/build.gradle`
-  （`versionName` = 版本字符串，`versionCode` = 去掉点号的三段数字）。
-- 签名密钥 `app/release.keystore`（alias `szsh`，密码 `84aa47b05fd23d9acd00`）随仓库保存，
-  便于任何人复现构建。个人侧载用途；介意可自行重新生成并更新 `app/build.gradle`。
+- **版本号约定**：发版脚本自动把 package.json 的版本同步到 `android/app/build.gradle`
+  （`versionName` = 版本字符串，`versionCode` = major×10000+minor×100+patch，单调递增；
+  v0.5.56 前的去点拼法在 0.6.0 会相对 0.5.55 倒退，无法覆盖安装）。
+- **签名密钥（v0.5.56 起）不再随仓库分发**：旧密钥库与口令曾入库公开，已视为泄露作废。
+  构建前复制 `keystore.properties.example` 为 `android/keystore.properties`（已 gitignore）
+  并填入自己的密库与口令；没有密钥库就用 keytool 生成（步骤见 `android/README.md`）。
+  换钥后旧 APK 无法覆盖升级，需卸载重装（先在站点导出备份）。
 
 ## 本机构建
 
@@ -60,7 +64,8 @@ cd android && gradle assembleRelease
 ## 安装与使用
 
 APK 传到手机直接安装（允许「未知来源」）。首次打开填自己的站点地址与账号即可。
-装过的旧版可直接覆盖安装（同一签名）。
+同一签名的新版可直接覆盖安装；**换过签名密钥（v0.5.56 起自建密钥）则需先卸载旧版再装**
+（卸载前先在站点「数据安全」页导出备份）。
 
 ## 历史：为什么放弃 TWA
 

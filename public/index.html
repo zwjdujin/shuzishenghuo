@@ -7,8 +7,9 @@
   <meta name="description" content="数字生活——把成长打卡、待办提醒、账本、药箱、日历与人际关系安放在一个地方。">
   <link rel="manifest" href="./manifest.webmanifest">
   <!-- 免费商用字体：霞鹜文楷（OFL 协议，可商用）——webfont CSS 已改为按需注入
-       （用户在「主题风格」选中该字体时才加载，见 app.js applyFont 与下方内联脚本），不再默认拉取 -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+       （用户在「主题风格」选中该字体时才加载，见 app.js applyFont 与下方内联脚本），不再默认拉取。
+       v0.5.56：preconnect 也一并按需化（在两处注入字体 CSS 前同步建立）——此前每页无条件
+       preconnect jsDelivr，未选字体的访客也会向第三方泄漏连接与 IP -->
   <script>
   /* 首屏外观恢复（v0.5.5）：提前应用主题变量 / 明暗模式 / 字体，避免先闪默认「胭脂红」再被主脚本纠正 */
   (function () {
@@ -25,6 +26,11 @@
         if (h < 6 || h >= 19) document.documentElement.setAttribute('data-mode', 'night');
       }
       if (localStorage.getItem('pf_font') === 'lxgwwk') {
+        var pc = document.createElement('link');
+        pc.rel = 'preconnect';
+        pc.setAttribute('crossorigin', '');
+        pc.href = 'https://cdn.jsdelivr.net';
+        document.head.appendChild(pc);
         var l = document.createElement('link');
         l.rel = 'stylesheet';
         l.setAttribute('data-lxgw', '1');
@@ -802,6 +808,11 @@
               <button class="btn primary" id="exportDataBtn" type="button"><svg><use href="#i-download"/></svg><span>下载全部数据备份</span></button>
               <button class="btn ghost" id="refreshDataBtn" type="button"><svg><use href="#i-clock"/></svg><span>刷新统计</span></button>
             </div>
+            <!-- v0.5.56 备份恢复（审计 P1-5）：备份终于能吃回去了 -->
+            <div class="data-actions" style="margin-top:8px">
+              <button class="btn ghost" id="restoreDataBtn" type="button"><svg><use href="#i-upload"/></svg><span>从备份文件恢复…</span></button>
+              <input type="file" id="restoreFileInput" accept=".json,application/json" hidden>
+            </div>
           </article>
 
           <article class="panel danger-zone">
@@ -1339,6 +1350,28 @@
     </div>
   </div>
 
+  <!-- 备份恢复确认（v0.5.56，审计 P1-5） -->
+  <div class="modal-overlay" id="restoreModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>从备份恢复数据</h3>
+        <button class="icon-btn" id="restoreModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <p class="muted">即将用备份文件替换当前<b>全部业务数据</b>（预览见下）。恢复前会先把当前数据快照到 R2 以防万一；管理员密码与 AI 模型配置保持现状；其它设备需重新登录。</p>
+      <div id="restorePreview" class="data-stat-list" style="margin-top:10px"></div>
+      <p class="ts-hint" id="restoreWarn" hidden></p>
+      <label class="field" style="margin-top:14px">
+        <span>请在下方输入「恢复」以确认</span>
+        <input id="restoreConfirmInput" autocomplete="off" placeholder="恢复">
+      </label>
+      <div class="data-actions" style="margin-top:6px">
+        <button class="btn ghost" id="restoreCancelBtn" type="button">取消</button>
+        <button class="btn primary" id="restoreConfirmBtn" type="button" disabled><svg><use href="#i-upload"/></svg><span>确认恢复</span></button>
+      </div>
+      <p class="login-error" id="restoreError" hidden></p>
+    </div>
+  </div>
+
   <!-- 修改密码（v0.3.13） -->
   <div class="modal-overlay" id="passModal" hidden>
     <div class="modal-card">
@@ -1353,7 +1386,7 @@
       </label>
       <label class="field">
         <span>新密码</span>
-        <input id="passNew" type="password" autocomplete="new-password" placeholder="至少 6 位">
+        <input id="passNew" type="password" autocomplete="new-password" placeholder="至少 10 位，建议字母+数字">
       </label>
       <label class="field">
         <span>确认新密码</span>
@@ -1478,9 +1511,9 @@
     </div>
   </div>
 
-  <script src="./assets/c5cb3fe4/js/lunar.js"></script>
+  <script src="./assets/d40af4ef/js/lunar.js"></script>
   <script src="./assets/f27ea80c/js/profile.js"></script>
-  <script src="./assets/73393a67/js/medicine.js"></script>
-  <script src="./assets/3ae592a8/js/app.js"></script>
+  <script src="./assets/7038a657/js/medicine.js"></script>
+  <script src="./assets/e1e7d64a/js/app.js"></script>
 </body>
 </html>

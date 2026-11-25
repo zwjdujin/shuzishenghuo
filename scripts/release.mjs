@@ -52,17 +52,28 @@ patch('public/js/app.js', [
 patch('functions/api/home.js', [[/version: '[\d.]+'/m, `version: '${version}'`]]);
 patch('functions/api/health.js', [[/version: '[\d.]+'/m, `version: '${version}'`]]);
 patch('functions/api/sysinfo.js', [[/pick\(env, 'APP_VERSION', '[\d.]+'\)/, `pick(env, 'APP_VERSION', '${version}')`]]);
+// v0.5.56：迁移号从 migrations 目录推导（此前硬编码「迁移 0015」，实际已 0016 就过期了）
+{
+  const mig = readdirSync(join(ROOT, 'migrations')).filter((f) => f.endsWith('.sql'))
+    .map((f) => Number(f.split('_')[0]) || 0);
+  const latest = mig.length ? Math.max(...mig) : 0;
+  patch('functions/api/sysinfo.js', [[/dbVersion: '迁移 \d+'/m, `dbVersion: '迁移 ${String(latest).padStart(4, '0')}'`]]);
+}
 {
   const pkg = JSON.parse(read('package.json'));
   pkg.version = version;
   write('package.json', JSON.stringify(pkg, null, 2) + '\n');
 }
 
-// ---------- 1b. android 壳版本同步（APP_BUILD.md 约定：versionCode = 去点三段数字） ----------
+// ---------- 1b. android 壳版本同步（APP_BUILD.md 约定：versionCode 单调递增） ----------
 // v0.5.44 起自动注入：此前靠人工同步已漂移（壳停在 0.5.31，网页端已 0.5.43）
 try {
   const gradlePath = 'android/app/build.gradle';
-  const code = Number(version.replace(/\./g, ''));
+  const [major, minor, patchNum] = version.split('.').map(Number);
+  // v0.5.56（审计 P2-7）：versionCode 改为 major*10000 + minor*100 + patch，单调递增。
+  // 此前去点拼接：0.5.55→555，但 0.6.0→60 < 555 → INSTALL_FAILED_VERSION_DOWNGRADE，
+  // 用户只能卸载重装（丢站点配置）。新公式：0.5.55→555（与旧值一致）、0.6.0→600、1.0.0→10000，永不倒退。
+  const code = major * 10000 + minor * 100 + patchNum;
   if (!Number.isFinite(code)) throw new Error('版本号无法转 versionCode');
   let g = read(gradlePath);
   if (!/versionCode \d+/.test(g) || !/versionName "[^"]+"/.test(g)) throw new Error('未找到版本字段');
@@ -170,8 +181,12 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
+        // v0.5.56：只缓存 2xx 或 opaque（跨域 no-cors，如 jsDelivr 字体 CSS，status 恒为 0）。
+        // 此前未校验，404/500 的错误页也被塞进缓存，之后离线时会把错误页当正常内容返回。
+        if (res.ok || res.type === 'opaque') {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
         return res;
       })
       .catch(() => caches.match(req).then((r) => r || caches.match('./index.html')))
@@ -193,13 +208,21 @@ self.addEventListener('push', (e) => {
   );
 });
 
-// 点击通知 → 聚焦或打开应用
+// 点击通知 → 聚焦已开窗口并跳到通知指向的深链，或新开应用
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const target = (e.notification.data && e.notification.data.url) || './';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) { if ('focus' in w) return w.focus(); }
+      // v0.5.56：点通知跳深链（此前只 focus 不导航，点「待办提醒」永远停在当前页）。
+      // target 是相对路径（如 ./#/todos），换算成绝对地址再与窗口当前地址比对。
+      const abs = new URL(target, self.registration.scope).href;
+      for (const w of wins) {
+        if ('focus' in w) {
+          if (w.navigate && w.url !== abs) return w.navigate(abs).catch(() => w.focus());
+          return w.focus();
+        }
+      }
       if (clients.openWindow) return clients.openWindow(target);
     })
   );

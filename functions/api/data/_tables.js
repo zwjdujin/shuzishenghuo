@@ -30,6 +30,7 @@ export const TABLE_LABELS = {
   body_records: '人际关系 · 身高体重',
   contact_files: '人际关系 · 附件',
   contact_sections: '人际关系 · 档案段落',
+  contact_promises: '人际关系 · 承诺（旧表，v0.4 起并入待办；有则一并清空）',
   vocab: '词库',
   push_subscriptions: '推送订阅',
 };
@@ -39,7 +40,9 @@ export const TABLE_LABELS = {
 //   app_settings   —— 品牌与外观偏好（管理员配置，含 AI 模型配置）
 //   api_tokens     —— 外部访问凭据（安全数据，等同密码，绝不入备份）
 //   client_logs    —— v0.5.47 前端错误诊断数据（滚动上限 200 行，非业务数据）
-const EXCLUDE = new Set(['sessions', 'app_settings', 'api_tokens', 'd1_migrations', '_cf_KV', 'client_logs']);
+//   rate_limits    —— v0.5.56 登录/错误上报的限流计数（运维数据，按窗口自动过期，非业务数据）
+const EXCLUDE = new Set(['sessions', 'app_settings', 'api_tokens', 'd1_migrations', '_cf_KV', 'client_logs', 'rate_limits']);
+export { EXCLUDE };
 
 /** 动态读取数据库中实际存在的业务表（避免迁移未跑时 DELETE 报错） */
 export async function listDataTables(env) {

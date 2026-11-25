@@ -558,9 +558,9 @@
       if (!d.ok) { drop.innerHTML = '<div class="ml-item ml-static ml-fail">' + esc(d.error || '检索失败，请手动填写') + '</div>'; return; }
       if (!(d.results || []).length) { drop.innerHTML = '<div class="ml-item ml-static ml-fail">药典未收录该名称，请手动填写</div>'; return; }
       drop.innerHTML = d.results.map((x) => `
-        <button type="button" class="ml-item" data-entry="${x.id}">
+        <button type="button" class="ml-item" data-entry="${esc(x.id)}">
           <b>${esc(x.title)}</b>
-          <small>${esc(x.bookName)}${x.pageNum ? ' · 第' + x.pageNum + '页' : ''}</small>
+          <small>${esc(x.bookName)}${x.pageNum ? ' · 第' + esc(x.pageNum) + '页' : ''}</small>
         </button>`).join('');
     } catch (_) { drop.innerHTML = '<div class="ml-item ml-static ml-fail">检索失败，请手动填写</div>'; }
   }

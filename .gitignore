@@ -26,3 +26,7 @@ backups/
 
 # ZCode 本地工具配置
 .zcode/
+
+# v0.5.56 安卓签名（审计 P1-1）：密钥库与口令不入库；历史提交中的旧密钥已作废
+android/app/release.keystore
+android/keystore.properties
