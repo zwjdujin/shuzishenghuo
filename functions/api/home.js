@@ -39,7 +39,7 @@ export async function onRequestGet(context) {
   // 每个查询自带 catch 兜底，单表失败不影响其它数据。
   // 本周打卡日志一次查询同时供「今日完成」(log_date===today) 与「周/间隔频率」两处使用。
   const [settingRows, allHabitsRes, weekLogsRes, cRowsRes,
-    todosOverdue, todosTodayCnt, todosWeek, medTotal, medExpiring, eventsTodayCnt,
+    todosOverdue, todosTodayCnt, todosWeek, todosMyDay, medTotal, medExpiring, eventsTodayCnt,
     ledgerRow, todoRowsRes, eventRowsRes, memosRes, otSample, otYears,
     medPlanRows, medLogRows] = await Promise.all([
     db.prepare('SELECT key, value FROM app_settings').all().catch(() => ({ results: [] })),
@@ -50,6 +50,7 @@ export async function onRequestGet(context) {
       .all().catch(() => ({ results: [] })),
     cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date < ?", today),
     cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date = ?", today),
+    cnt('SELECT COUNT(*) c FROM todos WHERE done=0 AND my_day_date = ?', today),
     cnt("SELECT COUNT(*) c FROM todos WHERE done=0 AND todo_date BETWEEN ? AND date(?, '+7 days')", today, today),
     cnt('SELECT COUNT(*) c FROM medicines'),
     cnt("SELECT COUNT(*) c FROM medicines WHERE expiry IS NOT NULL AND expiry BETWEEN ? AND date(?, '+30 days')", today, today),
@@ -133,7 +134,7 @@ export async function onRequestGet(context) {
   } catch (_) { /* 忽略 */ }
 
   const stats = {
-    todos: { overdue: todosOverdue, today: todosTodayCnt, week: todosWeek },
+    todos: { overdue: todosOverdue, today: todosTodayCnt, week: todosWeek, myday: todosMyDay },
     habits: { done: habitDoneCount, total: habitList.length },
     ledger: {},
     medicines: { total: medTotal, expiring: medExpiring },
@@ -199,7 +200,7 @@ export async function onRequestGet(context) {
   }
 
   return json({
-    version: '0.5.53',
+    version: '0.5.54',
     brand,
     appearance,
     today,

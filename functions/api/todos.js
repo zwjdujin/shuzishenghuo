@@ -113,9 +113,11 @@ export async function onRequestGet(context) {
   const view = (url.searchParams.get('view') || '').trim();
   const legacyScope = (url.searchParams.get('scope') || 'today').trim();
   const legacyList = (url.searchParams.get('list') || '').trim();
+  // v0.5.54 搜索：跨视图全局搜（标题/备注/步骤），含已完成，最新优先
+  const q = (url.searchParams.get('q') || '').trim().slice(0, 40).replace(/[%_]/g, ' ');
 
   // ---- 旧 scope 语义（保持与历史行为完全一致） ----
-  if (!view) {
+  if (!view && !q) {
     const where = [];
     const params = [];
     if (legacyScope === 'all') {
@@ -145,6 +147,30 @@ export async function onRequestGet(context) {
     const counts = { P0: 0, P1: 0, P2: 0, P3: 0 };
     allRows.forEach((r) => { if (counts[r.priority] !== undefined) counts[r.priority]++; });
     return json({ todos: rows.map((r) => mapTodo(r, today)), lists: names, listsFull: lists, priorities: PRIORITIES, priorityMeta: PRIORITY_META, counts, today });
+  }
+
+  // ---- 搜索模式（q 非空时优先于视图） ----
+  if (q) {
+    const like = `%${q}%`;
+    const rows = (await env.DB.prepare(
+      `SELECT t.*,
+        (SELECT COUNT(*) FROM todo_steps s WHERE s.todo_id=t.id) AS steps_total,
+        (SELECT SUM(CASE WHEN s.done=1 THEN 1 ELSE 0 END) FROM todo_steps s WHERE s.todo_id=t.id) AS steps_done
+       FROM todos t
+       WHERE t.title LIKE ? OR t.note LIKE ? OR EXISTS(SELECT 1 FROM todo_steps s WHERE s.todo_id=t.id AND s.content LIKE ?)
+       ORDER BY t.done ASC, t.todo_date ASC, ${PRIORITY_ORDER_T}
+       LIMIT 100`
+    ).bind(like, like, like).all()).results || [];
+    return json({
+      todos: rows.map((r) => mapTodo(r, today)),
+      lists: names,
+      listsFull: lists,
+      priorities: PRIORITIES,
+      priorityMeta: PRIORITY_META,
+      counts: { P0: 0, P1: 0, P2: 0, P3: 0 },
+      nav: {},
+      today,
+    });
   }
 
   // ---- 新视图语义 ----

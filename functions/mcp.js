@@ -21,7 +21,7 @@ const READ_TOOL = {
   memos: ['list_memos', '查询随手记录'],
 };
 const WRITE_TOOL = {
-  todos: { name: 'add_todo', desc: '新增一条待办', props: { title: '待办内容', date: 'YYYY-MM-DD 可省略', time: 'HH:MM 可省略', priority: 'high|mid|low 可省略' }, res: 'todos' },
+  todos: { name: 'add_todo', desc: '新增一条待办', props: { title: '待办内容', date: 'YYYY-MM-DD 可省略', time: 'HH:MM 可省略', priority: 'high|mid|low|urgent 可省略', list: '清单名（须已存在）可省略' }, res: 'todos' },
   memos: { name: 'add_memo', desc: '新增一条随手记', props: { content: '内容' }, res: 'memos' },
   ledger: { name: 'add_transaction', desc: '记一笔账', props: { flow: 'income|expense', amount: '金额', category: '分类', date: 'YYYY-MM-DD 可省略', note: '备注 可省略' }, res: 'transactions' },
 };

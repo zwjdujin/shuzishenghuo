@@ -1,7 +1,7 @@
-// 数字生活 · 前端逻辑 v0.5.53
-const VERSION = '0.5.53';
+// 数字生活 · 前端逻辑 v0.5.54
+const VERSION = '0.5.54';
 // 本次发版信息（系统信息页展示）
-const __BUILD_ID__ = '待办中心第二批任务深度（手机端主列换行布局）';
+const __BUILD_ID__ = '待办中心第三批打磨联动 —— 全局搜索（标题/备注/步骤跨视图含已完成，输入即搜 300ms 防抖）；ext/MCP 对外接口同步（读暴露 star/repeat，写补 P0 支持、清单校验防孤儿值、MCP add_todo 支持 list）；首页待办卡 hint 增加我的一天口径；maxlength 与后端对齐（标题 60/备注 200）';
 const __BUILD_TIME__ = '2026-11-25';
 
 // 同步状态（数据实时写入云端 D1，无待同步队列；前端错误统计见系统信息页 · client-log 上报）
@@ -813,7 +813,7 @@ function renderHome(d) {
   // 统计卡
   const s = d.stats;
   $('#stTodos').textContent = s.todos.today;
-  $('#stTodosHint').textContent = `逾期 ${s.todos.overdue} · 本周 ${s.todos.week}`;
+  $('#stTodosHint').textContent = `逾期 ${s.todos.overdue} · 我的一天 ${s.todos.myday || 0}`;
   // 有逾期 → 加 .alert 类走语义令牌（日夜都暗）；不再写死内联底色
   const todoIcon = $('#card-todos').querySelector('.stat-icon');
   if (todoIcon) todoIcon.classList.toggle('alert', s.todos.overdue > 0);
@@ -1916,6 +1916,7 @@ function closeEventModal() { $('#eventModal').hidden = true; }
 let todoListsFull = [];                        // [{id,name,icon,color}]
 let todoView = { kind: 'myday', listId: 0 };   // myday | important | planned | completed | list
 let todoFilter = { priority: [] };
+let todoSearch = '';                            // v0.5.54 搜索词（非空时跨视图全局搜）
 const PRIO_DESC = { P0: '重要且紧急', P1: '重要不紧急', P2: '紧急不重要', P3: '不重要不紧急' };
 const TODO_LIST_DEFAULT = '生活';
 const TL_COLORS = ['', 'red', 'orange', 'green', 'teal', 'blue', 'purple', 'pink'];
@@ -2323,10 +2324,15 @@ async function renderTodos() {
   const box = $('#todoList');
   if (!box) return;
   const qs = new URLSearchParams();
-  qs.set('view', todoView.kind);
-  if (todoView.kind === 'list') qs.set('list_id', todoView.listId);
-  if (todoFilter.priority.length && todoView.kind !== 'myday' && todoView.kind !== 'completed') {
-    qs.set('priority', todoFilter.priority.join(','));
+  const q = todoSearch.trim();
+  if (q) {
+    qs.set('q', q);   // 搜索模式：跨视图全局搜
+  } else {
+    qs.set('view', todoView.kind);
+    if (todoView.kind === 'list') qs.set('list_id', todoView.listId);
+    if (todoFilter.priority.length && todoView.kind !== 'myday' && todoView.kind !== 'completed') {
+      qs.set('priority', todoFilter.priority.join(','));
+    }
   }
   const path = '/api/todos?' + qs.toString();
   if (!cacheGet(path)) box.innerHTML = '<div class="empty-hint">加载中…</div>';   // 有缓存则直接秒开
@@ -2343,8 +2349,20 @@ async function renderTodos() {
       ? ((todoListById(todoView.listId) || {}).name || '清单')
       : (meta ? meta.title : '');
     const cc = $('#clearCompletedBtn');
-    if (cc) cc.hidden = todoView.kind !== 'completed';
-    renderTodoList(box, data.todos || [], data.today || todayStrLocal());
+    if (cc) cc.hidden = todoView.kind !== 'completed' || !!q;
+    const prioRow = $('#tfPrioRow');
+    if (prioRow) prioRow.hidden = !!q || todoView.kind === 'myday' || todoView.kind === 'completed';
+    if (q) {
+      const eye = $('#todoViewEyebrow');
+      const title = $('#todoViewTitle');
+      if (eye) eye.textContent = '搜索';
+      if (title) title.textContent = `「${q}」的结果`;
+      $('#todoCount').textContent = (data.todos || []).length ? `共 ${(data.todos).length} 条` : '';
+      box.innerHTML = '';
+      (data.todos || []).forEach((t) => box.appendChild(todoRowEl(t, data.today || todayStrLocal())));
+    } else {
+      renderTodoList(box, data.todos || [], data.today || todayStrLocal());
+    }
     if (!stale) markSynced();
   };
   try {
@@ -5724,6 +5742,17 @@ function bindTodoDrag(box) {
     } catch { /* 401 已处理 */ }
   }, { rowSel: '.todo-row', handleSel: '.todo-handle', key: 'tid' });
 }
+// 待办搜索（输入即搜，300ms 防抖）
+bind('#todoSearchInput', 'input', (() => {
+  let t = null;
+  return (e) => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      todoSearch = e.target.value || '';
+      renderTodos();
+    }, 300);
+  };
+})());
 // 清空已完成记录（已完成视图）
 bind('#clearCompletedBtn', 'click', async () => {
   if (!(await confirmModal('清空全部已完成记录？此操作不可恢复。'))) return;

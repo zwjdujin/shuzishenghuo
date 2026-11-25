@@ -12,7 +12,7 @@ const J = (data, status = 200) => new Response(JSON.stringify(data), {
 
 const RESOURCE = {
   transactions: { scope: 'ledger', sql: `SELECT id,flow,amount,category,sub_category sub,txn_date date,txn_time time,account,item,note FROM transactions ORDER BY txn_date DESC,id DESC LIMIT ?` },
-  todos: { scope: 'todos', sql: `SELECT id,title,todo_date date,todo_time time,list,priority,important,urgent,done FROM todos ORDER BY done,id DESC LIMIT ?` },
+  todos: { scope: 'todos', sql: `SELECT id,title,todo_date date,todo_time time,list,priority,important,urgent,star,repeat_rule repeat,done FROM todos ORDER BY done,id DESC LIMIT ?` },
   events: { scope: 'calendar', sql: `SELECT id,title,start,end,all_day allDay,calendar,location,note FROM events ORDER BY start DESC,id DESC LIMIT ?` },
   habits: { scope: 'habits', sql: `SELECT id,name,target,unit,freq_type freqType,freq_value freqValue FROM habits ORDER BY id LIMIT ?` },
   medicines: { scope: 'medicine', sql: `SELECT id,name,spec,form,efficacy,category,location,stock,stock_min stockMin,expiry,for_whom forWhom FROM medicines ORDER BY expiry LIMIT ?` },
@@ -50,12 +50,19 @@ async function handle(context, write) {
     if (!title) return J({ error: '缺少 title' }, 400);
     const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : today;
     const time = /^\d{2}:\d{2}$/.test(b.time || '') ? b.time : null;
-    // 优先级两种口径都收：high/mid/low 或 P1/P2/P3
-    const MAP = { high: 'P1', mid: 'P2', low: 'P3' };
-    const pr = /^P[1-4]$/.test(b.priority || '') ? b.priority : (MAP[b.priority] || 'P3');
+    // 优先级三种口径都收：high/mid/low/urgent 或 P0-P3（v0.5.53 补 P0）
+    const MAP = { high: 'P1', mid: 'P2', low: 'P3', urgent: 'P0' };
+    const pr = /^P[0-3]$/.test(b.priority || '') ? b.priority : (MAP[b.priority] || 'P3');
+    const REPEAT_RE = /^(daily|weekdays|weekly:[1-7](,[1-7])*|monthly:([1-9]|[12]\d|3[01])|yearly:\d{4}|every:[1-9]\d*d)$/;
+    const repeat = REPEAT_RE.test(String(b.repeat || '').trim()) ? String(b.repeat).trim() : '';
+    const star = b.star ? 1 : 0;
+    // 清单必须已存在于 todo_lists（防止外部写入造出孤儿清单值）
+    let list = String(b.list || b.category || '生活').trim().slice(0, 20);
+    const hit = await env.DB.prepare('SELECT name FROM todo_lists WHERE name=?').bind(list).first();
+    if (!hit) list = '生活';
     const res = await env.DB.prepare(
-      'INSERT INTO todos(title, todo_date, todo_time, list, priority, remind) VALUES (?,?,?,?,?,1)'
-    ).bind(title, date, time, String(b.list || b.category || '生活').slice(0, 20), pr).run();
+      'INSERT INTO todos(title, todo_date, todo_time, list, priority, remind, star, repeat_rule) VALUES (?,?,?,?,?,1,?,?)'
+    ).bind(title, date, time, list, pr, star, repeat).run();
     return J({ ok: true, id: res.meta.last_row_id }, 201);
   }
 
