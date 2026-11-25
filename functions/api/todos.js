@@ -34,22 +34,24 @@ async function getLists(env) {
 
 const listNames = (lists) => lists.map((l) => (typeof l === 'string' ? l : l.name));
 
+const PRIORITY_ORDER_T = "CASE t.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END ASC";
+
 // 视图 → 基础查询条件（微软 To Do 式五视图；不含优先级筛选，那层在 base 之上叠加）
 function baseFor(view, today, listName) {
   switch (view) {
     case 'myday':      // 我的一天：当天加入的（含已完成段），过夜自然重置
-      return { where: ['my_day_date = ?'], params: [today], order: `done ASC, star DESC, ${PRIORITY_ORDER}, todo_time ASC, id ASC` };
+      return { where: ['t.my_day_date = ?'], params: [today], order: `t.done ASC, t.star DESC, ${PRIORITY_ORDER_T}, t.todo_time ASC, t.id ASC` };
     case 'important':  // 重要：全部星标未完成
-      return { where: ['done=0', 'star=1'], params: [], order: `${PRIORITY_ORDER}, todo_date ASC, todo_time ASC` };
+      return { where: ['t.done=0', 't.star=1'], params: [], order: `${PRIORITY_ORDER_T}, t.todo_date ASC, t.todo_time ASC` };
     case 'planned':    // 计划内：全部有日期的未完成（前端按 逾期/今天/明天/本周/以后 分节）
-      return { where: ['done=0', 'todo_date IS NOT NULL', "todo_date != ''"], params: [], order: 'todo_date ASC, todo_time ASC, id ASC' };
+      return { where: ['t.done=0', 't.todo_date IS NOT NULL', "t.todo_date != ''"], params: [], order: 't.todo_date ASC, t.todo_time ASC, t.id ASC' };
     case 'completed':  // 已完成：最近 200 条
-      return { where: ['done=1'], params: [], order: 'completed_at DESC, id DESC', limit: 200 };
+      return { where: ['t.done=1'], params: [], order: 't.completed_at DESC, t.id DESC', limit: 200 };
     case 'list':       // 清单视图：手动排序过的在前（拖拽 sort_order），其余按优先级/日期
       return {
-        where: ['done=0', 'list = ?'],
+        where: ['t.done=0', 't.list = ?'],
         params: [listName],
-        order: `CASE WHEN sort_order > 0 THEN 0 ELSE 1 END ASC, sort_order ASC, ${PRIORITY_ORDER}, todo_date ASC, todo_time ASC`,
+        order: `CASE WHEN t.sort_order > 0 THEN 0 ELSE 1 END ASC, t.sort_order ASC, ${PRIORITY_ORDER_T}, t.todo_date ASC, t.todo_time ASC`,
       };
     default:
       return null;
@@ -74,9 +76,25 @@ function mapTodo(r, today) {
     remind: !!r.remind,
     done: !!r.done,
     completedAt: r.completed_at || '',
+    stepsTotal: r.steps_total || 0,
+    stepsDone: r.steps_done || 0,
     overdue: !!r.todo_date && !r.done && r.todo_date < today,
     isToday: r.todo_date === today,
   };
+}
+
+// 步骤清洗：[{content, done}]，超长裁剪、空内容丢弃
+const cleanSteps = (arr) =>
+  Array.isArray(arr)
+    ? arr.map((s, i) => ({ content: String((s && s.content) || '').trim().slice(0, 60), done: s && s.done ? 1 : 0, ord: i })).filter((s) => s.content)
+    : null;   // null = 未提供，不动库
+
+// steps 落库（delete-and-rebuild，随主写入同批原子执行）
+function stepsStatements(env, todoId, steps) {
+  return [
+    env.DB.prepare('DELETE FROM todo_steps WHERE todo_id=?').bind(todoId),
+    ...steps.map((s) => env.DB.prepare('INSERT INTO todo_steps(todo_id, content, done, sort_order) VALUES (?,?,?,?)').bind(todoId, s.content, s.done, s.ord)),
+  ];
 }
 
 // GET /api/todos
@@ -101,23 +119,25 @@ export async function onRequestGet(context) {
     const where = [];
     const params = [];
     if (legacyScope === 'all') {
-      where.push('done=0');
+      where.push('t.done=0');
     } else {
-      where.push('done=0', '(todo_date = ? OR todo_date < ?)');
+      where.push('t.done=0', '(t.todo_date = ? OR t.todo_date < ?)');
       params.push(today, today);
     }
     if (priorities.length) {
-      where.push(`priority IN (${priorities.map(() => '?').join(',')})`);
+      where.push(`t.priority IN (${priorities.map(() => '?').join(',')})`);
       params.push(...priorities);
     }
     if (legacyList && names.includes(legacyList)) {
-      where.push('list = ?');
+      where.push('t.list = ?');
       params.push(legacyList);
     }
     const rows = (await env.DB.prepare(
-      `SELECT id,title,todo_date,todo_time,list,priority,important,urgent,note,remind,done,star,my_day_date,repeat_rule,completed_at
-       FROM todos WHERE ${where.join(' AND ')}
-       ORDER BY ${PRIORITY_ORDER}, todo_date ASC, todo_time ASC`
+      `SELECT t.id,t.title,t.todo_date,t.todo_time,t.list,t.priority,t.important,t.urgent,t.note,t.remind,t.done,t.star,t.my_day_date,t.repeat_rule,t.completed_at,
+        (SELECT COUNT(*) FROM todo_steps s WHERE s.todo_id=t.id) AS steps_total,
+        (SELECT SUM(CASE WHEN s.done=1 THEN 1 ELSE 0 END) FROM todo_steps s WHERE s.todo_id=t.id) AS steps_done
+       FROM todos t WHERE ${where.join(' AND ')}
+       ORDER BY CASE t.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END ASC, t.todo_date ASC, t.todo_time ASC`
     ).bind(...params).all()).results || [];
     const allRows = (await env.DB.prepare(
       `SELECT priority FROM todos WHERE done=0 AND (todo_date = ? OR todo_date < ?)`
@@ -141,7 +161,7 @@ export async function onRequestGet(context) {
   const cntWhere = [...base.where];
   const cntParams = [...base.params];
   const cntRows = (await env.DB.prepare(
-    `SELECT priority FROM todos WHERE ${cntWhere.join(' AND ')}`
+    `SELECT t.priority FROM todos t WHERE ${cntWhere.join(' AND ')}`
   ).bind(...cntParams).all()).results || [];
   const counts = { P0: 0, P1: 0, P2: 0, P3: 0 };
   cntRows.forEach((r) => { if (counts[r.priority] !== undefined) counts[r.priority]++; });
@@ -159,13 +179,15 @@ export async function onRequestGet(context) {
   let where = [...base.where];
   let params = [...base.params];
   if (view !== 'myday' && view !== 'completed' && priorities.length) {
-    where.push(`priority IN (${priorities.map(() => '?').join(',')})`);
+    where.push(`t.priority IN (${priorities.map(() => '?').join(',')})`);
     params.push(...priorities);
   }
   const limitSql = base.limit ? ` LIMIT ${base.limit}` : '';
   const rows = (await env.DB.prepare(
-    `SELECT id,title,todo_date,todo_time,list,priority,important,urgent,note,remind,done,star,my_day_date,repeat_rule,completed_at
-     FROM todos WHERE ${where.join(' AND ')} ORDER BY ${base.order}${limitSql}`
+    `SELECT t.id,t.title,t.todo_date,t.todo_time,t.list,t.priority,t.important,t.urgent,t.note,t.remind,t.done,t.star,t.my_day_date,t.repeat_rule,t.completed_at,
+      (SELECT COUNT(*) FROM todo_steps s WHERE s.todo_id=t.id) AS steps_total,
+      (SELECT SUM(CASE WHEN s.done=1 THEN 1 ELSE 0 END) FROM todo_steps s WHERE s.todo_id=t.id) AS steps_done
+     FROM todos t WHERE ${where.join(' AND ')} ORDER BY ${base.order}${limitSql}`
   ).bind(...params).all()).results || [];
 
   return json({
@@ -227,12 +249,16 @@ export async function onRequestPost(context) {
   }
   const meta = PRIORITY_META[priority];
 
+  const steps = cleanSteps(body.steps);
   const res = await env.DB.prepare(
     'INSERT INTO todos(title, todo_date, todo_time, list, priority, important, urgent, note, remind, done, star, my_day_date, repeat_rule) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)'
   )
     .bind(title, date, time, list, priority, meta.important, meta.urgent, note, remind, star, myDayDate, repeat)
     .run();
   const id = res.meta && res.meta.last_row_id ? res.meta.last_row_id : null;
+  if (id && steps && steps.length) {
+    await env.DB.batch(stepsStatements(env, id, steps));
+  }
   return json({ ok: true, id, todo: { id, title, date, time, list, priority, priorityDesc: meta.desc, star: !!star, repeat } }, 201);
 }
 
@@ -257,7 +283,7 @@ export async function onRequestPut(context) {
   }
   const meta = PRIORITY_META[priority];
 
-  await env.DB.prepare(
+  const mainStmt = env.DB.prepare(
     'UPDATE todos SET title=?, todo_date=?, todo_time=?, list=?, priority=?, important=?, urgent=?, note=?, remind=?, star=?, repeat_rule=? WHERE id=?'
   )
     .bind(
@@ -273,7 +299,13 @@ export async function onRequestPut(context) {
       body.star ? 1 : 0,
       cleanRepeat(body.repeat),
       id
-    )
-    .run();
+    );
+  const steps = cleanSteps(body.steps);
+  if (steps) {
+    // 步骤随编辑单请求原子重写（传了 steps 数组 = 全量覆盖，空数组 = 清空）
+    await env.DB.batch([mainStmt, ...stepsStatements(env, id, steps)]);
+  } else {
+    await mainStmt.run();
+  }
   return json({ ok: true, id, priority });
 }

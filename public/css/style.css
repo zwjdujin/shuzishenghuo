@@ -1848,3 +1848,31 @@ body.pf-sample #pfEditBtn,body.pf-sample #pfDelete{display:none!important}
   .todo-row .todo-check{width:28px;height:28px}
   .todo-main b{font-size:13.5px}
 }
+
+/* v0.5.53 步骤子任务 / 编辑弹窗 / 拖拽排序 */
+.todo-row{flex-wrap:wrap}
+.todo-row .todo-handle{cursor:grab;color:var(--muted)}
+.todo-row .todo-handle:active{cursor:grabbing}
+.todo-pill.ok{background:var(--sage-soft);color:var(--sage)}
+.todo-steps-box{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;margin-top:8px}
+.ts-row{display:flex;align-items:center;gap:8px;font-size:13px}
+.ts-row .ts-text{flex:1;min-width:0;overflow-wrap:anywhere}
+.ts-row.done .ts-text{opacity:.5;text-decoration:line-through}
+.ts-check{width:22px;height:22px;flex:0 0 auto;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--sage);display:grid;place-items:center;padding:0}
+.ts-check svg{width:12px;height:12px;opacity:0}
+.ts-row.done .ts-check{background:var(--sage-soft)}
+.ts-row.done .ts-check svg{opacity:1}
+.ts-add{display:flex;gap:8px;margin-top:2px}
+.ts-add .inp{flex:1;min-width:0}
+.todo-edit-btn{align-self:flex-start;margin-top:2px}
+.step-editor{display:flex;flex-direction:column;gap:6px}
+.step-row{display:flex;align-items:center;gap:8px}
+.step-row .step-done{width:16px;height:16px;flex:0 0 auto;accent-color:var(--plum)}
+.step-row .inp{flex:1;min-width:0}
+@media(max-width:860px){
+  .todo-row .todo-main{flex:1 1 200px}
+  .todo-steps-box{margin-left:2px}
+  /* 手机端收起拖拽手柄与闹钟钮（闹钟移至步骤展开区），缓解按钮挤压 */
+  .todo-row .todo-handle,
+  .todo-row .icon-btn.alarm{display:none}
+}

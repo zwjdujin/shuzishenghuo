@@ -199,7 +199,7 @@ export async function onRequestGet(context) {
   }
 
   return json({
-    version: '0.5.52',
+    version: '0.5.53',
     brand,
     appearance,
     today,

@@ -2196,18 +2196,22 @@ async function relsetAdd() {
   else toast((await res.json().catch(() => ({}))).error || '添加失败');
 }
 
-/** 同级拖动排序通用实现（v0.5.49 合并词库/档案目录两份逐行相同副本；与账本分类管理同一套交互） */
-function pfBindSortable(scope, onOrder) {
+/** 同级拖动排序通用实现（v0.5.49 合并词库/档案目录两份逐行相同副本；与账本分类管理同一套交互。
+    v0.5.53 泛化：opts.rowSel/handleSel/key 可定制行/手柄选择器与排序键，默认兼容 ls-row/ls-handle/word） */
+function pfBindSortable(scope, onOrder, opts = {}) {
   if (!scope || scope.dataset.dragBound) return;
   scope.dataset.dragBound = '1';
+  const rowCls = (opts.rowSel || '.ls-row').slice(1);
+  const handleSel = opts.handleSel || '.ls-handle';
+  const key = opts.key || 'word';
   scope.addEventListener('pointerdown', (e) => {
-    const handle = e.target.closest('.ls-handle');
+    const handle = e.target.closest(handleSel);
     if (!handle) return;
     e.preventDefault();
     try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-    const row = handle.closest('.ls-row');
+    const row = handle.closest(rowCls);
     if (!row) return;
-    const rows = Array.from(scope.children).filter((el) => el.classList.contains('ls-row'));
+    const rows = Array.from(scope.children).filter((el) => el.classList.contains(rowCls));
     const rect = row.getBoundingClientRect();
     const holder = document.createElement('div');
     holder.className = 'ls-holder';
@@ -2239,7 +2243,7 @@ function pfBindSortable(scope, onOrder) {
       holder.parentElement.insertBefore(row, holder);
       holder.remove();
       row.style.cssText = '';
-      if (onOrder) onOrder(Array.from(scope.querySelectorAll('.ls-row')).map((r) => r.dataset.word || r.dataset.mod));
+      if (onOrder) onOrder(Array.from(scope.querySelectorAll('.' + rowCls)).map((r) => r.dataset[key] || r.dataset.word || r.dataset.mod));
     };
     handle.addEventListener('pointermove', onMove);
     handle.addEventListener('pointerup', onUp);

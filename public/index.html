@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/7b0312b7/css/style.css">
+  <link rel="stylesheet" href="./assets/fce02c80/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -64,7 +64,7 @@
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4Z"/><circle cx="19" cy="5" r="1.4"/><circle cx="5" cy="19" r="1.4"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.8l5.9-.9Z"/></symbol>
-    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></symbol>
+    <symbol id="i-handle" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h3l2-2h6l2 2h3v13H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
     <symbol id="i-magnifier" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8-8"/><path d="M15 8l2.5 2.5"/><path d="M18.5 4.5 21 7"/></symbol>
@@ -997,15 +997,15 @@
     </div>
   </div>
 
-  <!-- 新增待办弹窗 -->
+  <!-- 新增/编辑待办弹窗（v0.5.53 两用 + 重复规则 + 步骤） -->
   <div class="modal-overlay" id="todoModal" hidden>
     <div class="modal-card">
       <div class="modal-head">
-        <h3>新增待办</h3>
+        <h3 id="todoModalTitle">新增待办</h3>
         <button class="icon-btn" id="todoModalClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
       </div>
       <form id="todoForm">
-        <label class="field"><span>待办内容</span><input name="title" maxlength="30" placeholder="例如：预约牙科检查" required></label>
+        <label class="field"><span>待办内容</span><input name="title" maxlength="60" placeholder="例如：预约牙科检查" required></label>
         <div class="field-row">
           <label class="field"><span>日期</span>
             <input type="hidden" name="date" id="tdDateInput">
@@ -1028,8 +1028,16 @@
             <label class="prio-item" data-p="P3"><input type="radio" name="priority" value="P3"><b>P3</b><small>不重要不紧急</small></label>
           </div>
         </label>
+        <label class="field"><span>重复</span>
+          <div class="tf-chips" id="repeatChips"></div>
+          <div class="tf-chips" id="repeatDays" style="margin-top:6px" hidden></div>
+        </label>
+        <div class="field"><span>步骤</span>
+          <div id="stepEditor" class="step-editor"></div>
+          <button class="btn ghost sm" id="stepAddBtn" type="button" style="margin-top:6px"><svg><use href="#i-plus"/></svg>添加步骤</button>
+        </div>
         <div class="field-row">
-          <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
+          <label class="field"><span>备注</span><input name="note" maxlength="200" placeholder="选填"></label>
           <label class="field"><span>重要</span><label class="check-line" style="margin:0"><input type="checkbox" name="star"><span>⭐ 星标重要</span></label></label>
         </div>
         <button class="btn primary full" type="submit">添加待办</button>
@@ -1467,8 +1475,8 @@
   </div>
 
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
-  <script src="./assets/3d3ad651/js/profile.js"></script>
+  <script src="./assets/f27ea80c/js/profile.js"></script>
   <script src="./assets/73393a67/js/medicine.js"></script>
-  <script src="./assets/e47c4f68/js/app.js"></script>
+  <script src="./assets/b1e3dc37/js/app.js"></script>
 </body>
 </html>
