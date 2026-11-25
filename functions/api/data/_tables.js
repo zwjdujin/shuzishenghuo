@@ -6,6 +6,8 @@ export const TABLE_LABELS = {
   habits: '成长打卡 · 习惯',
   habit_logs: '成长打卡 · 打卡记录',
   todos: '待办提醒',
+  todo_lists: '待办提醒 · 清单',
+  todo_steps: '待办提醒 · 步骤',
   checklist_groups: '待办清单',
   checklist_items: '待办清单 · 条目',
   transactions: '我的账本',

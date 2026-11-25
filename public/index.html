@@ -35,7 +35,7 @@
   })();
   </script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234d3045'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-size='34' fill='white'%3E数%3C/text%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/d2b97012/css/style.css">
+  <link rel="stylesheet" href="./assets/7b0312b7/css/style.css">
   <title>数字生活 · 个人工作台</title>
 </head>
 <body>
@@ -63,6 +63,8 @@
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4Z"/><circle cx="19" cy="5" r="1.4"/><circle cx="5" cy="19" r="1.4"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.6 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.8l5.9-.9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></symbol>
     <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h3l2-2h6l2 2h3v13H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
     <symbol id="i-magnifier" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></symbol>
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8-8"/><path d="M15 8l2.5 2.5"/><path d="M18.5 4.5 21 7"/></symbol>
@@ -283,28 +285,38 @@
           <div id="growthHeatmap" class="heatmap-wrap"></div>
         </article>
       </section>
-      <!-- 待办提醒（v0.2.7 今日待办） -->
+      <!-- 待办提醒（v0.2.7 今日待办 → v0.5.52 待办中心） -->
       <section class="view" id="view-todos" data-title="待办提醒">
         <div class="growth-head">
-          <div><p class="eyebrow">待办提醒</p><h2>今日待办</h2></div>
+          <div><p class="eyebrow">待办提醒</p><h2>待办中心</h2></div>
           <!-- v0.5.8：开启待办通知移入页头（新增待办左侧）；原先在筛选面板"提醒"行 -->
           <div class="gh-actions">
             <button class="btn ghost" id="enableNotifyBtn" type="button"><svg><use href="#i-bell"/></svg>开启待办通知</button>
             <button class="btn primary" id="addTodoBtn" type="button"><svg><use href="#i-plus"/></svg>新增待办</button>
           </div>
         </div>
-        <article class="panel todo-filter-panel">
+        <article class="panel todo-nav-panel">
           <div class="tf-row">
+            <span class="tf-label">视图</span>
+            <div class="tf-chips" id="todoViewChips"></div>
+          </div>
+          <div class="tf-row">
+            <span class="tf-label">清单</span>
+            <div class="tf-chips" id="todoListChips"></div>
+          </div>
+          <div class="tf-row" id="tfPrioRow" hidden>
             <span class="tf-label">优先级</span>
             <div class="tf-chips" id="tfPriority"></div>
           </div>
-          <div class="tf-row">
-            <span class="tf-label">类别</span>
-            <div class="tf-chips" id="tfList"></div>
-          </div>
         </article>
         <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">今日待办</p><h2>专注完成今天的安排</h2></div><span class="muted" id="todoCount"></span></div>
+          <div class="panel-head">
+            <div><p class="eyebrow" id="todoViewEyebrow">我的一天</p><h2 id="todoViewTitle">专注今天的安排</h2></div>
+            <div class="gh-actions">
+              <span class="muted" id="todoCount"></span>
+              <button class="btn ghost" id="clearCompletedBtn" type="button" hidden>清空已完成</button>
+            </div>
+          </div>
           <div id="todoList" class="todo-stack"></div>
         </article>
         <!-- v0.5.29 待办清单：自定义清单（徒步装备 / 过年回家…），未备齐的排前面 -->
@@ -1016,10 +1028,29 @@
             <label class="prio-item" data-p="P3"><input type="radio" name="priority" value="P3"><b>P3</b><small>不重要不紧急</small></label>
           </div>
         </label>
-        <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
+        <div class="field-row">
+          <label class="field"><span>备注</span><input name="note" maxlength="40" placeholder="选填"></label>
+          <label class="field"><span>重要</span><label class="check-line" style="margin:0"><input type="checkbox" name="star"><span>⭐ 星标重要</span></label></label>
+        </div>
         <button class="btn primary full" type="submit">添加待办</button>
         <p class="login-error" id="todoFormError" hidden></p>
       </form>
+    </div>
+  </div>
+
+  <!-- 清单管理弹窗（v0.5.52：正式清单 图标/颜色/重命名/删除归并） -->
+  <div class="modal-overlay" id="todoListsModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>管理清单</h3>
+        <button class="icon-btn" id="todoListsClose" type="button" aria-label="关闭"><svg><use href="#i-x"/></svg></button>
+      </div>
+      <div id="tlistsBody" class="tlists-body"></div>
+      <div class="ledset-add">
+        <input class="inp" id="tlistNewName" maxlength="20" placeholder="新清单名称，如「旅行」">
+        <button class="btn ghost" id="tlistAddBtn" type="button"><svg><use href="#i-plus"/></svg>新建</button>
+      </div>
+      <p class="ts-hint">点图标换 emoji、点色点换颜色、点名称重命名；删除清单时其中的待办会归并到「生活」。</p>
     </div>
   </div>
 
@@ -1438,6 +1469,6 @@
   <script src="./assets/c5cb3fe4/js/lunar.js"></script>
   <script src="./assets/3d3ad651/js/profile.js"></script>
   <script src="./assets/73393a67/js/medicine.js"></script>
-  <script src="./assets/dda40b2c/js/app.js"></script>
+  <script src="./assets/e47c4f68/js/app.js"></script>
 </body>
 </html>
