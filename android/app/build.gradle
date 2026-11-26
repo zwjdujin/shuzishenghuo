@@ -31,8 +31,8 @@ android {
         // 与 package.json 保持一致，发版时由 scripts/release.mjs 自动同步。
         // v0.5.56 起 versionCode = major*10000 + minor*100 + patch（单调递增；
         // 旧的去点拼接会在 0.6.0 → 60 时相对 0.5.55 → 555 倒退，导致无法覆盖安装）
-        versionCode 557
-        versionName "0.5.57"
+        versionCode 558
+        versionName "0.5.58"
     }
 
     signingConfigs {

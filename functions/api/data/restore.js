@@ -114,6 +114,13 @@ export async function onRequestPost(context) {
   }
   const unknownTables = Object.keys(backupTables).filter((n) => !TABLE_LABELS[n] || EXCLUDE.has(n));
   if (unknownTables.length) warnings.push(`备份里 ${unknownTables.length} 张表不属于当前业务表（如 ${unknownTables.slice(0, 3).join('、')}），将被跳过`);
+  // 备份里带、但当前库没有的已知业务表（如新版备份导入旧版部署）：如实告知整表跳过
+  const absentKnown = Object.keys(TABLE_LABELS)
+    .filter((n) => !EXCLUDE.has(n) && n !== 'push_subscriptions' && !existing.includes(n)
+      && Array.isArray(backupTables[n]) && backupTables[n].length);
+  if (absentKnown.length) {
+    warnings.push(`当前库没有「${absentKnown.slice(0, 3).map(labelOf).join('」「')}」表（可能是版本差异），其 ${absentKnown.reduce((s, n) => s + backupTables[n].length, 0)} 行数据不会被恢复`);
+  }
 
   const settingsKeys = (body.settings && typeof body.settings === 'object')
     ? Object.keys(body.settings).filter((k) => !SETTINGS_SKIP.has(k))

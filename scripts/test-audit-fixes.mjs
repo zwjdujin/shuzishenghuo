@@ -78,6 +78,20 @@ function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
   check('日程 2026-13-45 10:00 → 400', r.status === 400);
   r = await api('/api/events?from=2026-13-45&to=2026-12-01', {});
   check('日历查询 from=2026-13-45 → 400（旧代码 500）', r.status === 400, `got ${r.status}`);
+  // v0.5.58 回归：合法时刻入库须规范成 'HH:MM'（v0.5.56 曾把 '9:30' 写成 '00009' 且丢分钟）
+  r = await api('/api/events', { method: 'POST', headers: JH, body: JSON.stringify({ title: '审计-带时刻日程', start: '2026-01-05 9:30', calendar: '生活' }) });
+  const evOk = r.status === 201;
+  check('日程合法带时刻 9:30 → 201', evOk, `got ${r.status}`);
+  const evId = evOk ? (await j(r)).id : null;
+  if (evId) {
+    const g = await j(await api('/api/events?from=2026-01-05&to=2026-01-06', {}));
+    const row = (g.events || []).find((e) => e.id === evId);
+    check('日程时刻入库为 2026-01-05 09:30', !!row && row.start === '2026-01-05 09:30', `got ${row && row.start}`);
+    const del = await api(`/api/events?id=${evId}`, { method: 'DELETE', headers: JH });
+    check('清理回归日程', del.ok, `got ${del.status}`);
+  } else {
+    check('日程时刻入库为 2026-01-05 09:30', false, '上一条创建失败，无法校验');
+  }
 }
 
 // ===== 4. P1-3 + P2-18：分类改名/删除联动 =====

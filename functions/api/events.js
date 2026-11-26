@@ -86,7 +86,9 @@ const cleanStart = (s) => {
   if (!m || !isYmd(m[1])) return null;
   if (!m[3]) return m[1];
   if (Number(m[3]) > 23 || Number(m[4]) > 59) return null;
-  return `${m[1]} ${m[3].padStart(5, '0')}`;
+  // v0.5.58 修：m[3] 自本版起只捕获「小时」，须自行拼回 HH:MM——沿用旧版对「H:MM 整体」的
+  // padStart(5) 会得到 '00009' 且分钟丢失，所有带时刻的日程入库即损坏（v0.5.56 引入）
+  return `${m[1]} ${m[3].padStart(2, '0')}:${m[4]}`;
 };
 
 // POST /api/events —— 新增事件

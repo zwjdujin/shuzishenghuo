@@ -92,7 +92,14 @@ export async function onRequestPost(context) {
       await env.DB.batch(steps.map((s, i) => env.DB.prepare('INSERT INTO todo_steps(todo_id, content, done, sort_order) VALUES (?, ?, 0, ?)').bind(nextId, s.content, i)));
     }
   } catch (e) {
-    // 下一实例没生成成功 → 撤回「已完成」，让用户可以重试：宁可少标一次完成，也不能把下一期弄丢
+    // 下一实例没生成成功 → 清掉可能已建出的半截实例（主行已插入但步骤克隆失败时，留下它会让
+    // 用户重试再生成一条），再撤回「已完成」，让用户可以重试：宁可少标一次完成，也不能把下一期弄丢
+    if (nextId) {
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM todo_steps WHERE todo_id=?').bind(nextId),
+        env.DB.prepare('DELETE FROM todos WHERE id=?').bind(nextId),
+      ]).catch(() => {});
+    }
     await env.DB.prepare('UPDATE todos SET done=0, completed_at=NULL WHERE id=?').bind(id).run().catch(() => {});
     console.error('repeat next instance failed:', e && e.message);
     return json({ error: '标记完成失败，请重试' }, 500);
