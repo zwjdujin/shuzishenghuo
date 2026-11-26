@@ -33,3 +33,6 @@ android/app/release.keystore
 android/app/release.keystore.old-leaked
 android/keystore.properties
 android/local.properties
+
+# 官网仅保留本地（2026-11-26 用户要求从仓库下架），历史提交中仍有旧内容
+website/
