@@ -27,7 +27,7 @@
     <a class="brand" href="#top">
       <span class="brand-seal" aria-hidden="true">数</span>
       <span class="brand-name">数字生活</span>
-      <span class="brand-ver">v0.5.19</span>
+      <span class="brand-ver" hidden></span>
     </a>
     <nav class="nav-links" id="navLinks" aria-label="页面导航">
       <a href="#features">功能</a>
@@ -232,9 +232,9 @@
     <div class="why-row rev reveal">
       <div class="why-copy">
         <h3>📱 手机秒变 APP</h3>
-        <p>纯浏览器访问，手机浏览器「添加到主屏幕」即可全屏使用（PWA）；也可以打包成 TWA 安装包（APK）侧载。配合 Web Push 推送：待办与服药到点提醒、生日问候、保持联系、药品临期，一个不落。</p>
+        <p>纯浏览器访问，手机浏览器「添加到主屏幕」即可全屏使用（PWA）；也可以打包成 APP 安装包（APK）侧载。配合 Web Push 推送：待办与服药到点提醒、生日问候、保持联系、药品临期，一个不落。</p>
         <ul class="chip-list">
-          <li>添加到主屏幕</li><li>全屏 PWA</li><li>Web Push 推送</li><li>TWA 打包 APK</li>
+          <li>添加到主屏幕</li><li>全屏 PWA</li><li>Web Push 推送</li><li>WebView 壳 APK</li>
         </ul>
       </div>
       <div class="why-visual" aria-hidden="true">
@@ -263,15 +263,38 @@
       </div>
     </div>
   </div>
-
-  <div class="container">
-    <p class="why-quote reveal">「记住生活，不必把生活交给别人。」</p>
-  </div>
 </section>
 
 <!-- 部署 -->
 <section class="section deploy" id="deploy">
   <div class="container">
+    <div class="sec-head reveal">
+      <p class="kicker">AI 部署</p>
+      <h2>一句话，让AI快速部署</h2>
+    </div>
+
+    <div class="agent-deploy reveal">
+      <div class="agent-head">
+        <h3>🤖 不想动手？把部署交给 AI Agent</h3>
+        <p>将下方提示词整段复制，发送给你的 AI 编码助手（如 ZCode、Claude Code、Cursor 等），由它代你完成部署。执行过程中如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。</p>
+      </div>
+      <div class="agent-box">
+        <button class="copy-btn" type="button" data-copy-target="agentPrompt">复制提示词</button>
+        <pre id="agentPrompt"><code>请在线完成「数字生活」部署：
+1. Fork https://github.com/zwjdujin/shuzishenghuo 到我的 GitHub 账号。
+2. 在我的 Cloudflare 账号中创建 D1 数据库 shuzishenghuo 与 R2 存储桶
+   shuzishenghuo，并把数据库 ID 写入仓库的 wrangler.toml。
+3. 将该 Fork 导入 Cloudflare Pages：生产分支 main，构建命令留空，
+   构建输出目录 public。
+4. 为 Pages 项目添加环境变量 ADMIN_USER、ADMIN_PASS、SESSION_SECRET
+   （强密码与随机长字符串），并绑定 D1 数据库为 DB、R2 存储桶为 BUCKET。
+5. 执行 wrangler d1 migrations apply shuzishenghuo --remote 初始化数据库；
+   打开站点，用设置的用户名密码验证登录成功。
+6. 完成后提醒我：如需推送提醒与 AI 速记，分别参考 PUSH_SETUP.md 和
+   站内「个人中心 → 智能管理」进行可选配置。</code></pre>
+      </div>
+    </div>
+
     <div class="sec-head reveal">
       <p class="kicker">部署上线</p>
       <h2>约 20 分钟，把站点搬进你的账号</h2>
@@ -326,28 +349,6 @@
         </div>
       </li>
     </ol>
-
-    <div class="agent-deploy reveal">
-      <div class="agent-head">
-        <h3>🤖 不想动手？把部署交给 AI Agent</h3>
-        <p>将下方提示词整段复制，发送给你的 AI 编码助手（如 ZCode、Claude Code、Cursor 等），由它代你完成部署。执行过程中如需访问 GitHub 或 Cloudflare，请确认权限范围并按提示完成授权。</p>
-      </div>
-      <div class="agent-box">
-        <button class="copy-btn" type="button" data-copy-target="agentPrompt">复制提示词</button>
-        <pre id="agentPrompt"><code>请在线完成「数字生活」部署：
-1. Fork https://github.com/zwjdujin/shuzishenghuo 到我的 GitHub 账号。
-2. 在我的 Cloudflare 账号中创建 D1 数据库 shuzishenghuo 与 R2 存储桶
-   shuzishenghuo，并把数据库 ID 写入仓库的 wrangler.toml。
-3. 将该 Fork 导入 Cloudflare Pages：生产分支 main，构建命令留空，
-   构建输出目录 public。
-4. 为 Pages 项目添加环境变量 ADMIN_USER、ADMIN_PASS、SESSION_SECRET
-   （强密码与随机长字符串），并绑定 D1 数据库为 DB、R2 存储桶为 BUCKET。
-5. 执行 wrangler d1 migrations apply shuzishenghuo --remote 初始化数据库；
-   打开站点，用设置的用户名密码验证登录成功。
-6. 完成后提醒我：如需推送提醒与 AI 速记，分别参考 PUSH_SETUP.md 和
-   站内「个人中心 → 智能管理」进行可选配置。</code></pre>
-      </div>
-    </div>
 
     <div class="oneclick reveal">
       <div class="oc-head">

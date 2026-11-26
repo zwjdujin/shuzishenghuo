@@ -111,6 +111,42 @@
     document.body.removeChild(ta);
   }
 
+  /* 版本号：实时读取 GitHub 仓库 package.json 的 version，取不到则保持隐藏（不显示过期版本）。
+     jsDelivr 在大陆可达性好（官网受众主要在大陆），raw.githubusercontent.com 作兜底；
+     每个源 6 秒超时，全部失败时徽章保持隐藏。 */
+  var verEls = document.querySelectorAll('.brand-ver');
+  if (verEls.length && typeof fetch === 'function') {
+    var VER_SOURCES = [
+      'https://cdn.jsdelivr.net/gh/zwjdujin/shuzishenghuo@main/package.json',
+      'https://raw.githubusercontent.com/zwjdujin/shuzishenghuo/main/package.json'
+    ];
+    var fetchVersion = function (i) {
+      if (i >= VER_SOURCES.length) return Promise.reject(new Error('no source available'));
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 6000) : null;
+      return fetch(VER_SOURCES[i], ctrl ? { signal: ctrl.signal } : undefined)
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+        .then(function (d) {
+          var v = d && d.version;
+          if (!v) throw new Error('no version field');
+          return 'v' + String(v).replace(/^v/i, '');
+        })
+        .then(function (text) {
+          if (timer) clearTimeout(timer);
+          return text;
+        }, function (err) {
+          if (timer) clearTimeout(timer);
+          return fetchVersion(i + 1);
+        });
+    };
+    fetchVersion(0).then(function (text) {
+      verEls.forEach(function (el) {
+        el.textContent = text;
+        el.hidden = false;
+      });
+    }).catch(function () { /* 全部源失败：静默，徽章保持隐藏 */ });
+  }
+
   /* 年份 */
   var year = document.getElementById('year');
   if (year) year.textContent = new Date().getFullYear();

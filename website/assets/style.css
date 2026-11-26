@@ -183,7 +183,6 @@ code,pre,.mono{font-family:var(--mono)}
 .why-copy p{color:var(--muted);font-size:15px;margin-bottom:18px}
 .chip-list{display:flex;flex-wrap:wrap;gap:9px;list-style:none}
 .chip-list li{background:rgba(51,224,255,.07);border:1px solid rgba(51,224,255,.22);color:#bfe9f5;font-family:var(--mono);font-size:12px;font-weight:600;border-radius:99px;padding:5px 13px}
-.why-quote{text-align:center;font-family:var(--serif);font-size:clamp(19px,2.6vw,24px);margin-top:40px;letter-spacing:.1em;background:linear-gradient(110deg,var(--gold),#fff 45%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
 
 /* 为什么 - 数据金库卡 */
 .vault-card{background:var(--panel-strong);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-md);padding:24px;backdrop-filter:blur(8px)}
@@ -212,7 +211,7 @@ code,pre,.mono{font-family:var(--mono)}
 .ai-out span{background:rgba(51,224,255,.08);border:1px solid rgba(51,224,255,.25);color:#bfe9f5;font-family:var(--mono);font-size:12.5px;border-radius:99px;padding:7px 15px;width:fit-content}
 
 /* ---------- 部署 ---------- */
-.deploy{background:linear-gradient(180deg,transparent,rgba(18,26,52,.55) 40%,rgba(18,26,52,.55))}
+.deploy{background:linear-gradient(180deg,transparent,rgba(18,26,52,.55) 40%,rgba(18,26,52,.55));padding-top:32px}
 .steps{display:grid;grid-template-columns:1fr 1fr;gap:18px;list-style:none}
 .step{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 24px 22px;display:flex;gap:16px;transition:transform .25s,box-shadow .25s,border-color .25s;backdrop-filter:blur(8px)}
 .step:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--line-bright)}
@@ -231,7 +230,7 @@ code,pre,.mono{font-family:var(--mono)}
 .copy-btn{position:absolute;top:12px;right:12px;background:rgba(51,224,255,.14);border:1px solid rgba(51,224,255,.4);color:var(--cyan);font-family:var(--mono);font-size:12px;font-weight:700;border-radius:8px;padding:6px 13px;cursor:pointer;transition:background .2s,color .2s}
 .copy-btn:hover{background:rgba(51,224,255,.26)}
 .copy-btn.copied{background:rgba(255,206,125,.18);border-color:rgba(255,206,125,.5);color:var(--gold)}
-.oneclick{margin:0 0 40px;background:#04070f;border:1px solid rgba(126,156,255,.2);border-radius:18px;padding:30px 32px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+.oneclick{margin:44px 0 40px;background:#04070f;border:1px solid rgba(126,156,255,.2);border-radius:18px;padding:30px 32px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
 .oc-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;margin-bottom:16px}
 .oc-head h3{color:#f0f4fd;font-size:19px}
 .oc-head p{color:var(--muted);font-size:13.5px}
@@ -369,6 +368,7 @@ code,pre,.mono{font-family:var(--mono)}
   .agent-box code{white-space:pre-wrap;overflow-wrap:anywhere}
   .agent-box pre{padding:50px 16px 16px}
   .section{padding:72px 0}
+  .deploy{padding-top:24px}
   .cost{padding:72px 0}
   .footer-grid{grid-template-columns:1fr 1fr;gap:28px;padding:44px 24px 34px}
   .footer-brand{grid-column:1/-1}
