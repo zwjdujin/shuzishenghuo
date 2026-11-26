@@ -28,5 +28,8 @@ backups/
 .zcode/
 
 # v0.5.56 安卓签名（审计 P1-1）：密钥库与口令不入库；历史提交中的旧密钥已作废
+# .old-leaked 为 v0.5.57 换新密钥时移开的旧泄露密钥残留，同样永不入库
 android/app/release.keystore
+android/app/release.keystore.old-leaked
 android/keystore.properties
+android/local.properties
